@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -262,7 +263,7 @@ class PromptFormatter(ABC):
             prompt = prompt.replace(_mangled(slot), value)
         return self._apply_tokenizer(prompt, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT))
 
-    def encode_dialog(self, turns: list[dict]) -> dict[str, torch.Tensor]:
+    def encode_dialog(self, turns: list[dict], **kwargs) -> dict[str, torch.Tensor]:
         roles = self.get_roles()
         assert len(turns) > 0, "Empty dialog is not supported."
         for turn in turns:

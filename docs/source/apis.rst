@@ -1,15 +1,15 @@
-=========
-NeMo APIs
-=========
+:orphan:
 
-**NOTE: This page is intended for NeMo 1.0 features only.**
+================
+NeMo Speech APIs
+================
 
-You can learn more about the underlying principles of the NeMo codebase in this section.
+You can learn more about the underlying principles of the NeMo Speech codebase in this section.
 
-The `NeMo Framework codebase <https://github.com/NVIDIA/NeMo>`__ is composed of a `core <https://github.com/NVIDIA/NeMo/tree/main/nemo/core>`__ section which contains the main building blocks of the framework, and various `collections <https://github.com/NVIDIA/NeMo/tree/main/nemo/collections>`__ which help you
+The `NeMo Speech codebase <https://github.com/NVIDIA-NeMo/Speech>`__ is composed of a `core <https://github.com/NVIDIA-NeMo/Speech/tree/main/nemo/core>`__ section which contains the main building blocks of the framework, and various `collections <https://github.com/NVIDIA-NeMo/Speech/tree/main/nemo/collections>`__ which help you
 build specialized AI models.
 
-You can learn more about aspects of the NeMo "core" by following the links below:
+You can learn more about aspects of the NeMo Speech "core" by following the links below:
 
 .. toctree::
    :maxdepth: 1
@@ -20,10 +20,9 @@ You can learn more about aspects of the NeMo "core" by following the links below
    core/neural_modules
    core/exp_manager
    core/neural_types
-   core/export
    core/adapters/intro
 
-You can learn more about aspects of the NeMo APIs by following the links below:
+You can learn more about aspects of the NeMo Speech APIs by following the links below:
 
 .. toctree::
    :maxdepth: 1
@@ -34,6 +33,7 @@ You can learn more about aspects of the NeMo APIs by following the links below:
    common/intro
    asr/api
    tts/api
+   audio/api
 
 
 Alternatively, you can jump straight to the documentation for the individual collections:
@@ -42,3 +42,6 @@ Alternatively, you can jump straight to the documentation for the individual col
 
 * :doc:`Text-to-Speech (TTS) <../tts/intro>`
 
+* :doc:`Audio Processing <../audio/intro>`
+
+* :doc:`SpeechLM2 <../speechlm2/intro>`

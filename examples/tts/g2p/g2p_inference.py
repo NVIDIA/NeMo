@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,11 +54,6 @@ class TranscriptionConfig:
     pred_field: Optional[str] = "pred_text"  # name of the field in the output_file to save predictions
     batch_size: int = 32  # Batch size to use for inference
     num_workers: int = 0  # Number of workers to use for DataLoader during inference
-
-    # Config for heteronyms correction
-    pretrained_heteronyms_model: Optional[str] = (
-        None  # Path to a .nemo file or a Name of a pretrained model to disambiguate heteronyms (Optional)
-    )
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)

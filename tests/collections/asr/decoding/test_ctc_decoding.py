@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,9 +18,9 @@ import os
 from functools import cached_property, lru_cache
 from pathlib import Path
 
-import jiwer
 import pytest
 import torch
+from kaldialign import edit_distance
 from omegaconf import DictConfig, open_dict
 
 from nemo.collections.asr.models import ASRModel
@@ -472,7 +473,9 @@ class TestCTCGreedyDecodingCudaGrpahs:
                 cudagraph_timestamps[batch_idx] == actual_timestamps[batch_idx]
             ), f"Timestamps mismatch for batch_idx {batch_idx}"
 
-            wer = jiwer.wer(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx])
+            ref_words = actual_transcripts[batch_idx].split()
+            hyp_words = cudagraph_transcripts[batch_idx].split()
+            wer = edit_distance(ref_words, hyp_words)['total'] / max(len(ref_words), 1)
 
             assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
 

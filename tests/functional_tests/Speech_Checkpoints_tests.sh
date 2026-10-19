@@ -1,4 +1,5 @@
-# Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 CUDA_VISIBLE_DEVICES=0 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/asr/speech_to_text_eval.py \
-    pretrained_name=QuartzNet15x5Base-En \
+    pretrained_name=nvidia/stt_en_fastconformer_ctc_large \
     dataset_manifest=/home/TestData/librispeech/librivox-dev-other.json \
     batch_size=64 \
-    tolerance=0.1012
+    tolerance=0.045

@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -109,7 +110,9 @@ class CTCG2PBPEDataset(Dataset):
                         item[grapheme_field] = item[grapheme_field][:max_source_len]
                         removed_source_max += 1
                     self.data.append(
-                        {"graphemes": item[grapheme_field],}
+                        {
+                            "graphemes": item[grapheme_field],
+                        }
                     )
 
         logging.info(
@@ -123,7 +126,7 @@ class CTCG2PBPEDataset(Dataset):
         return self.data[index]
 
     def map(self, text: str) -> List[int]:
-        """ Creates a mapping from target labels to ids."""
+        """Creates a mapping from target labels to ids."""
         tokens = []
         for word_id, word in enumerate(text.split()):
             tokens.append(self.labels_tkn2id[word])

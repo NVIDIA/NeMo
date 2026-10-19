@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,7 +63,8 @@ class CausalConv2D(nn.Conv2d):
         )
 
     def forward(
-        self, x,
+        self,
+        x,
     ):
         x = F.pad(x, pad=(self._left_padding, self._right_padding, self._left_padding, self._right_padding))
         x = super().forward(x)

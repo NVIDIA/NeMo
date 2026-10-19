@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +25,7 @@ import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.audio.models import AudioToAudioModel
+from nemo.collections.audio.models.audio_to_audio import AudioToAudioModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 

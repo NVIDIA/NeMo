@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +18,8 @@ import threading
 
 
 class Singleton(type):
-    """ Implementation of a generic, tread-safe singleton meta-class.
-        Can be used as meta-class, i.e. will create 
+    """Implementation of a generic, tread-safe singleton meta-class.
+    Can be used as meta-class, i.e. will create
     """
 
     # List of instances - one per class.
@@ -27,7 +28,7 @@ class Singleton(type):
     __lock = threading.Lock()
 
     def __call__(cls, *args, **kwargs):
-        """ Returns singleton instance. A thread safe implementation. """
+        """Returns singleton instance. A thread safe implementation."""
         if cls not in cls.__instances:
             # Enter critical section.
             with cls.__lock:

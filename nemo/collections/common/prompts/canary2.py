@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,6 +82,16 @@ class Canary2PromptFormatter(PromptFormatter):
                 "decodercontext": Modality.Text,
             },
         },
+        # User prompt.
+        # This role is used for injecting partial transcription for the current audio input.
+        # Use it as the last turn in the prompt to allow for resuming the transcription after a ceratin point.
+        # https://github.com/openai/whisper/discussions/117
+        "user_prefix": {
+            "template": "|prefix|",
+            "slots": {
+                "prefix": Modality.Text,
+            },
+        },
         # System's reponse.
         OUTPUT_ROLE: {
             "template": f"|text|{CANARY_EOS}",
@@ -101,6 +112,29 @@ class Canary2PromptFormatter(PromptFormatter):
         return super().encode_turn(
             prompt_template=prompt_template, expected_slots=expected_slots, slot_values=slot_values
         )
+
+    def get_default_dialog_slots(self) -> list[dict]:
+        """
+        Returns a list of dialog turns that can be used as a skeleton to fill with actual slot values.
+        If ``PromptFormatter`` was initialized with ``defaults`` argument, this method will return the
+        defaults. Otherwise, every slot is pre-filled with ``None``.
+        """
+
+        def _get_default_for_role(role: str) -> dict:
+            for turn in self._defaults:
+                if turn["role"] == role:
+                    return turn
+            return {}
+
+        role = "user"
+        return [
+            {
+                "role": role,
+                "slots": {
+                    slot: _get_default_for_role(role).get("slots", {}).get(slot) for slot in self.get_slots(role)
+                },
+            }
+        ]
 
 
 def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[str, str]:
@@ -183,7 +217,7 @@ def canary2(cut: Cut, prompt: Canary2PromptFormatter) -> dict[str, torch.Tensor]
         eos = prompt.tokenizer.eos
     else:  # SPE
         eos = prompt.tokenizer.token_to_id(CANARY_EOS)
-    assert eos > -1, "Invalid tokenizer: tokenizer.token_to_id('{CANARY_EOS}') returned {eos}"
+    assert eos > -1, f"Invalid tokenizer: tokenizer.token_to_id('{CANARY_EOS}') returned {eos}"
     assert (
         ans["answer_ids"][-1].item() == eos
     ), f"Expected the last token in answer_ids to be EOS, but we got {ans['answer_ids']}"

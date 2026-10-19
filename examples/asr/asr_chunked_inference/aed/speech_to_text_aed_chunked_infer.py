@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,9 +100,7 @@ class TranscriptionConfig:
 
     # Chunked configs
     chunk_len_in_secs: float = 40.0  # Chunk length in seconds
-    model_stride: int = (
-        8  # Model downsampling factor, 8 for Citrinet and FasConformer models and 4 for Conformer models.
-    )
+    model_stride: int = 8  # Model downsampling factor, 8 for FastConformer models and 4 for Conformer models.
 
     # Decoding strategy for MultitaskAED models
     decoding: MultiTaskDecodingConfig = field(default_factory=MultiTaskDecodingConfig)

@@ -1,4 +1,5 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,8 +23,7 @@ import pytest
 class TestHydraRunner:
     @pytest.mark.integration
     def test_no_config(self):
-        """"Test app without config - fields missing causes error.
-        """
+        """ "Test app without config - fields missing causes error."""
         # Create system call.
         call = "python tests/hydra/my_app.py"
 
@@ -33,8 +33,7 @@ class TestHydraRunner:
 
     @pytest.mark.integration
     def test_config1(self):
-        """"Test injection of valid config1.
-        """
+        """ "Test injection of valid config1."""
         # Create system call.
         call = "python tests/hydra/my_app.py --config-name config1.yaml"
 
@@ -48,8 +47,7 @@ class TestHydraRunner:
 
     @pytest.mark.integration
     def test_config1_invalid(self):
-        """"Test injection of invalid config1.
-        """
+        """ "Test injection of invalid config1."""
         # Create system call.
         call = "python tests/hydra/my_app.py --config-name config1_invalid.yaml"
 
@@ -59,8 +57,7 @@ class TestHydraRunner:
 
     @pytest.mark.integration
     def test_config2(self):
-        """"Test injection of valid config2 from a different folder.
-        """
+        """ "Test injection of valid config2 from a different folder."""
         # Create system call.
         call = "python tests/hydra/my_app.py --config-path config_subdir --config-name config2.yaml"
 
@@ -74,8 +71,7 @@ class TestHydraRunner:
 
     @pytest.mark.integration
     def test_config2_invalid(self):
-        """"Test injection of invalid config2 from a different folder.
-        """
+        """ "Test injection of invalid config2 from a different folder."""
         # Create system call.
         call = "python tests/hydra/my_app.py --config-path config_subdir --config-name config2_invalid.yaml"
 
@@ -85,8 +81,7 @@ class TestHydraRunner:
 
     @pytest.mark.integration
     def test_config2_filepath_schema(self):
-        """"Test injection of valid config2 - using namepath with schema is prohibited.
-        """
+        """ "Test injection of valid config2 - using namepath with schema is prohibited."""
         # Create system call.
         call = "python tests/hydra/my_app.py --config-name config_subdir/config2_invalid.yaml"
 

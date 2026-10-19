@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +18,6 @@ from typing import List
 import numpy as np
 import omegaconf
 import torch
-from hydra.utils import instantiate
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import DictConfig
@@ -32,7 +32,7 @@ from nemo.collections.tts.parts.utils.helpers import (
     plot_alignment_to_numpy,
 )
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, safe_instantiate
 from nemo.utils import logging, model_utils
 
 HAVE_WANDB = True
@@ -68,8 +68,8 @@ class AlignerModel(NeedsNormalizer, ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.embed = nn.Embedding(num_tokens, cfg.symbols_embedding_dim)
-        self.preprocessor = instantiate(cfg.preprocessor)
-        self.alignment_encoder = instantiate(cfg.alignment_encoder)
+        self.preprocessor = safe_instantiate(cfg.preprocessor)
+        self.alignment_encoder = safe_instantiate(cfg.alignment_encoder)
 
         self.forward_sum_loss = ForwardSumLoss()
         self.bin_loss = BinLoss()
@@ -105,9 +105,9 @@ class AlignerModel(NeedsNormalizer, ModelPT):
                     cfg.text_tokenizer.g2p.heteronyms,
                 )
 
-            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+            text_tokenizer_kwargs["g2p"] = safe_instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
 
-        self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
+        self.tokenizer = safe_instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
     def forward(self, *, spec, spec_len, text, text_len, attn_prior=None):
         with torch.amp.autocast(self.device.type, enabled=False):
@@ -180,7 +180,7 @@ class AlignerModel(NeedsNormalizer, ModelPT):
                         plot_alignment_to_numpy(
                             np.fliplr(np.rot90(attn_soft[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
                         ),
-                        caption=f"attn soft",
+                        caption="attn soft",
                     ),
                 )
 
@@ -189,7 +189,7 @@ class AlignerModel(NeedsNormalizer, ModelPT):
                         plot_alignment_to_numpy(
                             np.fliplr(np.rot90(attn_hard[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
                         ),
-                        caption=f"attn hard",
+                        caption="attn hard",
                     )
                 )
 
@@ -209,7 +209,7 @@ class AlignerModel(NeedsNormalizer, ModelPT):
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None
 
-        dataset = instantiate(
+        dataset = safe_instantiate(
             cfg.dataset,
             text_normalizer=self.normalizer,
             text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
@@ -239,23 +239,4 @@ class AlignerModel(NeedsNormalizer, ModelPT):
             List of available pre-trained models.
         """
         list_of_models = []
-
-        # en-US, ARPABET-based
-        model = PretrainedModelInfo(
-            pretrained_model_name="tts_en_radtts_aligner",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_radtts_aligner/versions/ARPABET_1.11.0/files/Aligner.nemo",
-            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to align text and audio.",
-            class_=cls,
-        )
-        list_of_models.append(model)
-
-        # en-US, IPA-based
-        model = PretrainedModelInfo(
-            pretrained_model_name="tts_en_radtts_aligner_ipa",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_radtts_aligner/versions/IPA_1.13.0/files/Aligner.nemo",
-            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to align text and audio.",
-            class_=cls,
-        )
-        list_of_models.append(model)
-
         return list_of_models

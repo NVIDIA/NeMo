@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +19,9 @@ from typing import Any, Optional
 
 import torch
 
-from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.context_biasing.biasing_multi_model import GPUBiasingMultiModelBase
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.submodules.transducer_decoding.batched_hyps import BatchedHyps
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.utils.cuda_python_utils import check_cuda_python_cuda_graphs_conditional_nodes_supported
 from nemo.utils import logging
@@ -37,14 +40,32 @@ class SeparateGraphsLabelLooping:
 
 @dataclass
 class BatchedLabelLoopingState:
-    """Decoding state to pass between invocations"""
+    """Decoding state to pass between invocations."""
 
     predictor_states: Any
     predictor_outputs: torch.Tensor
     labels: torch.Tensor
     decoded_lengths: torch.Tensor
-    fusion_states_list: list[torch.Tensor] | None = None
+    fusion_states_list: list[torch.Tensor] = field(default_factory=list)
     time_jumps: torch.Tensor | None = None
+
+
+@dataclass
+class BatchedBeamState(BatchedLabelLoopingState):
+    """Decoding state passed between invocations of batched beam-search decoders.
+
+    Inherits predictor/fusion carry-over from :class:`BatchedLabelLoopingState`.
+    For beam search, ``labels`` holds per-beam last labels with shape
+    ``[batch_size, beam_size]``. The optional cross-chunk per-beam fields below are
+    populated after each chunk and used to seed :class:`~nemo.collections.asr.parts.utils.batched_beam_decoding_utils.BatchedBeamHyps`
+    on the next chunk.
+    """
+
+    scores: Optional[torch.Tensor] = None
+    transcript_hash: Optional[torch.Tensor] = None
+    current_lengths_nb: Optional[torch.Tensor] = None
+    last_timestamp_lasts: Optional[torch.Tensor] = None
+    transcript_prefix_hash: Optional[torch.Tensor] = None
 
 
 @dataclass
@@ -55,8 +76,15 @@ class LabelLoopingStateItem:
     predictor_output: torch.Tensor
     label: torch.Tensor
     decoded_length: torch.Tensor
-    fusion_state_list: list[torch.Tensor] | None = None
+    fusion_state_list: list[torch.Tensor] = field(default_factory=list)
     time_jump: torch.Tensor | None = None
+
+
+@dataclass
+class FusionModelWithParams:
+    model: NGramGPULanguageModel | GPUBiasingMultiModelBase
+    alpha: float | None = None
+    is_multi_model: bool = False
 
 
 class GreedyBatchedLabelLoopingComputerBase(WithOptionalCudaGraphs, ABC):
@@ -75,16 +103,23 @@ class GreedyBatchedLabelLoopingComputerBase(WithOptionalCudaGraphs, ABC):
         NO_WHILE_LOOPS = "no_while_loops"  # Decoding with PyTorch while loops + partial Cuda graphs
         NO_GRAPHS = "no_graphs"  # decoding without graphs, stateful implementation, only for testing purposes
 
-    cuda_graphs_mode: Optional[CudaGraphsMode] = None
+    cuda_graphs_mode: Optional[CudaGraphsMode]
+    cuda_graphs_allow_fallback: bool
     max_symbols: Optional[int]
     allow_cuda_graphs: bool
+    biasing_multi_model: GPUBiasingMultiModelBase | None
+    fusion_models: list[NGramGPULanguageModel]
+    fusion_models_alpha: list[float]
 
     def force_cuda_graphs_mode(self, mode: Optional[str | CudaGraphsMode]):
         """
         Method to set graphs mode. Use only for testing purposes.
-        For debugging the algorithm use "no_graphs" mode, since it is impossible to debug CUDA graphs directly.
+        For debugging and testing the algorithm:
+            - use "no_graphs" mode for debugging, since it is impossible to debug CUDA graphs directly.
+            - forced mode disallows fallback to native PyTorch CUDA graphs
         """
         self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
+        self.cuda_graphs_allow_fallback = False
         self.state = None
 
     def maybe_enable_cuda_graphs(self) -> bool:
@@ -124,13 +159,81 @@ class GreedyBatchedLabelLoopingComputerBase(WithOptionalCudaGraphs, ABC):
         self.reset_cuda_graphs_state()
         return True
 
+    def _raise_or_warn_no_while_loop_cuda_graphs(self, error: Exception):
+        """Raise error or warn when full CUDA graph compilation fails."""
+        if not self.cuda_graphs_allow_fallback:
+            raise RuntimeError("Full CUDA graph decoding failed. Mode is forced, raising exception") from error
+        logging.warning(
+            f"Full CUDA graph compilation failed: {error}. "
+            "Falling back to native PyTorch CUDA graphs. Decoding will be slower."
+        )
+
+    # fusion models-related methods
+    @property
+    def per_stream_biasing_enabled(self):
+        return self.biasing_multi_model is not None
+
+    def _all_fusion_models(
+        self, with_multi_model: bool = True
+    ) -> list[NGramGPULanguageModel | GPUBiasingMultiModelBase]:
+        if with_multi_model and self.per_stream_biasing_enabled:
+            return self.fusion_models + [self.biasing_multi_model]
+        return self.fusion_models
+
+    def _all_fusion_models_with_params(self, with_multi_model: bool = True) -> list[FusionModelWithParams]:
+        models_with_params = [
+            FusionModelWithParams(model=model, alpha=alpha, is_multi_model=False)
+            for model, alpha in zip(self.fusion_models, self.fusion_models_alpha)
+        ]
+        if with_multi_model and self.per_stream_biasing_enabled:
+            models_with_params.append(
+                FusionModelWithParams(model=self.biasing_multi_model, alpha=None, is_multi_model=True)
+            )
+        return models_with_params
+
+    def has_fusion_models(self, with_multi_model: bool = True) -> bool:
+        if len(self.fusion_models) > 0:
+            return True
+        return with_multi_model and self.per_stream_biasing_enabled
+
+    def _move_fusion_models_to_device(self, device: torch.device):
+        """
+        Move all fusion models to device.
+        We need to do this since `self` is not nn.Module instance, but owns fusion models (nn.Module instances).
+        """
+        with torch.inference_mode(mode=False):
+            # NB: we avoid inference mode since otherwise all model params/buffers will be inference tensors,
+            # which will make further inplace manipulations impossible
+            # (e.g., `remove_model` for multi-model will throw errors)
+            for fusion_model in self._all_fusion_models():
+                fusion_model.to(device)  # fusion_models is nn.Module, but self is not; need to move manually
+
+    def advance_fusion_models(
+        self, fusion_states_list: list[torch.Tensor], multi_biasing_ids: torch.Tensor | None, float_dtype: torch.dtype
+    ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+        fusion_states_candidates_list = []
+        fusion_scores_list = []
+        for fusion_idx, fusion_model_with_params in enumerate(self._all_fusion_models_with_params()):
+            fusion_scores, fusion_states_candidates = fusion_model_with_params.model.advance(
+                states=fusion_states_list[fusion_idx],
+                **({"model_ids": multi_biasing_ids} if fusion_model_with_params.is_multi_model else {}),
+            )
+            fusion_scores = fusion_scores.to(dtype=float_dtype)
+            if not fusion_model_with_params.is_multi_model:
+                fusion_scores *= fusion_model_with_params.alpha
+            # save fusion scores and states candidates
+            fusion_scores_list.append(fusion_scores)
+            fusion_states_candidates_list.append(fusion_states_candidates)
+        return fusion_scores_list, fusion_states_candidates_list
+
     @abstractmethod
     def torch_impl(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
         prev_batched_state: Optional[BatchedLabelLoopingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedLabelLoopingState]:
+        multi_biasing_ids: Optional[torch.Tensor] = None,
+    ) -> tuple[BatchedHyps, BatchedLabelLoopingState]:
         """
         Pure PyTorch implementation
 
@@ -138,6 +241,7 @@ class GreedyBatchedLabelLoopingComputerBase(WithOptionalCudaGraphs, ABC):
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
             prev_batched_state: previous batched decoding state
+            multi_biasing_ids: optional tensor [Batch] with ids of fused biasing models
         """
         raise NotImplementedError
 
@@ -147,7 +251,8 @@ class GreedyBatchedLabelLoopingComputerBase(WithOptionalCudaGraphs, ABC):
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
         prev_batched_state: Optional[BatchedLabelLoopingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedLabelLoopingState]:
+        multi_biasing_ids: Optional[torch.Tensor] = None,
+    ) -> tuple[BatchedHyps, BatchedLabelLoopingState]:
         """
         Implementation with CUDA graphs.
 
@@ -155,6 +260,7 @@ class GreedyBatchedLabelLoopingComputerBase(WithOptionalCudaGraphs, ABC):
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
             prev_batched_state: previous batched decoding state
+            multi_biasing_ids: optional tensor [Batch] with ids of multi-biasing models
         """
         raise NotImplementedError
 
@@ -201,7 +307,8 @@ class GreedyBatchedLabelLoopingComputerBase(WithOptionalCudaGraphs, ABC):
         x: torch.Tensor,
         out_len: torch.Tensor,
         prev_batched_state: Optional[BatchedLabelLoopingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedLabelLoopingState]:
+        multi_biasing_ids: Optional[torch.Tensor] = None,
+    ) -> tuple[BatchedHyps, BatchedLabelLoopingState]:
         """
         Entry point for the decoding algorithm
 
@@ -209,13 +316,22 @@ class GreedyBatchedLabelLoopingComputerBase(WithOptionalCudaGraphs, ABC):
             x: encoder output
             out_len: encoder output length
             prev_batched_state: previous batched decoding state
+            multi_biasing_ids: optional tensor [Batch] with ids of fused biasing models
         """
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
             # disable CUDA graphs if Mixed Precision is used due to incorrect behavior
             with torch.amp.autocast(device_type="cuda", enabled=False):
                 # TODO(vbataev): fix issue with mixed precision, remove this restriction
                 return self.cuda_graphs_impl(
-                    encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
+                    encoder_output=x,
+                    encoder_output_length=out_len,
+                    prev_batched_state=prev_batched_state,
+                    multi_biasing_ids=multi_biasing_ids,
                 )
 
-        return self.torch_impl(encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state)
+        return self.torch_impl(
+            encoder_output=x,
+            encoder_output_length=out_len,
+            prev_batched_state=prev_batched_state,
+            multi_biasing_ids=multi_biasing_ids,
+        )

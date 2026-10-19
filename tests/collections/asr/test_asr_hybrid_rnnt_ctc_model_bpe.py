@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -245,8 +246,8 @@ class TestEncDecHybridRNNTCTCBPEModel:
             assert isinstance(new_model.tokenizer, tokenizers.AggregateTokenizer)
 
             # should be double
-            assert new_model.tokenizer.tokenizer.vocab_size == 254
-            assert len(new_model.tokenizer.tokenizer.get_vocab()) == 254
+            assert new_model.tokenizer.tokenizer.vocab_size == 264
+            assert len(new_model.tokenizer.tokenizer.get_vocab()) == 264
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(

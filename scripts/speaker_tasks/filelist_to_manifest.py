@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,9 +41,9 @@ import random
 import librosa as l
 import numpy as np
 import soundfile as sf
-import sox
 from sklearn.model_selection import StratifiedShuffleSplit
 from tqdm.contrib.concurrent import process_map
+
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 
 random.seed(42)
@@ -50,6 +51,17 @@ random.seed(42)
 DURATIONS = sorted([3], reverse=True)
 MIN_ENERGY = 0.01
 CWD = os.getcwd()
+
+
+def _load_sox():
+    try:
+        import sox
+    except ImportError:
+        raise ImportError(
+            "Optional dependency 'sox' is required by this script. Install it with: pip install sox"
+        ) from None
+
+    return sox
 
 
 def filter_manifest_line(manifest_line):
@@ -149,6 +161,7 @@ def read_file(filelist, id=-1):
 def get_duration(json_line):
     dur = json_line['duration']
     if dur is None:
+        sox = _load_sox()
         wav_path = json_line['audio_filepath']
         json_line['duration'] = sox.file_info.duration(wav_path)
     return json_line
@@ -237,5 +250,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(
-        args.filelist, args.manifest, args.id, args.out, args.split, args.create_segments, args.min_spkrs_count,
+        args.filelist,
+        args.manifest,
+        args.id,
+        args.out,
+        args.split,
+        args.create_segments,
+        args.min_spkrs_count,
     )

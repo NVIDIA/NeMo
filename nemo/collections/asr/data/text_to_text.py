@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,7 +37,7 @@ from nemo.utils import logging
 
 try:
     from nemo_text_processing.text_normalization.normalize import Normalizer
-except Exception as e:
+except Exception:
     pass  # Normalizer imported only for annotation purposes, error can be ignored
 
 AnyPath = Union[Path, str]
@@ -335,7 +336,9 @@ class TextToTextDatasetBase:
                 tts_tokenizer_global = copy.deepcopy(tokenizer)
 
             with concurrent.futures.ProcessPoolExecutor(
-                initializer=_init_tts_tokenize_process, initargs=(tts_parser,), max_workers=tokenizer_workers,
+                initializer=_init_tts_tokenize_process,
+                initargs=(tts_parser,),
+                max_workers=tokenizer_workers,
             ) as pool:
                 # chunk size for pool map is empirically chosen as a trade-off between speed and responsiveness
                 for i, tokenized_text in enumerate(
@@ -373,7 +376,7 @@ class TextToTextDatasetBase:
 
 
 class TextToTextDataset(TextToTextDatasetBase, Dataset):
-    """Text-to-Text Map-style Dataset for hybrid ASR-TTS models"""
+    """Text-to-Text Map-style Dataset."""
 
     def __init__(
         self,
@@ -418,8 +421,8 @@ class TextToTextDataset(TextToTextDatasetBase, Dataset):
 
 class TextToTextIterableDataset(TextToTextDatasetBase, IterableDataset):
     """
-    Text-to-Text Iterable Dataset for hybrid ASR-TTS models
-    Only part necessary for current process should be loaded and stored
+    Text-to-Text Iterable Dataset.
+    Only part necessary for current process should be loaded and stored.
     """
 
     def __init__(

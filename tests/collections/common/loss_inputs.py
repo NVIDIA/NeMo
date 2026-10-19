@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,7 +52,8 @@ class LossInput:
 
 
 NO_ZERO_NUM_MEASUREMENTS = LossInput(
-    loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0, num_measurements=torch.randint(1, 100, (NUM_BATCHES,)),
+    loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0,
+    num_measurements=torch.randint(1, 100, (NUM_BATCHES,)),
 )
 
 SOME_NUM_MEASUREMENTS_ARE_ZERO = LossInput(
@@ -65,5 +67,6 @@ SOME_NUM_MEASUREMENTS_ARE_ZERO = LossInput(
 )
 
 ALL_NUM_MEASUREMENTS_ARE_ZERO = LossInput(
-    loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0, num_measurements=torch.zeros(NUM_BATCHES, dtype=torch.int32),
+    loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0,
+    num_measurements=torch.zeros(NUM_BATCHES, dtype=torch.int32),
 )

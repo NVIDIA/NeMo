@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,6 +55,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+# NB: PYTORCH_CUDA_ALLOC_CONF should be set before importing pytorch / nemo
+# using expandable_segments can save more than 10x GPU memory when using small chunks
+alloc_conf = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+if "expandable_segments" not in alloc_conf:
+    if len(alloc_conf) > 0:
+        alloc_conf += ",expandable_segments:True"
+    else:
+        alloc_conf = "expandable_segments:True"
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = alloc_conf
+
+
+import librosa
 import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -61,7 +74,11 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
+from nemo.collections.asr.parts.context_biasing.biasing_multi_model import BiasingRequestItemConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.tdt_malsd_batched_computer import ModifiedALSDBatchedTDTComputer
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
     GreedyBatchedLabelLoopingComputerBase,
 )
@@ -71,6 +88,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import BatchedHyps, batched_hyp
 from nemo.collections.asr.parts.utils.streaming_utils import (
     AudioBatch,
     ContextSize,
+    DynamicLengthTensor,
     SimpleAudioDataset,
     StreamingBatchedAudioBuffer,
 )
@@ -80,10 +98,12 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     get_inference_device,
     get_inference_dtype,
     setup_model,
+    wire_confidence_cfg,
     write_transcription,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.timers import SimpleTimer
 
 
 def make_divisible_by(num, factor: int) -> int:
@@ -102,6 +122,7 @@ class TranscriptionConfig:
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
+    sort_by_duration: bool = True  # sort manifest/audio files by duration (descending)
 
     # General configs
     output_filename: Optional[str] = None
@@ -117,6 +138,10 @@ class TranscriptionConfig:
         10.0  # left context: larger value improves quality without affecting theoretical latency
     )
     right_context_secs: float = 2  # right context
+
+    att_context_size_as_chunk: bool = (
+        True  # whether to use the att_context_size as chunk size (important for extra-low latency)
+    )
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -134,14 +159,26 @@ class TranscriptionConfig:
 
     # Decoding strategy for RNNT models
     decoding: RNNTDecodingConfig = field(default_factory=RNNTDecodingConfig)
+    # Per-utterance biasing with biasing config in the manifest
+    use_per_stream_biasing: bool = False
+    per_stream_biasing_defaults: BiasingRequestItemConfig = field(default_factory=BiasingRequestItemConfig)
+    # simulated decoding (False by default) for faster experiments
+    # + experiments with different decoding algorithms not yet implemented in streaming
+    # encoder is evaluated on chunks, output is concatenated and decoded at one step
+    # expected to provide the same results if the decoding strategy supports
+    # streaming decoding without additional heuristics (e.g., pruning between steps)
+    simulated: bool = False
 
     timestamps: bool = False  # output timestamps
+    confidence: bool = False  # output word confidence
 
     # Config for word / character error rate calculation
     calculate_wer: bool = True
     clean_groundtruth_text: bool = False
     langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
     use_cer: bool = False
+
+    calculate_rtfx: bool = False
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -205,16 +242,37 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model = asr_model.to(asr_model.device)
     asr_model.to(compute_dtype)
 
+    use_per_stream_biasing = cfg.use_per_stream_biasing
+    use_simulated_decoding = cfg.simulated
+
     # Change Decoding Config
-    with open_dict(cfg.decoding):
-        if cfg.decoding.strategy != "greedy_batch" or cfg.decoding.greedy.loop_labels is not True:
-            raise NotImplementedError(
-                "This script currently supports only `greedy_batch` strategy with Label-Looping algorithm"
-            )
-        cfg.decoding.tdt_include_token_duration = cfg.timestamps
-        cfg.decoding.greedy.preserve_alignments = False
-        cfg.decoding.fused_batch_size = -1  # temporarily stop fused batch during inference.
-        cfg.decoding.beam.return_best_hypothesis = True  # return and write the best hypothsis only
+    if use_per_stream_biasing:
+        with open_dict(cfg.decoding):
+            cfg.decoding.greedy.enable_per_stream_biasing = use_per_stream_biasing
+            cfg.decoding.beam.enable_per_stream_biasing = use_per_stream_biasing
+
+    if cfg.confidence:
+        wire_confidence_cfg(cfg.decoding, enabled=True)
+
+    if use_simulated_decoding:
+        # simulated decoding: any config allowed, do not change config
+        with open_dict(cfg.decoding):
+            if cfg.decoding.strategy != "greedy_batch" or cfg.decoding.greedy.loop_labels is not True:
+                logging.warning(
+                    f"Using {cfg.decoding.strategy} in simulated decoding."
+                    " Only greedy_batch with label-looping fully supports"
+                    " non-simulated streaming decoding for now."
+                )
+    else:
+        with open_dict(cfg.decoding):
+            if cfg.decoding.strategy == "greedy_batch" and cfg.decoding.greedy.loop_labels is not True:
+                raise NotImplementedError(
+                    "This script supports `greedy_batch` strategy only with Label-Looping algorithm"
+                )
+            cfg.decoding.tdt_include_token_duration = cfg.timestamps
+            cfg.decoding.greedy.preserve_alignments = False
+            cfg.decoding.fused_batch_size = -1  # temporarily stop fused batch during inference.
+            cfg.decoding.beam.return_best_hypothesis = True  # return and write the best hypothsis only
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
@@ -239,11 +297,32 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         assert filepaths is not None
         records = [{"audio_filepath": audio_file} for audio_file in filepaths]
 
+    if cfg.sort_by_duration:
+        filepath2order = dict()
+        for i, record in enumerate(records):
+            if "duration" not in record:
+                record["duration"] = librosa.get_duration(path=record["audio_filepath"])
+            filepath2order[record["audio_filepath"]] = i
+        records.sort(key=lambda record: record["duration"], reverse=True)
+
     asr_model.preprocessor.featurizer.dither = 0.0
     asr_model.preprocessor.featurizer.pad_to = 0
     asr_model.eval()
 
-    decoding_computer: GreedyBatchedLabelLoopingComputerBase = asr_model.decoding.decoding.decoding_computer
+    try:
+        if cfg.decoding.strategy == "greedy_batch":
+            decoding_computer: GreedyBatchedLabelLoopingComputerBase = asr_model.decoding.decoding.decoding_computer
+        elif cfg.decoding.strategy == "malsd_batch":
+            decoding_computer = asr_model.decoding.decoding.decoding_computer
+        elif cfg.decoding.strategy == "maes_batch":
+            decoding_computer: ModifiedAESBatchedRNNTComputer = asr_model.decoding.decoding.decoding_computer
+        else:
+            raise ValueError(f"Unsupported decoding strategy: {cfg.decoding.strategy}")
+    except AttributeError:
+        decoding_computer = None
+
+    if (not use_simulated_decoding) or use_per_stream_biasing:
+        assert decoding_computer is not None
 
     audio_sample_rate = model_cfg.preprocessor['sample_rate']
 
@@ -267,6 +346,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         right=context_encoder_frames.right * encoder_subsampling_factor * features_frame2audio_samples,
     )
 
+    # unified ASR model: use the att_context_size as chunk size (important for extra-low latency)
+    if asr_model.cfg.encoder.att_context_style == 'chunked_limited_with_rc' and cfg.att_context_size_as_chunk:
+        asr_model.encoder.set_default_att_context_size(
+            att_context_size=[context_encoder_frames.left, context_encoder_frames.chunk, context_encoder_frames.right]
+        )
+
     logging.info(
         "Corrected contexts (sec): "
         f"Left {context_samples.left / audio_sample_rate:.2f}, "
@@ -278,8 +363,26 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     latency_secs = (context_samples.chunk + context_samples.right) / audio_sample_rate
     logging.info(f"Theoretical latency: {latency_secs:.2f} seconds")
 
+    biasing_requests: list[BiasingRequestItemConfig | None] | None
+    if use_per_stream_biasing:
+        default_biasing_request_cfg = OmegaConf.structured(cfg.per_stream_biasing_defaults)
+        biasing_requests = [
+            (
+                BiasingRequestItemConfig(
+                    **OmegaConf.to_container(OmegaConf.merge(default_biasing_request_cfg, record["biasing_request"]))
+                )
+                if "biasing_request" in record
+                else None
+            )
+            for record in records
+        ]
+    else:
+        biasing_requests = None
+
     audio_dataset = SimpleAudioDataset(
-        audio_filenames=[record["audio_filepath"] for record in records], sample_rate=audio_sample_rate
+        audio_filenames=[record["audio_filepath"] for record in records],
+        sample_rate=audio_sample_rate,
+        biasing_requests=biasing_requests,
     )
     audio_dataloader = DataLoader(
         dataset=audio_dataset,
@@ -291,9 +394,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         in_order=True,
     )
 
+    timer = SimpleTimer()
     with torch.no_grad(), torch.inference_mode():
         all_hyps = []
         audio_data: AudioBatch
+        timer.start(device=map_location)
         for audio_data in tqdm(audio_dataloader):
             # get audio
             # NB: preprocessor runs on torch.float32, no need to cast dtype here
@@ -302,8 +407,22 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             batch_size = audio_batch.shape[0]
             device = audio_batch.device
 
-            # decode audio by chunks
+            # add biasing requests to the decoder
+            if use_per_stream_biasing:
+                multi_biasing_ids = torch.full([batch_size], fill_value=-1, dtype=torch.long, device=map_location)
+                if audio_data.biasing_requests is not None:
+                    for batch_i, request in enumerate(audio_data.biasing_requests):
+                        if request is not None and not request.is_empty():
+                            request.add_to_multi_model(
+                                tokenizer=asr_model.tokenizer,
+                                biasing_multi_model=decoding_computer.biasing_multi_model,
+                            )
+                            if request.multi_model_id is not None:
+                                multi_biasing_ids[batch_i] = request.multi_model_id
+            else:
+                multi_biasing_ids = None
 
+            # decode audio by chunks
             current_batched_hyps: BatchedHyps | None = None
             state = None
             left_sample = 0
@@ -317,6 +436,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 device=device,
             )
             rest_audio_lengths = audio_batch_lengths.clone()
+            encoder_output_aggregated: DynamicLengthTensor | None = None
+
+            is_beam_search = isinstance(
+                decoding_computer,
+                (ModifiedALSDBatchedRNNTComputer, ModifiedAESBatchedRNNTComputer, ModifiedALSDBatchedTDTComputer),
+            )
 
             # iterate over audio samples
             while left_sample < audio_batch.shape[1]:
@@ -347,25 +472,100 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 encoder_context_batch = buffer.context_size_batch.subsample(factor=encoder_frame2audio_samples)
                 # remove left context
                 encoder_output = encoder_output[:, encoder_context.left :]
-
-                # decode only chunk frames
-                chunk_batched_hyps, _, state = decoding_computer(
-                    x=encoder_output,
-                    out_len=encoder_context_batch.chunk,
-                    prev_batched_state=state,
+                encoder_output_len_to_decode = torch.where(
+                    is_last_chunk_batch,
+                    encoder_output_len - encoder_context_batch.left,
+                    encoder_context_batch.chunk,
                 )
-                # merge hyps with previous hyps
-                if current_batched_hyps is None:
-                    current_batched_hyps = chunk_batched_hyps
+
+                if use_simulated_decoding:
+                    # store encoder output (accumulate)
+                    if encoder_output_aggregated is None:
+                        encoder_output_aggregated = DynamicLengthTensor(
+                            batch_size=batch_size,
+                            init_length=encoder_output.shape[1],
+                            dim_shape=encoder_output.shape[2],
+                            device=device,
+                            dtype=compute_dtype,
+                        )
+                    encoder_output_aggregated.append_(data=encoder_output, lengths=encoder_output_len_to_decode)
                 else:
-                    current_batched_hyps.merge_(chunk_batched_hyps)
+                    if not is_beam_search:
+                        # decode only chunk frames
+                        chunk_batched_hyps, state = decoding_computer(
+                            x=encoder_output,
+                            out_len=encoder_output_len_to_decode,
+                            prev_batched_state=state,
+                            multi_biasing_ids=multi_biasing_ids,
+                        )
+
+                        # merge hyps with previous hyps
+                        if current_batched_hyps is None:
+                            current_batched_hyps = chunk_batched_hyps
+                        else:
+                            current_batched_hyps.merge_(chunk_batched_hyps)
+                    else:
+                        chunk_batched_hyps, state = decoding_computer(
+                            x=encoder_output,
+                            out_len=encoder_output_len_to_decode,
+                            prev_batched_state=state,
+                            multi_biasing_ids=multi_biasing_ids,
+                        )
+                        # flatten_ to flatten the prefix tree and link beams to prior chunks in merge_ using root_ptrs.
+                        chunk_root_ptrs = chunk_batched_hyps.flatten_()
+                        if current_batched_hyps is None:
+                            current_batched_hyps = chunk_batched_hyps
+                        else:
+                            current_batched_hyps.merge_(
+                                chunk_batched_hyps,
+                                is_chunk_continuation=True,
+                                boundary_prev_ptr=chunk_root_ptrs,
+                            )
 
                 # move to next sample
                 rest_audio_lengths -= chunk_lengths_batch
                 left_sample = right_sample
                 right_sample = min(right_sample + context_samples.chunk, audio_batch.shape[1])  # add next chunk
 
-            all_hyps.extend(batched_hyps_to_hypotheses(current_batched_hyps, None, batch_size=batch_size))
+            if use_simulated_decoding:
+                # decode aggregated streaming encoder output
+                if decoding_computer is not None:
+                    if not is_beam_search:
+                        current_batched_hyps, _ = decoding_computer(
+                            x=encoder_output_aggregated.data,
+                            out_len=encoder_output_aggregated.lengths,
+                            prev_batched_state=state,
+                            multi_biasing_ids=multi_biasing_ids,
+                        )
+                        all_hyps.extend(batched_hyps_to_hypotheses(current_batched_hyps, batch_size=batch_size))
+                    else:
+                        current_batched_hyps, _ = decoding_computer(
+                            x=encoder_output_aggregated.data,
+                            out_len=encoder_output_aggregated.lengths,
+                            prev_batched_state=state,
+                            multi_biasing_ids=multi_biasing_ids,
+                        )
+                        all_hyps.extend(current_batched_hyps.to_hyps_list(score_norm=True))
+                else:
+                    # no decoding computer, fallback to `asr_model.decoding.decoding`
+                    (cur_hyps,) = asr_model.decoding.decoding(
+                        encoder_output=encoder_output_aggregated.data.transpose(1, 2),
+                        encoded_lengths=encoder_output_aggregated.lengths,
+                    )
+                    all_hyps.extend(cur_hyps)
+            else:
+                if not is_beam_search:
+                    all_hyps.extend(batched_hyps_to_hypotheses(current_batched_hyps, batch_size=batch_size))
+                else:
+                    all_hyps.extend(current_batched_hyps.to_hyps_list(score_norm=True))
+
+            # remove biasing requests from the decoder
+            if use_per_stream_biasing and audio_data.biasing_requests is not None:
+                for request in audio_data.biasing_requests:
+                    if request is not None and request.multi_model_id is not None:
+                        decoding_computer.biasing_multi_model.remove_model(request.multi_model_id)
+                        request.multi_model_id = None
+        timer.stop(device=map_location)
 
     # convert text
     for i, hyp in enumerate(all_hyps):
@@ -378,11 +578,34 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 window_stride=asr_model.cfg['preprocessor']['window_stride'],
             )
             all_hyps[i] = hyp
+    if cfg.confidence:
+        all_hyps = asr_model.decoding.compute_confidence(all_hyps)
+
+    if cfg.sort_by_duration:
+        # restore order for all_hyps and records (all_hyps are consistent with records)
+        order_restored = sorted(
+            zip(records, all_hyps), key=lambda records_hyps: filepath2order[records_hyps[0]["audio_filepath"]]
+        )
+        records, all_hyps = map(list, zip(*order_restored))
 
     output_filename, pred_text_attr_name = write_transcription(
-        all_hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=cfg.timestamps
+        all_hyps,
+        cfg,
+        model_name,
+        filepaths=filepaths,
+        compute_langs=False,
+        timestamps=cfg.timestamps,
+        confidence=cfg.confidence,
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
+
+    if cfg.calculate_rtfx:
+        durations = [
+            record["duration"] if "duration" in record else librosa.get_duration(path=record["audio_filepath"])
+            for record in records
+        ]
+        rtfx = sum(durations) / timer.total_sec()
+        logging.info(f"RTFx: {rtfx:.2f}")
 
     if cfg.calculate_wer:
         output_manifest_w_wer, total_res, _ = cal_write_wer(
@@ -392,6 +615,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             langid=cfg.langid,
             use_cer=cfg.use_cer,
             output_filename=None,
+            ignore_punctuation=True,
+            ignore_capitalization=True,
         )
         if output_manifest_w_wer:
             logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")

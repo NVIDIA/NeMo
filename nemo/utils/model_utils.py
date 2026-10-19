@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,27 +24,20 @@ import tempfile
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from functools import lru_cache
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, List, Optional, Tuple, Type, Union
 
 import wrapt
+from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import errors as omegaconf_errors
+from packaging import version
 
 from nemo.utils import AppState, logging
 from nemo.utils.data_utils import (  # imported for compatibility: model_utils.resolve_cache_dir()  # noqa: F401  # pylint: disable=unused-import,line-too-long
     is_datastore_path,
     resolve_cache_dir,
 )
-
-# TODO @blisc: Perhaps refactor instead of import guarding
-
-_HAS_HYDRA = True
-
-try:
-    from omegaconf import DictConfig, ListConfig, OmegaConf
-    from omegaconf import errors as omegaconf_errors
-    from packaging import version
-except ModuleNotFoundError:
-    _HAS_HYDRA = False
+from nemo.utils.tar_utils import TarPathTraversalError, safe_extract
 
 if TYPE_CHECKING:
     import lightning.pytorch as pl
@@ -90,7 +84,7 @@ def load_config(model_file: str) -> DictConfig:
     if os.path.isfile(model_file):
         with tempfile.TemporaryDirectory() as tmp, tarfile.open(model_file, "r:") as tar:
             prefix = detect_prefix(tar.getnames())
-            tar.extract(f"{prefix}{MODEL_CONFIG}", path=tmp)
+            safe_extract(tar, tmp, members=[f"{prefix}{MODEL_CONFIG}"])
             model_config = OmegaConf.load(os.path.join(tmp, MODEL_CONFIG))
     elif os.path.isdir(model_file):
         model_config = OmegaConf.load(os.path.join(model_file, MODEL_CONFIG))
@@ -98,6 +92,13 @@ def load_config(model_file: str) -> DictConfig:
         raise FileNotFoundError(model_file)
 
     return model_config
+
+
+def _validate_artifact_path(path: str) -> PurePosixPath:
+    artifact_path = PurePosixPath(path)
+    if artifact_path.is_absolute() or ".." in artifact_path.parts:
+        raise TarPathTraversalError(f"Unsafe artifact path: {path}")
+    return artifact_path
 
 
 def unwrap_model(model, module_instances: Optional[Union[Type, Tuple[Type]]] = None):
@@ -303,9 +304,6 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     Args:
         model: ModelPT subclass, which requires >=1 Validation Dataloaders to be setup.
     """
-    if not _HAS_HYDRA:
-        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
-        exit(1)
     cfg = copy.deepcopy(model._cfg)
     dataloaders = []
 
@@ -398,9 +396,6 @@ def resolve_test_dataloaders(model: 'ModelPT'):
     Args:
         model: ModelPT subclass, which requires >=1 Test Dataloaders to be setup.
     """
-    if not _HAS_HYDRA:
-        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
-        exit(1)
     cfg = copy.deepcopy(model._cfg)
     dataloaders = []
 
@@ -496,9 +491,6 @@ def convert_model_config_to_dict_config(cfg: Union['DictConfig', 'NemoConfig']) 
     Returns:
         The equivalent DictConfig
     """
-    if not _HAS_HYDRA:
-        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
-        exit(1)
     if not isinstance(cfg, (OmegaConf, DictConfig)) and is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
@@ -507,15 +499,12 @@ def convert_model_config_to_dict_config(cfg: Union['DictConfig', 'NemoConfig']) 
 
     config = OmegaConf.to_container(cfg, resolve=True)
     config = OmegaConf.create(config)
+
     return config
 
 
 def _convert_config(cfg: 'OmegaConf'):
     """Recursive function convertint the configuration from old hydra format to the new one."""
-    if not _HAS_HYDRA:
-        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
-        exit(1)
-
     # Get rid of cls -> _target_.
     if 'cls' in cfg and '_target_' not in cfg:
         cfg._target_ = cfg.pop('cls')
@@ -529,13 +518,13 @@ def _convert_config(cfg: 'OmegaConf'):
     # Recursion.
     try:
         for _, sub_cfg in cfg.items():
-            if isinstance(sub_cfg, DictConfig):
+            if isinstance(sub_cfg, (dict, DictConfig)):
                 _convert_config(sub_cfg)
     except omegaconf_errors.OmegaConfBaseException as e:
         logging.warning(f"Skipped conversion for config/subconfig:\n{cfg}\n Reason: {e}.")
 
 
-def maybe_update_config_version(cfg: 'DictConfig'):
+def maybe_update_config_version(cfg: 'DictConfig', make_copy: bool = True):
     """
     Recursively convert Hydra 0.x configs to Hydra 1.x configs.
 
@@ -546,13 +535,11 @@ def maybe_update_config_version(cfg: 'DictConfig'):
 
     Args:
         cfg: Any Hydra compatible DictConfig
+        make_copy: bool to indicating if the config should be copied before updating
 
     Returns:
         An updated DictConfig that conforms to Hydra 1.x format.
     """
-    if not _HAS_HYDRA:
-        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
-        exit(1)
     if cfg is not None and not isinstance(cfg, DictConfig):
         try:
             temp_cfg = OmegaConf.create(cfg)
@@ -561,14 +548,15 @@ def maybe_update_config_version(cfg: 'DictConfig'):
             # Cannot be cast to DictConfig, skip updating.
             return cfg
 
-    # Make a copy of model config.
-    cfg = copy.deepcopy(cfg)
+    # Make a copy if requested
+    if make_copy:
+        cfg = copy.deepcopy(cfg)
+
     OmegaConf.set_struct(cfg, False)
 
-    # Convert config.
+    # Convert config
     _convert_config(cfg)
 
-    # Update model config.
     OmegaConf.set_struct(cfg, True)
 
     return cfg
@@ -764,12 +752,14 @@ def save_artifacts(model, output_dir: str, use_abspath: bool = False) -> None:
             prefix = detect_prefix(maybe_tar.getnames())
         for arti_name, arti_item in model.artifacts.items():
             _, arti_file = arti_item.path.split("nemo:")
+            artifact_path = _validate_artifact_path(arti_file)
             arti_path = os.path.join(output_dir, arti_name)
             if maybe_tar is not None:
-                maybe_tar.extract(f"{prefix}{arti_file}", path=output_dir)
-                os.rename(os.path.join(output_dir, arti_file), arti_path)
+                member_name = f"{prefix}{artifact_path.as_posix()}"
+                safe_extract(maybe_tar, output_dir, members=[member_name])
+                os.rename(os.path.join(output_dir, *PurePosixPath(member_name).parts), arti_path)
             else:
-                shutil.copy(os.path.join(model_file, arti_file), arti_path)
+                shutil.copy(os.path.join(model_file, *artifact_path.parts), arti_path)
             # Store artifact path as basename by default. Otherwise save absolute path but bear in mind
             # that in this case output directory should be permanent for correct artifact recovery later
             arti_path = os.path.abspath(arti_path) if use_abspath else os.path.basename(arti_path)

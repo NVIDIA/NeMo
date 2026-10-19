@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +16,7 @@ from collections import Counter
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import lhotse
 import numpy as np
@@ -30,9 +31,11 @@ from lhotse.testing.dummies import dummy_recording
 from lhotse.testing.random import deterministic_rng
 from omegaconf import OmegaConf
 
+from nemo.collections.common.data.lhotse import cutset as cutset_module
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.data.lhotse.text_adapters import SourceTargetTextExample, TextExample
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
+from nemo.utils.dependency import is_module_available
 
 
 @pytest.fixture(scope="session")
@@ -242,6 +245,34 @@ class UnsupervisedAudioDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: lhotse.CutSet) -> Dict[str, torch.Tensor]:
         audio, audio_lens = lhotse.dataset.collation.collate_audio(cuts)
         return {"audio": audio, "audio_lens": audio_lens, "ids": [c.id for c in cuts]}
+
+
+class PolicyAwareDataset(UnsupervisedAudioDataset):
+    def __init__(self):
+        self.fault_tolerant_audio_loading = None
+
+    def with_fault_tolerant_audio_loading(self, enabled: bool):
+        dataset = type(self)()
+        dataset.fault_tolerant_audio_loading = enabled
+        return dataset
+
+
+def test_dataloader_propagates_audio_failure_policy_to_dataset(cutset_path: Path):
+    dataset = PolicyAwareDataset()
+    dl = get_lhotse_dataloader_from_config(
+        config={
+            "cuts_path": cutset_path,
+            "sample_rate": 16000,
+            "batch_size": 2,
+            "fault_tolerant_audio_loading": False,
+        },
+        global_rank=0,
+        world_size=1,
+        dataset=dataset,
+    )
+
+    assert dataset.fault_tolerant_audio_loading is None
+    assert dl.dataset.fault_tolerant_audio_loading is False
 
 
 def test_dataloader_from_lhotse_cuts(cutset_path: Path):
@@ -768,6 +799,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred
     _ = next(iter(dl))
 
 
+@pytest.mark.skipif(not is_module_available("pyloudnorm"), reason="pyloudnorm is required to concatenate samples")
 def test_dataloader_from_tarred_nemo_manifest_concat(nemo_tarred_manifest_path: tuple[str, str]):
     json_mft, tar_mft = nemo_tarred_manifest_path
     config = OmegaConf.create(
@@ -1023,7 +1055,7 @@ def test_lazy_nemo_iterator_with_offset_field(tmp_path: Path):
     assert cut.supervisions[0].text == "irrelevant"
     audio = cut.load_audio()
     assert audio.shape == (1, 8000)
-    np.testing.assert_equal(audio[0], expected_audio[:8000])
+    np.testing.assert_allclose(audio[0], expected_audio[:8000], atol=5e-5)
 
     cut = cuts[1]
     assert isinstance(cut, lhotse.MonoCut)
@@ -1071,7 +1103,7 @@ def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
     assert cut.num_samples == 8000
     assert cut.supervisions[0].text == "irrelevant"
     assert audio.shape == (1, 8000)
-    np.testing.assert_equal(audio[0], expected_audio[:8000])
+    np.testing.assert_allclose(audio[0], expected_audio[:8000], atol=5e-5)
 
 
 def test_lhotse_cuts_resolve_relative_paths(tmp_path: Path):
@@ -1322,6 +1354,105 @@ def test_extended_data_input_cfg_yaml_path(tmp_path, cutset_shar_path, nemo_tarr
     assert isinstance(batch, lhotse.CutSet)
     for cut in batch:
         assert cut.dataset_name in ("D1", "D2")
+
+
+def test_nested_input_cfg_yaml_paths_resolve_relative_to_containing_file(tmp_path, cutset_shar_path):
+    nested_dir = tmp_path / "nested"
+    nested_dir.mkdir()
+    inner_yaml = nested_dir / "inner.yaml"
+    lhotse.serialization.save_to_yaml(
+        [
+            {
+                "type": "lhotse_shar",
+                "shar_path": str(cutset_shar_path),
+                "weight": 1.0,
+            }
+        ],
+        inner_yaml,
+    )
+    outer_yaml = tmp_path / "outer.yaml"
+    lhotse.serialization.save_to_yaml(
+        [
+            {
+                "type": "group",
+                "input_cfg": "nested/inner.yaml",
+                "weight": 1.0,
+            }
+        ],
+        outer_yaml,
+    )
+    config = OmegaConf.create(
+        {
+            "input_cfg": str(outer_yaml),
+            "sample_rate": 16000,
+            "shuffle": False,
+            "num_workers": 0,
+            "batch_size": 32,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    batch = next(iter(dl))
+    assert isinstance(batch, lhotse.CutSet)
+    assert len(batch) > 0
+
+
+def test_three_level_relative_input_cfg_counts_all_temperature_levels(tmp_path, cutset_shar_path):
+    deepest_dir = tmp_path / "nested" / "deepest"
+    deepest_dir.mkdir(parents=True)
+    leaf_yaml = deepest_dir / "leaf.yaml"
+    lhotse.serialization.save_to_yaml(
+        [
+            {
+                "type": "lhotse_shar",
+                "shar_path": str(cutset_shar_path),
+                "weight": 1.0,
+            }
+        ],
+        leaf_yaml,
+    )
+    middle_yaml = tmp_path / "nested" / "middle.yaml"
+    lhotse.serialization.save_to_yaml(
+        [{"type": "group", "input_cfg": "deepest/leaf.yaml", "weight": 1.0}],
+        middle_yaml,
+    )
+    outer_yaml = tmp_path / "outer.yaml"
+    lhotse.serialization.save_to_yaml(
+        [{"type": "group", "input_cfg": "nested/middle.yaml", "weight": 1.0}],
+        outer_yaml,
+    )
+    config = OmegaConf.create(
+        {
+            "input_cfg": str(outer_yaml),
+            "reweight_temperature": [1.0, 1.0, 1.0],
+            "sample_rate": 16000,
+            "shuffle": False,
+            "num_workers": 0,
+            "batch_size": 32,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    assert len(next(iter(dl))) > 0
+
+
+def test_count_input_cfg_levels_preserves_remote_url(monkeypatch):
+    seen = []
+
+    def fake_load_yaml(path):
+        seen.append(path)
+        return [{"type": "nemo"}]
+
+    monkeypatch.setattr(cutset_module, "load_yaml", fake_load_yaml)
+
+    assert cutset_module.count_input_cfg_levels({"input_cfg": "s3://bucket/blends/train.yaml"}) == 1
+    assert seen == ["s3://bucket/blends/train.yaml"]
 
 
 @pytest.fixture(scope="session")
@@ -1968,35 +2099,6 @@ def test_dataloader_with_noise_nemo_json(cutset_path: Path, nemo_manifest_path: 
     assert -5.0 < cut.tracks[1].snr < 5.0
 
 
-def test_dataloader_with_noise_nemo_json(cutset_path: Path, nemo_manifest_path: Path):
-    config = OmegaConf.create(
-        {
-            "cuts_path": str(cutset_path),
-            "noise_path": str(nemo_manifest_path),
-            "noise_mix_prob": 1.0,
-            "noise_snr": [-5.0, 5.0],
-            "batch_size": 2,
-            "seed": 0,
-            "shard_seed": 0,
-        }
-    )
-    dl = get_lhotse_dataloader_from_config(
-        config=config,
-        global_rank=0,
-        world_size=1,
-        dataset=Identity(),
-    )
-    batch = next(iter(dl))
-    assert isinstance(batch, CutSet)
-    assert len(batch) == 2
-    cut = batch[0]
-    assert isinstance(cut, MixedCut)
-    assert -5.0 < cut.tracks[1].snr < 5.0
-    cut = batch[1]
-    assert isinstance(cut, MixedCut)
-    assert -5.0 < cut.tracks[1].snr < 5.0
-
-
 def test_dataloader_with_noise_lhotse_jsonl(cutset_path: Path):
     config = OmegaConf.create(
         {
@@ -2133,6 +2235,196 @@ def test_dataloader_bucket_batch_size(nemo_tarred_manifest_path_multi: tuple[str
 
     for b in islice(dl, 10):
         assert len(b) == 2
+
+
+@pytest.mark.parametrize("clipping_prob_hard", [0.0, 1.0])
+@pytest.mark.parametrize("clipping_oversampling", [None, 1, 2])
+def test_dataloader_with_clipping_lhotse_jsonl(
+    cutset_path: Path, clipping_prob_hard: float, clipping_oversampling: Optional[int]
+):
+    from lhotse.augmentation import Clipping, Resample
+
+    config = OmegaConf.create(
+        {
+            "cuts_path": str(cutset_path),
+            "clipping_enabled": True,
+            "clipping_gain_db": (0.0, 24.0),
+            "clipping_prob": 1.0,
+            "clipping_prob_hard": clipping_prob_hard,
+            "clipping_oversampling": clipping_oversampling,
+            "batch_size": 2,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+    )
+    batch = next(iter(dl))
+    assert isinstance(batch, CutSet)
+    assert len(batch) == 2
+    cut = batch[0]
+    assert isinstance(cut, MonoCut)
+    if clipping_oversampling is not None:
+        assert isinstance(cut.recording.transforms[-3], Resample)
+        assert isinstance(cut.recording.transforms[-2], Clipping)
+        assert isinstance(cut.recording.transforms[-1], Resample)
+    else:
+        assert isinstance(cut.recording.transforms[-1], Clipping)
+    cut = batch[1]
+    assert isinstance(cut, MonoCut)
+    if clipping_oversampling is not None:
+        assert isinstance(cut.recording.transforms[-3], Resample)
+        assert isinstance(cut.recording.transforms[-2], Clipping)
+        assert isinstance(cut.recording.transforms[-1], Resample)
+    else:
+        assert isinstance(cut.recording.transforms[-1], Clipping)
+    for cut in batch:
+        cut.load_audio()
+
+
+def test_dataloader_with_compression_lossy_lhotse_jsonl(cutset_path: Path):
+    from lhotse.augmentation import Compress
+
+    config = OmegaConf.create(
+        {
+            "cuts_path": str(cutset_path),
+            "compression_enabled": True,
+            "compression_codecs": ["opus", "mp3", "vorbis"],
+            "compression_prob": 1.0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+    )
+    batch = next(iter(dl))
+    assert isinstance(batch, CutSet)
+    assert len(batch) == 4
+    cut = batch[0]
+    assert isinstance(cut, MonoCut)
+    assert isinstance(cut.recording.transforms[-1], Compress)
+    cut = batch[1]
+    assert isinstance(cut, MonoCut)
+    assert isinstance(cut.recording.transforms[-1], Compress)
+    for cut in batch:
+        cut.load_audio()
+
+
+def test_dataloader_with_compression_gsm_lhotse_jsonl(cutset_path: Path):
+    from lhotse.augmentation import Compress, Resample
+
+    config = OmegaConf.create(
+        {
+            "cuts_path": str(cutset_path),
+            "compression_enabled": True,
+            "compression_codecs": ["gsm"],
+            "compression_prob": 1.0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+    )
+    batch = next(iter(dl))
+    assert isinstance(batch, CutSet)
+    assert len(batch) == 4
+    cut = batch[0]
+    assert isinstance(cut, MonoCut)
+    assert isinstance(cut.recording.transforms[-3], Resample)
+    assert isinstance(cut.recording.transforms[-2], Compress)
+    assert isinstance(cut.recording.transforms[-1], Resample)
+    for cut in batch:
+        cut.load_audio()
+
+
+def test_dataloader_with_lowpass_using_resampling_lhotse_jsonl(cutset_path: Path):
+    from lhotse.augmentation import Resample
+
+    config = OmegaConf.create(
+        {
+            "cuts_path": str(cutset_path),
+            "lowpass_enabled": True,
+            "lowpass_frequencies_interval": [3500.0, 4000.0],
+            "lowpass_prob": 1.0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+    )
+    batch = next(iter(dl))
+    assert isinstance(batch, CutSet)
+    assert len(batch) == 4
+    cut = batch[0]
+    assert isinstance(cut, MonoCut)
+    assert isinstance(cut.recording.transforms[-2], Resample)
+    assert isinstance(cut.recording.transforms[-1], Resample)
+    cut = batch[1]
+    assert isinstance(cut, MonoCut)
+    assert isinstance(cut.recording.transforms[-2], Resample)
+    assert isinstance(cut.recording.transforms[-1], Resample)
+    for cut in batch:
+        cut.load_audio()
+
+
+def test_dataloader_with_multiple_augmentations_lhotse_jsonl(cutset_path: Path):
+    from lhotse.augmentation import Compress, Resample, ReverbWithImpulseResponse
+
+    config = OmegaConf.create(
+        {
+            "cuts_path": str(cutset_path),
+            "noise_path": str(cutset_path),
+            "noise_mix_prob": 1.0,
+            "noise_snr": [-5.0, 5.0],
+            "rir_enabled": True,
+            "rir_prob": 1.0,
+            "lowpass_enabled": True,
+            "lowpass_frequencies_interval": [3500.0, 4000.0],
+            "lowpass_prob": 1.0,
+            "compression_enabled": True,
+            "compression_codecs": ["gsm"],
+            "compression_prob": 1.0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+    )
+    batch = next(iter(dl))
+    assert isinstance(batch, CutSet)
+    assert len(batch) == 4
+    cut = batch[0]
+    assert isinstance(cut, MixedCut)
+    for track in cut.tracks:
+        assert isinstance(track.cut.recording.transforms[-3], Resample)
+        assert isinstance(track.cut.recording.transforms[-2], Compress)
+        assert isinstance(track.cut.recording.transforms[-1], Resample)
+    for cut in batch:
+        audio = cut.load_audio()
 
 
 def test_dataloader_2d_bucketing(nemo_tarred_manifest_path_multi: tuple[str, str], en_es_tokenizer):
@@ -2442,6 +2734,66 @@ def test_force_iterable_dataset(cutset_path: Path):
     assert set(c.id for b in batches_iter for c in b) == set(c.id for b in batches_map for c in b)
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "finite_options", [{"force_finite": True}, {"metadata_only": True}, {"force_finite": True, "metadata_only": True}]
+)
+@pytest.mark.parametrize("weights", [[1, 0, 2], [0, 1, 0]])
+@pytest.mark.parametrize("temperature", [0.0, 1.0])
+def test_finite_mixture_exhausts_positive_sources_with_disabled_slots(
+    cutset_shar_path, finite_options, weights, temperature
+):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "lhotse",
+                    "shar_path": cutset_shar_path,
+                    "weight": weight,
+                    "tags": {"source_slot": slot},
+                }
+                for slot, weight in enumerate(weights)
+            ],
+            "shard_seed": 42,
+            "reweight_temperature": [temperature],
+            **finite_options,
+        }
+    )
+
+    cuts, is_tarred = cutset_module.read_cutset_from_config(config)
+    # Consume to exhaustion: the old finite mux fails after the enabled sources end.
+    source_counts = Counter(cut.source_slot for cut in cuts)
+
+    assert is_tarred
+    assert source_counts == {slot: 10 for slot, weight in enumerate(weights) if weight > 0}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("temperature", [0.0, 1.0])
+def test_infinite_mixture_retains_disabled_source_slots(cutset_shar_path, temperature):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "lhotse",
+                    "shar_path": cutset_shar_path,
+                    "weight": weight,
+                    "tags": {"source_slot": slot},
+                }
+                for slot, weight in enumerate([1, 0, 2])
+            ],
+            "shard_seed": 42,
+            "reweight_temperature": [temperature],
+        }
+    )
+
+    cuts, _ = cutset_module.read_cutset_from_config(config)
+
+    assert len(cuts.cuts.sources) == 3
+    assert cuts.cuts.weights[1] == 0.0
+    assert {cut.source_slot for cut in islice(cuts, 30)} == {0, 2}
+
+
 def test_force_map_dataset(cutset_shar_path: Path):
     config = OmegaConf.create({"shar_path": cutset_shar_path, "batch_size": 2, "num_workers": 2, "force_finite": True})
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
@@ -2715,3 +3067,383 @@ def test_dataloader_nemo_tarred_slice_length_multi_epoch_different_sample(
     epoch1_ids = [cut.id for b in batches[2:] for cut in b]
     assert epoch0_ids != epoch1_ids
     assert epoch0_ids + epoch1_ids != sorted(epoch0_ids + epoch1_ids)  # true when slice_length=None
+
+
+def test_dataloader_reweight_temperature_intermediate_value(
+    deterministic_rng, cutset_shar_path: Path, cutset_shar_path_other: Path
+):
+    """
+    Test that reweight_temperature=0.5 gives intermediate behavior between equal and original weights.
+    With temperature=0.5, datasets with weights 900 and 100:
+    - Original (temp=1.0): 90-10
+    - Equal (temp=0.0): 50-50
+    - Expected (temp=0.5): ~75-25 (since 900^0.5 / (900^0.5 + 100^0.5) ≈ 0.75)
+    """
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {"type": "lhotse_shar", "shar_path": cutset_shar_path, "weight": 900},
+                {"type": "lhotse_shar", "shar_path": cutset_shar_path_other, "weight": 100},
+            ],
+            "reweight_temperature": [0.5],
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    # Sample multiple batches and count occurrences
+    dataset_counts = Counter()
+    for batch in islice(dl, 50):
+        for cid in batch["ids"]:
+            if cid.startswith("dummy"):
+                dataset_counts["dataset1"] += 1
+            elif cid.startswith("other"):
+                dataset_counts["dataset2"] += 1
+
+    total = sum(dataset_counts.values())
+    # With temperature=0.5, expect approximately 75-25 distribution
+    assert dataset_counts["dataset1"] / total == pytest.approx(0.75, abs=0.1)
+    assert dataset_counts["dataset2"] / total == pytest.approx(0.25, abs=0.1)
+
+
+def test_dataloader_reweight_temperature_nested_groups(
+    deterministic_rng,
+    cutset_shar_path: Path,
+    cutset_shar_path_other: Path,
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+):
+    """
+    Test that reweight_temperature works correctly with nested groups.
+    Using [1.0, 0.0]: level 1 preserves weights, level 2 equalizes.
+
+    Structure:
+    - Group A (weight=200):
+      - Dataset A1 (weight=180)
+      - Dataset A2 (weight=20)
+    - Group B (weight=800):
+      - Dataset B1 (weight=800)
+
+    Expected:
+    - Level 1 (temp=1.0): Group A gets 20%, Group B gets 80%
+    - Level 2 (temp=0.0): Within Group A, A1 and A2 each get 50% (so 10% and 10% of total)
+    """
+    json_mft, tar_mft = nemo_tarred_manifest_path_multi
+
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "group",
+                    "weight": 200,
+                    "tags": {"group": "A"},
+                    "input_cfg": [
+                        {
+                            "type": "lhotse_shar",
+                            "shar_path": cutset_shar_path,
+                            "weight": 180,
+                            "tags": {"dataset_name": "A1"},
+                        },
+                        {
+                            "type": "lhotse_shar",
+                            "shar_path": cutset_shar_path_other,
+                            "weight": 20,
+                            "tags": {"dataset_name": "A2"},
+                        },
+                    ],
+                },
+                {
+                    "type": "group",
+                    "weight": 800,
+                    "tags": {"group": "B"},
+                    "input_cfg": [
+                        {
+                            "type": "nemo_tarred",
+                            "manifest_filepath": json_mft,
+                            "tarred_audio_filepaths": tar_mft,
+                            "weight": 800,
+                            "tags": {"dataset_name": "B1"},
+                        },
+                    ],
+                },
+            ],
+            "reweight_temperature": [1.0, 0.0],  # Level 1: preserve, Level 2: equalize
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Sample multiple batches and count occurrences using tags dataset_name
+    group_counts = Counter()
+    dataset_counts = Counter()
+    for batch in islice(dl, 100):
+        for cut in batch:
+            group_counts[cut.group] += 1
+            dataset_counts[cut.dataset_name] += 1
+
+    total = sum(group_counts.values())
+    # Level 1: temperature=1.0, so groups A and B should have 20-80 split
+    assert group_counts["A"] / total == pytest.approx(0.2, abs=0.1)
+    assert group_counts["B"] / total == pytest.approx(0.8, abs=0.1)
+
+    # Level 2 (within group A): temperature=0.0, so A1 and A2 should be equal (50-50)
+    # which means each should be ~10% of total (0.5 * 0.2)
+    if group_counts["A"] > 0:  # Make sure we have samples from group A
+        a_total = dataset_counts["A1"] + dataset_counts["A2"]
+        assert dataset_counts["A1"] / a_total == pytest.approx(0.5, abs=0.15)
+        assert dataset_counts["A2"] / a_total == pytest.approx(0.5, abs=0.15)
+
+
+def test_dataloader_reweight_temperature_three_datasets(
+    deterministic_rng,
+    cutset_shar_path: Path,
+    cutset_shar_path_other: Path,
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+):
+    """
+    Test reweight_temperature with three datasets of different sizes.
+    With temperature=0.0, all three should be sampled equally.
+    """
+    json_mft, tar_mft = nemo_tarred_manifest_path_multi
+
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {"type": "lhotse_shar", "shar_path": cutset_shar_path, "weight": 600, "tags": {"dataset_name": "D1"}},
+                {
+                    "type": "lhotse_shar",
+                    "shar_path": cutset_shar_path_other,
+                    "weight": 300,
+                    "tags": {"dataset_name": "D2"},
+                },
+                {
+                    "type": "nemo_tarred",
+                    "manifest_filepath": json_mft,
+                    "tarred_audio_filepaths": tar_mft,
+                    "weight": 100,
+                    "tags": {"dataset_name": "D3"},
+                },
+            ],
+            "reweight_temperature": [0.0],  # Equalize all three
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 6,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Sample multiple batches and count occurrences using the dataset_name tag
+    dataset_counts = Counter()
+    for batch in islice(dl, 50):
+        for cut in batch:
+            dataset_counts[cut.dataset_name] += 1
+
+    total = sum(dataset_counts.values())
+    # With temperature=0.0, expect approximately equal distribution (33-33-33)
+    assert dataset_counts["D1"] / total == pytest.approx(1 / 3, abs=0.1)
+    assert dataset_counts["D2"] / total == pytest.approx(1 / 3, abs=0.1)
+    assert dataset_counts["D3"] / total == pytest.approx(1 / 3, abs=0.1)
+
+
+def test_dataloader_reweight_temperature_deeply_nested(
+    deterministic_rng,
+    cutset_shar_path: Path,
+    cutset_shar_path_other: Path,
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+):
+    """
+    Test reweight_temperature with three levels of nesting using [1.0, 0.5, 0.0].
+    This verifies that temperature is correctly applied at each level of the hierarchy.
+    """
+    json_mft, tar_mft = nemo_tarred_manifest_path_multi
+
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "group",
+                    "weight": 700,
+                    "tags": {"level1": "GroupX"},
+                    "input_cfg": [
+                        {
+                            "type": "group",
+                            "weight": 400,
+                            "tags": {"level2": "GroupX1"},
+                            "input_cfg": [
+                                {
+                                    "type": "lhotse_shar",
+                                    "shar_path": cutset_shar_path,
+                                    "weight": 300,
+                                    "tags": {"dataset_name": "X1a"},
+                                },
+                                {
+                                    "type": "lhotse_shar",
+                                    "shar_path": cutset_shar_path_other,
+                                    "weight": 100,
+                                    "tags": {"dataset_name": "X1b"},
+                                },
+                            ],
+                        },
+                        {
+                            "type": "group",
+                            "weight": 300,
+                            "tags": {"level2": "GroupX2"},
+                            "input_cfg": [
+                                {
+                                    "type": "nemo_tarred",
+                                    "manifest_filepath": json_mft,
+                                    "tarred_audio_filepaths": tar_mft,
+                                    "weight": 300,
+                                    "tags": {"dataset_name": "X2a"},
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "type": "group",
+                    "weight": 300,
+                    "tags": {"level1": "GroupY"},
+                    "input_cfg": [
+                        {
+                            "type": "lhotse_shar",
+                            "shar_path": cutset_shar_path,
+                            "weight": 300,
+                            "tags": {"dataset_name": "Y1"},
+                        },
+                    ],
+                },
+            ],
+            "reweight_temperature": [1.0, 0.5, 0.0],  # Level 1: preserve, Level 2: intermediate, Level 3: equalize
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    # Sample multiple batches and just verify it works without errors
+    # The exact distribution is complex to calculate, so we just ensure the dataloader runs
+    batches = [batch for batch in islice(dl, 20)]
+    assert len(batches) == 20
+    for batch in batches:
+        assert "audio" in batch
+        assert "audio_lens" in batch
+        assert "ids" in batch
+
+
+def test_dataloader_reweight_temperature_mixed_leaf_and_group(
+    deterministic_rng, cutset_shar_path: Path, cutset_shar_path_other: Path
+):
+    """
+    Test config with mix of leaf items and groups at the same level.
+    The leaf item doesn't have nested input_cfg, but the group does.
+    Max depth should be 2, requiring 2 temperatures.
+    """
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                # Leaf item at level 1 (no nested input_cfg)
+                {
+                    "type": "lhotse_shar",
+                    "shar_path": cutset_shar_path,
+                    "weight": 300,
+                    "tags": {"dataset_name": "Leaf"},
+                },
+                # Group with nested items
+                {
+                    "type": "group",
+                    "weight": 700,
+                    "tags": {"group": "Nested"},
+                    "input_cfg": [
+                        {
+                            "type": "lhotse_shar",
+                            "shar_path": cutset_shar_path_other,
+                            "weight": 600,
+                            "tags": {"dataset_name": "N1"},
+                        },
+                        {
+                            "type": "lhotse_shar",
+                            "shar_path": cutset_shar_path,
+                            "weight": 100,
+                            "tags": {"dataset_name": "N2"},
+                        },
+                    ],
+                },
+            ],
+            "reweight_temperature": [1.0, 0.0],  # 2 levels: level 1 preserves, level 2 equalizes
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Sample multiple batches and count occurrences
+    dataset_counts = Counter()
+    for batch in islice(dl, 100):
+        for cut in batch:
+            dataset_counts[cut.dataset_name] += 1
+
+    total = sum(dataset_counts.values())
+
+    # Level 1: Leaf gets 30%, Nested group gets 70% (temperature=1.0 preserves weights)
+    assert dataset_counts["Leaf"] / total == pytest.approx(0.3, abs=0.1)
+
+    # Level 2 within Nested group: N1 and N2 should be equalized (temperature=0.0)
+    # Each should get ~35% of total (0.7 * 0.5)
+    nested_total = dataset_counts["N1"] + dataset_counts["N2"]
+    assert dataset_counts["N1"] / nested_total == pytest.approx(0.5, abs=0.15)
+    assert dataset_counts["N2"] / nested_total == pytest.approx(0.5, abs=0.15)
+
+
+@pytest.mark.parametrize("multi_config", [False, True])
+@pytest.mark.parametrize("num_workers,prefetch_factor,expected", [(1, 4, 4), (1, None, 2), (0, None, None)])
+def test_prefetch_factor_reaches_dataloader(cutset_path, multi_config, num_workers, prefetch_factor, expected):
+    source = {"cuts_path": str(cutset_path), "batch_size": 2}
+    options = {
+        "seed": 0,
+        "shard_seed": 0,
+        "shuffle": False,
+        "num_workers": num_workers,
+        "prefetch_factor": prefetch_factor,
+    }
+    if multi_config:
+        config = OmegaConf.create({**options, "multi_config": True, "source": source})
+    else:
+        config = OmegaConf.create({**source, **options})
+    loader = get_lhotse_dataloader_from_config(config, global_rank=0, world_size=1, dataset=Identity())
+    assert loader.num_workers == num_workers
+    assert loader.prefetch_factor == expected

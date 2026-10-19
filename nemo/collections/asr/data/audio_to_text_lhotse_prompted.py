@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,16 +12,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 from dataclasses import dataclass
 from typing import Optional, Union
 
 import torch.utils.data
 from lhotse import CutSet
 from lhotse.cut import MixedCut
-from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
+from nemo.collections.asr.data.audio_to_text_lhotse import _make_audio_samples
 from nemo.collections.common.data import apply_prompt_format_fn
+from nemo.collections.common.data.lhotse.audio_loading import LhotseAudioLoadingDatasetMixin
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import TokenizerSpec
 
@@ -46,7 +49,7 @@ class PromptedAudioToTextMiniBatch:
         return self.prompted_transcript[:, :-1], self.prompted_transcript[:, 1:]
 
 
-class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
+class PromptedAudioToTextLhotseDataset(LhotseAudioLoadingDatasetMixin, torch.utils.data.Dataset):
     """
     This dataset is based on :class:`~nemo.collections.asr.data.audio_to_text_lhotse.LhotseSpeechToTextBpeDataset`.
     It is a Lhotse-style dataset that converts a mini-batch of Cuts into tensors.
@@ -66,6 +69,11 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     If `enable_chunking` is True, each audio sample is split into optimally sized chunks
     (see `find_optimal_chunk_size` and `chunk_waveform`). This is useful for long audio inputs,
     allowing the model to process them in manageable segments.
+
+    NOTE:
+    If the environment variable `USE_AIS_GET_BATCH` is set to `true` (case-insensitive),
+    then batch audio loading from AIStore will be enabled for this dataset. This will use the
+    AISBatchLoader to load the audio from AIStore. This can improve data loading efficiency in some setups.
     """
 
     def __init__(
@@ -76,13 +84,21 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     ):
         super().__init__()
         self.tokenizer = tokenizer
-        self.load_audio = AudioSamples(fault_tolerant=True)
+        self.use_ais_get_batch = os.environ.get("USE_AIS_GET_BATCH", "False").lower() == "true"
+        self.ais_force_individual = os.environ.get("USE_AIS_INDIVIDUAL_GETS", "False").lower() == "true"
+
+        self.load_audio = _make_audio_samples(
+            use_batch_loader=self.use_ais_get_batch,
+            ais_force_individual=self.ais_force_individual,
+        )
+
         self.padding_value = self.tokenizer.pad_id
         self.prompt = prompt
         self.enable_chunking = enable_chunking
 
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
-        audio, audio_lens, cuts = self.load_audio(cuts)
+        # Load the audio's from AIS and add them to the CutSet
+        audio, audio_lens, cuts = self.load_audio_with_cuts(cuts)
 
         # Will work if batch_size is set to 1.
         if self.enable_chunking:
@@ -98,7 +114,10 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             # Stack all chunks into a batch.
             audio = torch.stack(new_audio)
             audio_lens = torch.tensor(new_audio_lens, dtype=torch.long)
-        # Fast-path: the tokenization and prompt formatting was already done before sampling.
+            # Adding this to allow gathering results of the same audio from different batches
+            if cuts[0].start != 0:
+                cuts[0].id = cuts[0].id + '_cut_segmented'
+        # Fast-path: the tokenization and prompt format ting was already done before sampling.
         attrs = ("input_ids", "context_ids", "answer_ids")
         pre_formatted = all(hasattr(c, a) for c in cuts for a in attrs)
         if pre_formatted:

@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +14,5 @@
 # limitations under the License.
 
 import nemo.collections.tts.modules.adapters
-from nemo.collections.tts.modules.tacotron2 import Decoder as Taco2Decoder
-from nemo.collections.tts.modules.tacotron2 import Encoder as Taco2Encoder
-from nemo.collections.tts.modules.tacotron2 import Postnet as Taco2Postnet
-from nemo.collections.tts.modules.waveglow import WaveGlowModule
+import nemo.collections.tts.modules.ffn_modules
+import nemo.collections.tts.modules.moe_modules

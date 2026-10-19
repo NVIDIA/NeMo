@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,7 +70,14 @@ def get_rnnt_decoder(vocab_size, decoder_output_size=4):
 
 
 @lru_cache(maxsize=2)
-def get_rnnt_joint(vocab_size, vocabulary=None, encoder_output_size=4, decoder_output_size=4, joint_output_shape=4):
+def get_rnnt_joint(
+    vocab_size,
+    vocabulary=None,
+    encoder_output_size=4,
+    decoder_output_size=4,
+    joint_output_shape=4,
+    num_extra_outputs=0,
+):
     jointnet_cfg = {
         'encoder_hidden': encoder_output_size,
         'pred_hidden': decoder_output_size,
@@ -77,7 +85,7 @@ def get_rnnt_joint(vocab_size, vocabulary=None, encoder_output_size=4, decoder_o
         'activation': 'relu',
     }
     torch.manual_seed(0)
-    joint = RNNTJoint(jointnet_cfg, vocab_size, vocabulary=vocabulary)
+    joint = RNNTJoint(jointnet_cfg, vocab_size, vocabulary=vocabulary, num_extra_outputs=num_extra_outputs)
     joint.freeze()
     return joint
 
@@ -163,6 +171,7 @@ def check_tdt_greedy_decoding(
     use_cuda_graph_decoder: bool,
     lm_path: Optional[str | Path] = None,
     boosting_tree: Optional[BoostingTreeModelConfig] = None,
+    enable_per_stream_biasing: bool = False,
 ):
     model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/parakeet-tdt_ctc-110m')
 
@@ -191,6 +200,7 @@ def check_tdt_greedy_decoding(
         use_cuda_graph_decoder=use_cuda_graph_decoder,
         fusion_models=fusion_models,
         fusion_models_alpha=fusion_models_alpha,
+        enable_per_stream_biasing=enable_per_stream_biasing,
     )
 
     enc_out = encoded
@@ -499,8 +509,14 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize("use_cuda_graph_decoder", [True, False])
     @pytest.mark.parametrize("use_lm", [True, False])
     @pytest.mark.parametrize("use_boosting_tree", [True, False])
+    @pytest.mark.parametrize("enable_per_stream_biasing", [True, False])
     def test_tdt_greedy_decoding(
-        self, test_data_dir, use_cuda_graph_decoder: bool, use_lm: bool, use_boosting_tree: bool
+        self,
+        test_data_dir,
+        use_cuda_graph_decoder: bool,
+        use_lm: bool,
+        use_boosting_tree: bool,
+        enable_per_stream_biasing: bool,
     ):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         boosting_tree = BoostingTreeModelConfig(key_phrases_list=["hello", "nvidia"]) if use_boosting_tree else None
@@ -509,7 +525,51 @@ class TestRNNTDecoding:
             use_cuda_graph_decoder=use_cuda_graph_decoder,
             lm_path=kenlm_model_path if use_lm else None,
             boosting_tree=boosting_tree,
+            enable_per_stream_biasing=enable_per_stream_biasing,
         )
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("max_symbols_per_step", [1, 10])
+    def test_tdt_greedy_batched_token_duration_is_batch_invariant(self, max_symbols_per_step: int):
+        """Decoding an utterance alone must give the same token durations as decoding it in a batch.
+
+        `token_duration` is turned into the TDT end timestamp by `RNNTDecoding._compute_offsets_tdt`
+        (`end_offset = start_offset + token_duration`), so a batch-dependent duration means
+        batch-dependent end timestamps.
+        """
+        vocab = char_vocabulary()[:3]
+        durations = [0, 1, 2, 4]
+        decoder = get_rnnt_decoder(vocab_size=len(vocab))
+        joint = get_rnnt_joint(vocab_size=len(vocab), num_extra_outputs=len(durations))
+
+        generator = torch.Generator().manual_seed(37)
+        encoder_output = torch.randn(4, 4, 12, generator=generator)
+        encoded_lengths = torch.tensor([12, 4, 9, 5], dtype=torch.int32)
+
+        def decode(encoder_output, encoded_lengths):
+            decoding_algo = greedy_decode.GreedyBatchedTDTInfer(
+                decoder,
+                joint,
+                blank_index=len(vocab),
+                durations=durations,
+                max_symbols_per_step=max_symbols_per_step,
+                include_duration=True,
+                use_cuda_graph_decoder=False,
+            )
+            with torch.no_grad():
+                return decoding_algo(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+
+        batched_hyps = decode(encoder_output, encoded_lengths)
+
+        for i, batched_hyp in enumerate(batched_hyps):
+            length = encoded_lengths[i : i + 1]
+            alone_hyp = decode(encoder_output[i : i + 1, :, : int(length)], length)[0]
+
+            assert torch.equal(alone_hyp.y_sequence, batched_hyp.y_sequence), f"tokens differ for utterance {i}"
+            assert torch.equal(alone_hyp.timestamp, batched_hyp.timestamp), f"timestamps differ for utterance {i}"
+            assert torch.equal(
+                alone_hyp.token_duration, batched_hyp.token_duration
+            ), f"token durations differ for utterance {i}: {alone_hyp.token_duration} vs {batched_hyp.token_duration}"
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
@@ -621,3 +681,32 @@ class TestRNNTTimestamps(BaseTimestampsTest):
     def test_word_offsets_subword_wpe_other_delimiter(self, tmp_tokenizer):
         self.tmp_tokenizer = tmp_tokenizer
         super().test_word_offsets_subword_wpe_other_delimiter()
+
+
+@pytest.mark.unit
+@pytest.mark.with_downloads
+def test_transcribe_timestamps_no_decoder_reinstantiation(stt_en_fastconformer_transducer_large, test_data_dir):
+    """
+    Test that calling transcribe with timestamps=True multiple times
+    does not reinstantiate the decoder.
+
+    Regression test for the fix that avoids calling change_decoding_strategy()
+    when compute_timestamps is already set to the desired value.
+    """
+    model = stt_en_fastconformer_transducer_large
+    audio_file = os.path.join(test_data_dir, "asr/test/an4/wav/cen3-mjwl-b.wav")
+
+    # First call - may change decoding strategy
+    _ = model.transcribe(audio_file, timestamps=True)
+
+    # Get reference to decoding algorithm after first call
+    decoding_after_first_call = model.decoding.decoding
+
+    # Second call - should NOT reinstantiate decoder
+    _ = model.transcribe(audio_file, timestamps=True)
+
+    # Verify decoder is the same object (not reinstantiated)
+    assert model.decoding.decoding is decoding_after_first_call, (
+        "Decoder was reinstantiated on second transcribe call with timestamps=True. "
+        "This indicates change_decoding_strategy() was called unnecessarily."
+    )

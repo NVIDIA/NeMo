@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,7 +49,7 @@ parser.add_argument(
 
 
 def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
-    """ Cut original audio file into audio segments based on alignment_file
+    """Cut original audio file into audio segments based on alignment_file
 
     Args:
         alignment_file: path to the file with segmented text and corresponding time stamps.

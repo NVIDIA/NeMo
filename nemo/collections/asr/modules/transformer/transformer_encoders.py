@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,7 +76,7 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
         residual = encoder_query
         encoder_query = self.layer_norm_1(encoder_query)
         encoder_keys = self.layer_norm_1(encoder_keys)
-        self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
+        self_attn_output, _ = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
         self_attn_output += residual
 
         if self.is_adapter_available():
@@ -110,7 +111,7 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
         Post-LayerNorm block
         Order of operations: Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN -> Residual -> LN
         """
-        self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
+        self_attn_output, _ = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
         self_attn_output += encoder_query
 
         if self.is_adapter_available():

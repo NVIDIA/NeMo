@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +17,8 @@ import json
 
 
 def write_manifest_out_line(
-    f_manifest_out, utt_obj,
+    f_manifest_out,
+    utt_obj,
 ):
 
     data = {"audio_filepath": utt_obj.audio_filepath}

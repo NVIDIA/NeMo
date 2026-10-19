@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -114,7 +115,7 @@ def get_ssl_features_disentangled(
     ssl_model, wav_featurizer, audio_path, emb_type="embedding_and_probs", use_unique_tokens=False, device="cpu"
 ):
     """
-    Extracts content embedding, speaker embedding and duration tokens to be used as inputs for FastPitchModel_SSL 
+    Extracts content embedding, speaker embedding and duration tokens to be used as inputs for FastPitchModel_SSL
     synthesizer. Content embedding and speaker embedding extracted using SSLDisentangler model.
     Args:
         ssl_model: SSLDisentangler model

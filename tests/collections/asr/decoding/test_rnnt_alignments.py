@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +31,9 @@ DEVICES = []
 if torch.cuda.is_available():
     DEVICES.append('cuda')
 
+if torch.mps.is_available():
+    DEVICES.append('mps')
+
 
 @pytest.fixture(scope="module")
 def stt_en_conformer_transducer_small_model():
@@ -47,6 +51,7 @@ def get_rnnt_alignments(
 ) -> list[Hypothesis]:
     cfg = OmegaConf.structured(TranscriptionConfig())
     cfg.rnnt_decoding.confidence_cfg.preserve_frame_confidence = True
+    cfg.rnnt_decoding.confidence_cfg.exclude_blank = False
     cfg.rnnt_decoding.preserve_alignments = True
     cfg.rnnt_decoding.strategy = strategy
     if cfg.rnnt_decoding.strategy == "greedy_batch":

@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -233,7 +234,7 @@ def cal_write_wer(
 
     with open(output_manifest_w_wer, 'w') as fout:
         for sample in samples:
-            json.dump(sample, fout)
+            json.dump(sample, fout, ensure_ascii=False)
             fout.write('\n')
             fout.flush()
 
@@ -319,7 +320,7 @@ def cal_write_text_metric(
 
     with open(output_manifest_w_wer, 'w') as fout:
         for sample in samples:
-            json.dump(sample, fout)
+            json.dump(sample, fout, ensure_ascii=False)
             fout.write('\n')
             fout.flush()
 
@@ -328,3 +329,18 @@ def cal_write_text_metric(
         metric: total_score,
     }
     return output_manifest_w_wer, total_res, metric
+
+
+def compute_laal(delays, source_length, target_length):
+    if delays[0] > source_length:
+        return delays[0]
+    LAAL = 0
+    gamma = max(len(delays), target_length) / source_length
+    tau = 0
+    for t_minus_1, d in enumerate(delays):
+        LAAL += d - t_minus_1 / gamma
+        tau = t_minus_1 + 1
+        if d >= source_length:
+            break
+    LAAL /= tau
+    return LAAL

@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,9 +49,9 @@ except ImportError:
     raise ImportError(
         "Missing required dependency for NFA. "
         "Install NeMo with NFA utilities support:\n"
-        "  pip install 'nemo_toolkit[all]>=2.5.0'\n"
+        "  pip install 'nemo-toolkit[all]>=2.5.0'\n"
         "Or install the latest development version:\n"
-        "  pip install git+https://github.com/NVIDIA/NeMo.git"
+        "  pip install git+https://github.com/NVIDIA-NeMo/Speech.git"
     )
 """
 Align the utterances in manifest_filepath. 

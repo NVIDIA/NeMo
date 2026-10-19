@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +31,8 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from nemo.utils.tar_utils import safe_extract
+
 parser = argparse.ArgumentParser(description='Download LibriTTS and create manifests')
 parser.add_argument("--data-root", required=True, type=Path)
 parser.add_argument("--data-sets", default="dev_clean", type=str)
@@ -56,9 +59,8 @@ def __maybe_download_file(source_url, destination_path):
 
 def __extract_file(filepath, data_dir):
     try:
-        tar = tarfile.open(filepath)
-        tar.extractall(data_dir)
-        tar.close()
+        with tarfile.open(filepath) as tar:
+            safe_extract(tar, str(data_dir))
     except Exception:
         print(f"Error while extracting {filepath}. Already extracted?")
 
@@ -72,7 +74,7 @@ def __process_transcript(file_path: str):
         wav_file = file_path.replace(".normalized.txt", ".wav")
         speaker_id = file_path.split('/')[-3]
         assert os.path.exists(wav_file), f"{wav_file} not found!"
-        duration = subprocess.check_output(f"soxi -D {wav_file}", shell=True)
+        duration = subprocess.check_output(["soxi", "-D", wav_file])
         entry = {
             'audio_filepath': os.path.abspath(wav_file),
             'duration': float(duration),

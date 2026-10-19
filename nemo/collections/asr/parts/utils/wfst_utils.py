@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +15,7 @@
 
 import os
 import re
+import shutil
 import tempfile
 from abc import ABC, abstractmethod, abstractproperty
 from collections import defaultdict, namedtuple
@@ -322,7 +324,7 @@ def add_tokenwords_(
 
 
 def generate_lexicon_sentencepiece(
-    tokenizer: 'TokenizerSpec',
+    tokenizer,
     id2word: Dict[int, str],
     oov: str = "<unk>",
     add_epsilon: bool = False,
@@ -875,14 +877,14 @@ def build_minimal_topo(token2id: Dict[str, int]) -> 'kaldifst.StdVectorFst':
 
 
 def mkgraph_ctc_ov(
-    tokenizer: 'TokenizerSpec',
+    tokenizer,
     lm_path: Union[Path, str],
     topology_name: str = "default",
     write_tlg_path: Optional[Union[Path, str]] = None,
     open_vocabulary: bool = False,
     open_vocabulary_weights: Tuple[float, float] = (2.0, 4.0),
-    target: str = "kaldi",  # "kaldi", "k2"
-) -> Tuple[Union['kaldifst.StdVectorFst', 'k2.Fsa'], int]:
+    target: str = "kaldi",
+) -> Tuple['kaldifst.StdVectorFst', int]:
     """
     Builds a decoding WFST (TLG.fst or TLG.pt).
 
@@ -908,10 +910,10 @@ def mkgraph_ctc_ov(
         Pair of weights (oov_word_weight, token_unigram_weight).
 
       target:
-        What type to build the WFST for. Choices: kaldi, k2.
+        What type to build the WFST for. Choices: kaldi.
 
     Returns:
-      A pair of kaldi- or k2-type decoding WFST and its id of the tokenword disambiguation token.
+      A pair of kaldi-type decoding WFST and its id of the tokenword disambiguation token.
     """
     _kaldifst_maybe_raise()
 
@@ -953,37 +955,6 @@ def mkgraph_ctc_ov(
         if write_tlg_path:
             logging.info(f"Buffering TLG.fst into {write_tlg_path} ...")
             TLG.write(write_tlg_path)
-    elif target == "k2":
-        logging.info("Converting TLG.fst to k2 ...")
-        import torch
-
-        from nemo.core.utils.k2_guard import k2
-
-        blank_id = [i for i, t in lexicon_disambig.id2token.items() if t.mark == "blank"][0]
-        first_token_disambig_id = [i for i, t in lexicon_disambig.id2token.items() if t.mark == "disambig_backoff"][0]
-        word_disambig_id = lexicon_disambig.word2id[lexicon_disambig.id2token[first_token_disambig_id].name]
-        assert lexicon_disambig.id2word[word_disambig_id].mark == "disambig_backoff"
-        input_symbols = "\n".join(
-            [f"{k} {v - 1}" for k, v in lexicon_disambig.token2id.items() if 0 < v < first_token_disambig_id]
-        )
-        output_symbols = str(TLG.output_symbols)
-        TLG.input_symbols = None
-        TLG.output_symbols = None
-        # k2 does not support torch.inference_mode enabled
-        with torch.inference_mode(False):
-            TLG = k2.Fsa.from_openfst(TLG.to_str(show_weight_one=True), acceptor=False)
-            TLG.labels[TLG.labels >= first_token_disambig_id] = blank_id
-            TLG.aux_labels[TLG.aux_labels.values == word_disambig_id] = 0
-            TLG.__dict__["_properties"] = None
-            TLG = k2.arc_sort(k2.connect(k2.remove_epsilon(TLG)))
-            TLG.labels[TLG.labels > 0] = TLG.labels[TLG.labels > 0] - 1
-            TLG.__dict__["_properties"] = None
-            TLG.labels_sym = k2.SymbolTable.from_str(input_symbols)
-            TLG.aux_labels_sym = k2.SymbolTable.from_str(output_symbols)
-            TLG = k2.arc_sort(TLG)
-            if write_tlg_path:
-                logging.info(f"Buffering TLG.pt into {write_tlg_path} ...")
-                torch.save(TLG.as_dict(), write_tlg_path)
     else:
         raise ValueError(f"Unsupported target: `{target}`")
 
@@ -1028,7 +999,7 @@ class AbstractLattice(ABC):
         self._properties = None
 
     @abstractmethod
-    def as_tensor(self) -> 'torch.Tensor':
+    def as_tensor(self):
         """Represents the lattice as a tensor.
 
         Returns:
@@ -1039,7 +1010,7 @@ class AbstractLattice(ABC):
     @abstractmethod
     def draw(
         self, filename: Optional[Union[Path, str]] = None, title: Optional[Union[Path, str]] = None, zoom: float = 1.0
-    ) -> Union['graphviz.Digraph', 'IPython.display.HTML']:
+    ):
         """Render FSA as an image via graphviz, and return the Digraph object; and optionally save to file filename.
         filename must have a suffix that graphviz understands, such as pdf, svg or png.
 
@@ -1184,7 +1155,7 @@ class KaldiWordLattice(AbstractLattice):
     def auxiliary_tables(self) -> Optional[Tuple[Any]]:
         return self._auxiliary_tables
 
-    def as_tensor(self) -> 'torch.Tensor':
+    def as_tensor(self):
         """Represents the lattice as a tensor.
 
         Returns:
@@ -1205,9 +1176,9 @@ class KaldiWordLattice(AbstractLattice):
         _kaldifst_maybe_raise()
 
         if not self.properties.InputEpsilonFree:
-            logging.warning(f"Lattice contains input epsilons. Edit distance calculations may not be accurate.")
+            logging.warning("Lattice contains input epsilons. Edit distance calculations may not be accurate.")
         if not all(reference_sequence):
-            raise ValueError(f"reference_sequence contains zeros, which is not allowed.")
+            raise ValueError("reference_sequence contains zeros, which is not allowed.")
         ref = levenshtein_graph_kaldi(kaldifst.make_linear_acceptor(reference_sequence))
         hyp = levenshtein_graph_kaldi(self._lattice)
         kaldifst.invert(hyp)
@@ -1219,7 +1190,7 @@ class KaldiWordLattice(AbstractLattice):
 
     def draw(
         self, filename: Optional[Union[Path, str]] = None, title: Optional[Union[Path, str]] = None, zoom: float = 1.0
-    ) -> Union['graphviz.Digraph', 'IPython.display.HTML']:
+    ):
         """Render FSA as an image via graphviz, and return the Digraph object; and optionally save to file filename.
         filename must have a suffix that graphviz understands, such as pdf, svg or png.
 

@@ -1,4 +1,5 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -203,8 +204,7 @@ class SpecAugmentNumba(nn.Module, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input types
-        """
+        """Returns definitions of module input types"""
         return {
             "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
             "length": NeuralType(tuple('B'), LengthsType()),
@@ -212,12 +212,17 @@ class SpecAugmentNumba(nn.Module, Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output types
-        """
+        """Returns definitions of module output types"""
         return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     def __init__(
-        self, freq_masks=0, time_masks=0, freq_width=10, time_width=0.1, rng=None, mask_value=0.0,
+        self,
+        freq_masks=0,
+        time_masks=0,
+        freq_width=10,
+        time_width=0.1,
+        rng=None,
+        mask_value=0.0,
     ):
         super().__init__()
         # Message to mention that numba specaugment kernel will be available

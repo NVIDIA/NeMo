@@ -1,82 +1,102 @@
-NVIDIA NeMo Framework Developer Docs
-====================================
+NVIDIA NeMo Speech Developer Docs
+=================================
 
-NVIDIA NeMo Framework is an end-to-end, cloud-native framework designed to build, customize, and deploy generative AI models anywhere.
+`NVIDIA NeMo Speech <https://github.com/NVIDIA-NeMo/Speech>`_ is an open-source toolkit for speech, audio, and multimodal language model research, with a clear path from experimentation to production deployment.
 
-`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ supports large-scale training features, including:
+.. raw:: html
 
-- Mixed Precision Training
-- Parallelism
-- Distributed Optimizer
-- Fully Sharded Data Parallel (FSDP)
-- Flash Attention
-- Activation Recomputation
-- Positional Embeddings and Positional Interpolation
-- Post-Training Quantization (PTQ) and Quantization Aware Training (QAT) with `TensorRT Model Optimizer <https://github.com/NVIDIA/TensorRT-Model-Optimizer>`_
-- Knowledge Distillation-based training with `TensorRT Model Optimizer <https://github.com/NVIDIA/TensorRT-Model-Optimizer>`_
-- Sequence Packing
+   <style>
+   .task-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 24px 0; }
+   .task-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; text-decoration: none !important; color: inherit !important; transition: box-shadow 0.2s; }
+   .task-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+   .task-card h3 { margin-top: 0; }
+   .task-card p { color: #555; font-size: 0.95em; }
+   </style>
 
-`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ has separate collections for:
+   <div class="task-card-grid">
+     <a class="task-card" href="asr/intro.html">
+       <h3>🎙️ Transcribe Speech (ASR)</h3>
+       <p>Convert audio to text with state-of-the-art accuracy. Supports 14+ languages, streaming, and timestamps.</p>
+       <strong>Quick Start →</strong>
+     </a>
+     <a class="task-card" href="tts/intro.html">
+       <h3>🔊 Synthesize Speech (TTS)</h3>
+       <p>Generate natural human speech from text. Multi-language, multi-speaker, with controllable prosody.</p>
+       <strong>Quick Start →</strong>
+     </a>
+     <a class="task-card" href="asr/speaker_diarization/intro.html">
+       <h3>👥 Identify Speakers</h3>
+       <p>Determine "who spoke when" in multi-speaker audio. Speaker diarization, recognition, and verification.</p>
+       <strong>Quick Start →</strong>
+     </a>
+     <a class="task-card" href="speechlm2/intro.html">
+       <h3>🧠 Speech Language Models</h3>
+       <p>Audio-aware LLMs that understand and generate speech. Use HuggingFace Transformers, or NeMo Automodel for efficient MoE and model parallelism. Speech-to-text, speech-to-speech, and more.</p>
+       <strong>Quick Start →</strong>
+     </a>
+     <a class="task-card" href="audio/intro.html">
+       <h3>🎧 Process Audio</h3>
+       <p>Enhance, restore, and separate audio signals. Improve audio quality for downstream tasks.</p>
+       <strong>Quick Start →</strong>
+     </a>
+     <a class="task-card" href="tools/intro.html">
+       <h3>🛠️ Speech AI Tools</h3>
+       <p>Forced alignment, data exploration, CTC segmentation, and evaluation utilities for speech workflows.</p>
+       <strong>Explore Tools →</strong>
+     </a>
+   </div>
 
-* :doc:`Large Language Models (LLMs) <nlp/nemo_megatron/intro>`
 
-* :doc:`Automatic Speech Recognition (ASR) <asr/intro>`
+What is NeMo Speech?
+--------------------
 
-* :doc:`Text-to-Speech (TTS) <tts/intro>`
+`NVIDIA NeMo Speech <https://github.com/NVIDIA-NeMo/Speech>`_ is an open-source toolkit for building, customizing, and deploying speech, audio, and multimodal language models. It provides:
 
-Each collection consists of prebuilt modules that include everything needed to train on your data.
-Every module can easily be customized, extended, and composed to create new generative AI
-model architectures.
+- **Pretrained models** — production-ready checkpoints on `NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`__ and `HuggingFace Hub <https://huggingface.co/nvidia>`__
+- **Modular architecture** — neural modules you can mix, match, and extend
+- **Scalable training** — multi-GPU/multi-node via PyTorch Lightning with mixed-precision support
+- **Simple configuration** — YAML-based experiment configs with `Hydra <https://hydra.cc/>`__
 
-For quick guides and tutorials, see the "Getting started" section below.
+Get started (install the PyTorch build for your platform first):
+
+.. code-block:: bash
+
+   uv pip install 'nemo-toolkit[asr,tts]'
+
+.. code-block:: python
+
+   import nemo.collections.asr as nemo_asr
+   model = nemo_asr.models.ASRModel.from_pretrained("nvidia/parakeet-tdt-0.6b-v2")
+   print(model.transcribe(["audio.wav"])[0].text)
+
+
+Trying to finetune a model?
+---------------------------
+
+Check out our latest ``/nemo-speech-finetune-asr`` `agent skill <https://github.com/NVIDIA-NeMo/Speech/tree/main/.claude/skills/nemo-speech-asr-finetune>`_.
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Getting Started
    :name: starthere
-   :titlesonly:
 
-   starthere/intro
-   starthere/fundamentals
+   starthere/install
+   starthere/ten_minutes
+   starthere/key_concepts
+   starthere/choosing_a_model
    starthere/tutorials
 
-For more information, browse the developer docs for your area of interest in the contents section below or on the left sidebar.
-
 
 .. toctree::
    :maxdepth: 1
-   :caption: Key Optimizations
-   :name: Key Optimizations
+   :caption: Training
+   :name: Training
 
-   features/mixed_precision
    features/parallelisms
-   features/moe
-   features/optimizations/index
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Model Checkpoints
-   :name: Checkpoints
-
+   features/mixed_precision
    checkpoints/intro
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Evaluation
-   :name: evaluation
-   :titlesonly:
-
-   evaluation/evaluation-doc
-   evaluation/evaluation-adapters
-
-.. toctree::
-   :maxdepth: 1
-   :caption: APIs
-   :name: APIs
-   :titlesonly:
-
-   apis
+   dataloaders
 
 .. toctree::
    :maxdepth: 1
@@ -84,7 +104,14 @@ For more information, browse the developer docs for your area of interest in the
    :name: Collections
    :titlesonly:
 
-   collections
+   asr/intro
+   tts/intro
+   speechlm2/intro
+   asr/speaker_diarization/intro
+   asr/speaker_recognition/intro
+   audio/intro
+   asr/ssl/intro
+   asr/speech_classification/intro
 
 .. toctree::
    :maxdepth: 1
@@ -92,4 +119,26 @@ For more information, browse the developer docs for your area of interest in the
    :name: Speech AI Tools
    :titlesonly:
 
-   tools/intro
+   tools/nemo_forced_aligner
+   tools/ctc_segmentation
+   tools/speech_data_explorer
+   tools/comparison_tool
+   tools/asr_evaluator
+   tools/speech_data_processor
+
+.. toctree::
+   :maxdepth: 1
+   :caption: APIs
+   :name: APIs
+   :titlesonly:
+
+   core/core
+   core/neural_modules
+   core/exp_manager
+   core/neural_types
+   core/adapters/intro
+   core/api
+   common/intro
+   asr/api
+   tts/api
+   audio/api

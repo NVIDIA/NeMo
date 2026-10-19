@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +24,6 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
-from hydra.utils import instantiate
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
 from sklearn.metrics import roc_curve
@@ -47,7 +47,7 @@ from nemo.collections.asr.parts.preprocessing.perturb import process_augmentatio
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, safe_instantiate
 from nemo.core.neural_types import *
 from nemo.utils import logging
 
@@ -154,16 +154,16 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
                 cfg_eval_loss.weight = None
 
             # May need a general check for arguments of loss
-            self.loss = instantiate(cfg.loss)
-            self.eval_loss = instantiate(cfg_eval_loss)
+            self.loss = safe_instantiate(cfg.loss)
+            self.eval_loss = safe_instantiate(cfg_eval_loss)
 
         else:
             tmp_loss_cfg = OmegaConf.create(
                 {"_target_": "nemo.collections.common.losses.cross_entropy.CrossEntropyLoss"}
             )
 
-            self.loss = instantiate(tmp_loss_cfg)
-            self.eval_loss = instantiate(tmp_loss_cfg)
+            self.loss = safe_instantiate(tmp_loss_cfg)
+            self.eval_loss = safe_instantiate(tmp_loss_cfg)
 
         self._accuracy = TopKClassificationAccuracy(top_k=[1])
 
@@ -766,8 +766,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         X = embs1.unsqueeze(dim=1)
         Y = embs2.unsqueeze(dim=2)
         # Score
-        similarity_scores = torch.matmul(X, Y).squeeze() / (
-            (torch.matmul(X, X.permute(0, 2, 1)).squeeze() * torch.matmul(Y.permute(0, 2, 1), Y).squeeze()) ** 0.5
+        # NOTE: squeeze only the trailing two singleton dims (not a bare .squeeze()), so a batch of
+        # exactly one pair keeps its batch dimension instead of collapsing to a 0-d scalar.
+        similarity_scores = torch.matmul(X, Y).squeeze(-1).squeeze(-1) / (
+            (
+                torch.matmul(X, X.permute(0, 2, 1)).squeeze(-1).squeeze(-1)
+                * torch.matmul(Y.permute(0, 2, 1), Y).squeeze(-1).squeeze(-1)
+            )
+            ** 0.5
         )
         similarity_scores = (similarity_scores + 1) / 2
 

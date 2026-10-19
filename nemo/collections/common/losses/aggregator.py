@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,8 +34,7 @@ class AggregatorLoss(Loss):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         input_types = {}
         for i in range(self._num_losses):
             input_types["loss_" + str(i + 1)] = NeuralType(elements_type=LossType())
@@ -43,8 +43,7 @@ class AggregatorLoss(Loss):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, num_inputs: int = 2, weights: List[float] = None):
@@ -57,6 +56,7 @@ class AggregatorLoss(Loss):
 
     @typecheck()
     def forward(self, **kwargs):
+        """ """
         values = [kwargs[x] for x in sorted(kwargs.keys())]
         loss = torch.zeros_like(values[0])
         for loss_idx, loss_value in enumerate(values):

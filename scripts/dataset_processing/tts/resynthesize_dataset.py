@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -218,13 +219,22 @@ def argument_parser() -> argparse.ArgumentParser:
         description="Resynthesize TTS dataset using a pretrained text-to-spectrogram model",
     )
     parser.add_argument(
-        "--model-path", required=True, type=Path, help="Path to a checkpoint (either .nemo or .ckpt)",
+        "--model-path",
+        required=True,
+        type=Path,
+        help="Path to a checkpoint (either .nemo or .ckpt)",
     )
     parser.add_argument(
-        "--input-json-manifest", required=True, type=Path, help="Path to the input JSON manifest",
+        "--input-json-manifest",
+        required=True,
+        type=Path,
+        help="Path to the input JSON manifest",
     )
     parser.add_argument(
-        "--input-sup-data-path", required=True, type=Path, help="sup_data_path for the JSON manifest",
+        "--input-sup-data-path",
+        required=True,
+        type=Path,
+        help="sup_data_path for the JSON manifest",
     )
     parser.add_argument(
         "--output-folder",

@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -124,7 +125,12 @@ decoders_module = [
         name='_swig_decoders',
         sources=FILES + glob.glob('*.cxx') + glob.glob('*.cpp'),
         language='c++',
-        include_dirs=['.', 'kenlm', 'openfst-1.6.3/src/include', 'ThreadPool',],
+        include_dirs=[
+            '.',
+            'kenlm',
+            'openfst-1.6.3/src/include',
+            'ThreadPool',
+        ],
         libraries=LIBS,
         extra_compile_args=ARGS,
     )

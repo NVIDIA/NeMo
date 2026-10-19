@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +23,7 @@ __all__ = ['EncoderModule']
 
 
 class EncoderModule(NeuralModule, ABC):
-    """ Base class for encoder neural module to be used in NLP models. """
+    """Base class for encoder neural module to be used in NLP models."""
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:

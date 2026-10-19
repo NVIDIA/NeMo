@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +15,6 @@
 
 import json
 import os
-import pickle as pkl
 import shutil
 import tempfile
 from copy import deepcopy
@@ -378,8 +378,8 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
             prefix = get_uniqname_from_filepath(manifest_file)
             name = os.path.join(embedding_dir, prefix)
-            self._embeddings_file = name + '_embeddings.pkl'
-            pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
+            self._embeddings_file = name + '_embeddings.pt'
+            torch.save(self.embeddings, self._embeddings_file)
             logging.info("Saved embedding files to {}".format(embedding_dir))
 
     def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 0):

@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +25,7 @@ import soundfile as sf
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.audio.models import ScoreBasedGenerativeAudioToAudioModel
+from nemo.collections.audio.models.enhancement import ScoreBasedGenerativeAudioToAudioModel
 
 
 def convert_to_dictconfig(d):
@@ -87,7 +88,7 @@ def score_based_base_config():
         'snr': 0.5,
     }
 
-    loss = {'_target_': 'nemo.collections.audio.losses.MSELoss', 'ndim': 4}
+    loss = {'_target_': 'nemo.collections.audio.losses.audio.MSELoss', 'ndim': 4}
 
     trainer = {
         'max_epochs': -1,

@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -68,7 +69,9 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
-        "--result_file", help="Filename of txt to store results", default="res",
+        "--result_file",
+        help="Filename of txt to store results",
+        default="res",
     )
     parser.add_argument(
         "--vad_pred_method",
@@ -82,7 +85,10 @@ if __name__ == "__main__":
         default='DetER',
     )
     parser.add_argument(
-        "--frame_length_in_sec", help="frame_length_in_sec ", type=float, default=0.01,
+        "--frame_length_in_sec",
+        help="frame_length_in_sec ",
+        type=float,
+        default=0.01,
     )
     args = parser.parse_args()
 

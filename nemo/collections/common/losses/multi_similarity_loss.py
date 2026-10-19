@@ -1,4 +1,5 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,16 +26,16 @@ __all__ = ['MultiSimilarityLoss']
 
 
 class MultiSimilarityLoss(Loss):
+    """Multi-similarity metric learning loss."""
+
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {"logits": NeuralType(('B', 'D'), LogitsType()), "labels": NeuralType(('B'), LabelsType())}
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(
@@ -53,6 +54,7 @@ class MultiSimilarityLoss(Loss):
 
     @typecheck()
     def forward(self, logits, labels):
+        """Compute the multi-similarity loss for the input embeddings and labels."""
         cos_sim = torch.matmul(logits, torch.t(logits))
         losses = []
 

@@ -4,7 +4,7 @@
 Experiment Manager
 ==================
 
-The NeMo Framework Experiment Manager leverages PyTorch Lightning for model checkpointing, TensorBoard Logging, Weights and Biases, DLLogger and MLFlow logging. The
+The NeMo Toolkit Experiment Manager leverages PyTorch Lightning for model checkpointing, TensorBoard Logging, Weights and Biases, DLLogger and MLFlow logging. The
 Experiment Manager is included by default in all NeMo example scripts.
 
 To use the Experiment Manager, call :class:`~nemo.utils.exp_manager.exp_manager` and pass in the PyTorch Lightning ``Trainer``.
@@ -68,6 +68,26 @@ shut down before the procedure has completed. To auto-resume training, set the f
         # we can set our own version with
         exp_manager.version: my_experiment_version
 
+
+Wall-clock Time Limits
+----------------------
+
+Set ``max_time_per_run`` to stop training and save the last checkpoint after a wall-clock duration in
+``DD:HH:MM:SS`` format. By default, the timer starts at the beginning of the current SLURM allocation so that
+preprocessing and other setup time count toward the limit:
+
+.. code-block:: yaml
+
+    exp_manager:
+        max_time_per_run: 00:03:45:00
+        max_time_per_run_from_slurm: True
+
+The timer reads the SLURM-provided ``SLURM_JOB_START_TIME`` UNIX timestamp and checks the elapsed
+allocation time before training starts and after each configured timer interval. Outside SLURM, where that
+variable is absent, it falls back to starting the timer when the training loop starts. An invalid timestamp still
+raises an error. Leave enough time between ``max_time_per_run`` and the SLURM limit for the final checkpoint to
+finish writing. Set ``max_time_per_run_from_slurm`` to ``False`` to always start the timer when the training loop
+starts.
 
 Experiment Loggers
 ------------------

@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,7 +62,7 @@ def _phase_vocoder_kernel(D, time_steps, phi_advance, d_stretch, phase_acc, scal
     """
     two_pi = 2.0 * np.pi
 
-    for (t, step) in enumerate(time_steps):
+    for t, step in enumerate(time_steps):
         columns = D[:, int(step) : int(step + 2)]
         columns_0 = columns[:, 0]
         columns_1 = columns[:, 1]

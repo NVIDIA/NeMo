@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,9 +57,6 @@ def teardown(trainer: Trainer, model: Optional[nn.Module] = None) -> None:
     """Destroys distributed environment and cleans up cache / collects garbage"""
     # Destroy torch distributed
     if torch.distributed.is_initialized():
-        from megatron.core import parallel_state
-
-        parallel_state.destroy_model_parallel()
         torch.distributed.destroy_process_group()
 
     trainer._teardown()  # noqa: SLF001

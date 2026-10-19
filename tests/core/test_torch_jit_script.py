@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -154,7 +155,8 @@ class TestTorchJitCompatibility:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "neural_type", get_all_neural_types(),
+        "neural_type",
+        get_all_neural_types(),
     )
     def test_element_compilable(self, neural_type: Type[nelements.ElementType]):
         """

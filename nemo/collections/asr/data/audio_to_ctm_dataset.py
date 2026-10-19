@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,16 +17,18 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import TYPE_CHECKING, Any, List, Tuple
 
 from nemo.collections.asr.data.audio_to_text_dataset import ASRPredictionWriter
 from nemo.utils import logging
 
+if TYPE_CHECKING:
+    from lightning.pytorch import LightningModule
+
 
 @dataclass
 class FrameCtmUnit:
-    """A container class for one CTM unit with start and length countable in frames.
-    """
+    """A container class for one CTM unit with start and length countable in frames."""
 
     label: str
     start_frame: int

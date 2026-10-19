@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +17,7 @@
 
 from nemo.core.optim.adafactor import Adafactor
 from nemo.core.optim.adan import Adan
+from nemo.core.optim.flash_optim import patch_flashoptim_uneven_shard_support
 from nemo.core.optim.lr_scheduler import (
     CosineAnnealing,
     InverseSquareRootAnnealing,
@@ -32,7 +34,6 @@ from nemo.core.optim.lr_scheduler import (
     WarmupPolicy,
     prepare_lr_scheduler,
 )
-from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
 from nemo.core.optim.novograd import Novograd
 from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
 from nemo.core.optim.optimizers import get_optimizer, parse_optimizer_args, register_optimizer

@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,14 +15,13 @@
 
 import itertools
 import math
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
+from nemo.core.classes import NeuralModule
 
 
 class _TokensWrapper:
@@ -111,7 +111,6 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
 
         try:
             from flashlight.lib.text.decoder import (
-                LM,
                 CriterionType,
                 KenLM,
                 LexiconDecoder,
@@ -196,7 +195,14 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             )
 
             self.decoder = LexiconDecoder(
-                self.decoder_opts, self.trie, self.lm, self.silence, self.blank, self.unk_word, [], False,
+                self.decoder_opts,
+                self.trie,
+                self.lm,
+                self.silence,
+                self.blank,
+                self.unk_word,
+                [],
+                False,
             )
         else:
             from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions

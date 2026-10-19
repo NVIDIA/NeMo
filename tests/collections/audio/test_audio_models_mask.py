@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +26,7 @@ import soundfile as sf
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.audio.models import EncMaskDecAudioToAudioModel
+from nemo.collections.audio.models.enhancement import EncMaskDecAudioToAudioModel
 
 
 @pytest.fixture(params=["nemo_manifest", "lhotse_cuts"])
@@ -111,7 +112,7 @@ def mask_model_rnn_params():
     }
 
     loss = {
-        '_target_': 'nemo.collections.audio.losses.SDRLoss',
+        '_target_': 'nemo.collections.audio.losses.audio.SDRLoss',
         'scale_invariant': True,
     }
 
@@ -212,7 +213,7 @@ def mask_model_flexarray():
     }
 
     loss = {
-        '_target_': 'nemo.collections.audio.losses.SDRLoss',
+        '_target_': 'nemo.collections.audio.losses.audio.SDRLoss',
         'scale_invariant': True,
     }
 

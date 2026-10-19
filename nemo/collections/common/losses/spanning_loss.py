@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,8 +28,7 @@ class SpanningLoss(Loss):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
             "start_positions": NeuralType(tuple('B'), ChannelType()),
@@ -37,15 +37,16 @@ class SpanningLoss(Loss):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "loss": NeuralType(elements_type=LossType()),
             "start_logits": NeuralType(('B', 'T'), LogitsType()),
             "end_logits": NeuralType(('B', 'T'), LogitsType()),
         }
 
-    def __init__(self,):
+    def __init__(
+        self,
+    ):
         super().__init__()
 
     @typecheck()

@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -490,6 +491,7 @@ def get_forced_aligned_timestamps_with_external_model(
     supported_punctuation: Optional[Union[Set, List[str]]] = {',', '.', '!', '?'},
     timestamp_type: Optional[Union[str, List[str]]] = "all",
     has_hypotheses: bool = False,
+    verbose: bool = True,
 ) -> List[Hypothesis]:
     """
     Extracts the word, segment and char timestamps by aligning the audio with the external ASR model and adds them to the provided Hypothesis objects.
@@ -649,6 +651,7 @@ def get_forced_aligned_timestamps_with_external_model(
             word_separator=word_separator,
             gt_text_batch=[hyp.text for hyp in main_model_predictions[start_idx:end_idx]],
             has_hypotheses=has_hypotheses,
+            verbose=verbose,
         )
 
         alignments_batch = viterbi_decoding(

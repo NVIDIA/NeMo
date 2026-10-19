@@ -10,26 +10,93 @@ We do all of NeMo's development in the open. Contributions from NeMo community a
 1) Make sure your PR does one thing. Have a clear answer to "What does this PR do?".
 2) Read General Principles and style guide below
 3) Make sure you sign your commits. E.g. use ``git commit -s`` when before your commit
-4) Make sure all unittests finish successfully before sending PR ``pytest`` or (if yor dev box does not have GPU) ``pytest --cpu`` from NeMo's root folder
+4) Make sure relevant unittests finish successfully before sending PR
 5) Send your PR and request a review
+
+## Signing Your Work
+
+All contributions must be signed off to certify agreement with the Developer Certificate of Origin below. Add a
+`Signed-off-by` trailer to each commit by using `git commit -s`.
+
+```text
+Developer Certificate of Origin
+Version 1.1
+
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+
+Everyone is permitted to copy and distribute verbatim copies of this
+license document, but changing it is not allowed.
+
+
+Developer's Certificate of Origin 1.1
+
+By making a contribution to this project, I certify that:
+
+(a) The contribution was created in whole or in part by me and I
+    have the right to submit it under the open source license
+    indicated in the file; or
+
+(b) The contribution is based upon previous work that, to the best
+    of my knowledge, is covered under an appropriate open source
+    license and I have the right under that license to submit that
+    work with modifications, whether created in whole or in part
+    by me, under the same open source license (unless I am
+    permitted to submit under a different license), as indicated
+    in the file; or
+
+(c) The contribution was provided directly to me by some other
+    person who certified (a), (b) or (c) and I have not modified
+    it.
+
+(d) I understand and agree that this project and the contribution
+    are public and that a record of the contribution (including all
+    personal information I submit with it, including my sign-off) is
+    maintained indefinitely and may be redistributed consistent with
+    this project or the open source license(s) involved.
+```
 
 ## Unit tests
 Quick tests (locally, while developing)
 ```
 pytest
 # If you don't have NVIDIA GPU do:
-# pytest --cpu
+# pytest -m "not pleasefixme" --cpu path/to/relevant_tests
 ```
 Full tests, including pre-trained model downloads
 ```
-pytest --with_downloads
+pytest -m "not pleasefixme" --with_downloads  path/to/relevant_tests
 ```
 
+Replace `path/to/relevant_tests` with the test directory to run such as `tests/collections/asr`. Check the test scripts in `tests/functional_tests`
+that begin with `L0_Unit_Tests_` for the specific test configuration used by different parts of the unit test suite. Different suites may expect
+different environment variables to be set.
+
+## Running the Github CI
+
+CI is powered by [copy-pr-bot](https://github.com/apps/copy-pr-bot), which mirrors each PR to a `pull-request/<number>` branch and triggers the workflow on push.
+
+**CI runs automatically** when all of the following are true:
+- Every commit in the PR is [GPG-signed](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)
+- Every committer is a member of the NVIDIA-NeMo GitHub org (or listed as an `additional_trustee`)
+- The PR has no more than 249 commits
+
+If any of those conditions are not met, copy-pr-bot posts a comment and skips branch creation — CI will not run. A maintainer (anyone with write access or greater) can trigger it manually by commenting:
+```
+/ok to test <sha>
+```
+where `<sha>` is the full or abbreviated SHA of the PR's HEAD commit. The bot also accepts `/okay to test` and `/ok-to-test`.
+
+To re-run CI after a new push, the bot will sync automatically if the PR is still trusted. Otherwise comment `/ok to test <sha>` again with the new HEAD SHA.
+
+The CI test suites are selectively ran based on the files that are changed. In some cases, no tests may be ran such as when docs are updated.
+
+Lint checks using flake8 and pylint are ran on the code based on the files that were changed. Please resolve any lint errors. It is possible but discouraged
+to ignore the lint errors by adding the "skip-linting" label to the PR.
+
+To run the nightly e2e test suite on a PR, add the "Run e2e nightly" label. Labels are read once by the `pre-flight` job at the start of each run, so the label must be present before CI starts. If CI is already running when you add the label, cancel the active workflow run and re-trigger by pushing a new commit.
+
 ## Whom should you ask for review:
-1. For changes to NeMo's core: @ericharper, @titu1994, @blisc, or @okuchaiev  
-1. For changes to NeMo's ASR collection: @titu1994, @redoctopus, @jbalam-nv, or @okuchaiev
-1. For changes to NeMo's NLP collection: @MaximumEntropy, @ericharper, @ekmb, @yzhang123, @VahidooX, @vladgets, or @okuchaiev 
-1. For changes to NeMo's TTS collection: @blisc, or @okuchaiev
+Please tag @nithinraok for NeMo core and ASR related PRs and @blisc for TTS related PRs.
 
 Note that some people may self-assign to review your PR - in which case, please wait for them to add a review.
 
@@ -57,7 +124,7 @@ Your  pull requests must pass all checks and peer-review before they can be merg
 
 ## Python style
 We use ``black`` as our style guide. To check whether your code will pass style check (from the NeMo's repo folder) run:
-``python setup.py style`` and if it does not pass run ``python setup.py style --fix``.
+``python setup.py style --scope path/to/changed/files`` and if it does not pass run ``python setup.py style --scope path/to/changed/files --fix``.
 
 1. Include docstrings for every class and method exposed to the user.
 1. Use Python 3 type hints for every class and method exposed to the user.
@@ -75,5 +142,22 @@ We use ``black`` as our style guide. To check whether your code will pass style 
 
 # Collections
 Collection is a logical grouping of related Neural Modules. It is a grouping of modules that share a domain area or semantics.
-When contributing module to a collection, please make sure it belongs to that category. 
-If you would like to start a new one and contribute back to the platform, you are very welcome to do so.  
+When contributing module to a collection, please make sure it belongs to that category.
+If you would like to start a new one and contribute back to the platform, you are very welcome to do so.
+
+## Pull-request reviews
+
+Comment `/review` on a pull request for the formal review service. Use
+`/review mode=strict` for deeper analysis, or add `model=claude` to select a
+Claude reviewer instead of the default Codex reviewer. `/review help` lists
+all options. The retired `/claude review` and `/claude strict-review` commands
+only reply with migration instructions when posted as an exact command by an
+owner, member, or collaborator. Quoted mentions, other commenters, and bots
+do not trigger a notice. These commands never run or automatically request a review.
+
+The repository policy lives in `.claude/skills/nemo-speech-pr-review/SKILL.md`. The review service
+must load this rubric from protected `main`, not the pull-request branch.
+Before deploying this migration, publish the rubric, register its repository
+profile, and verify a Ready plugin snapshot containing it. Until those
+prerequisites are verified, do not rely on the redirect as evidence that the
+repository-specific review policy is active.

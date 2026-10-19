@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,10 +26,10 @@ import traceback
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from enum import Enum
 from functools import total_ordering
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import hydra
@@ -44,7 +45,7 @@ from nemo.core.classes.mixins.hf_io_mixin import HuggingFaceFileIO
 from nemo.core.config.templates.model_card import NEMO_DEFAULT_MODEL_CARD_TEMPLATE
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 from nemo.utils.cloud import maybe_download_from_cloud
 from nemo.utils.data_utils import resolve_cache_dir
 from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
@@ -53,8 +54,6 @@ __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck', 'Pretraine
 
 _TYPECHECK_ENABLED = True
 _TYPECHECK_SEMANTIC_CHECK_ENABLED = True
-# TODO @blisc: Remove _HAS_HYDRA
-_HAS_HYDRA = True
 
 
 # Added these for now but these should be updated based on collections
@@ -63,10 +62,15 @@ ALLOWED_TARGET_PREFIXES = [
     "nemo.core.",
     "nemo.utils.",
     "nemo.lightning.",
+    "nemo_text_processing.text_normalization.normalize.Normalizer",
     "tests.collections.",
+    "tests.core.",
     "torch.nn.",
+    "torch.distributed.fsdp.",
     "torch.optim.",
+    "transformer_engine.pytorch.optimizers.fused_adam.FusedAdam",
     "torch.utils.data.",
+    "torchmetrics.",
     "lightning.pytorch.callbacks.",
     "lightning.pytorch.loggers.",
     "lightning.pytorch.strategies.",
@@ -75,11 +79,261 @@ ALLOWED_TARGET_PREFIXES = [
     "megatron.",
 ]
 
+ALLOWED_CALLABLE_PREFIXES = [
+    "nemo.collections.common.tokenizers",
+    "nemo.collections.common.parts",
+    "nemo.collections.asr.modules",
+    "nemo.collections.asr.parts",
+    "nemo.collections.audio.parts",
+    "nemo.collections.speechlm",
+    "nemo.collections.llm",
+    "nemo.lightning",
+    "megatron.core",
+    "tests.collections.llm.common",
+]
 
-def _is_target_allowed(target_path: str) -> bool:
-    if not isinstance(target_path, str):
+ALLOWED_ADAPTER_STRATEGY_PREFIXES = [
+    "nemo.core.classes.mixins.adapter_mixin_strategies",
+    "nemo.collections.asr.parts.submodules.adapters",
+]
+
+ALLOWED_CLASS_PREFIXES_WITH_OPTIONAL_DEPENDENCIES = [
+    "nemo.collections.audio.parts.submodules.flow",
+    "nemo.collections.common.tokenizers",
+    "nemo.collections.speechlm2.parts.parallel",
+    "nemo.collections.tts.g2p",
+]
+
+ALLOWED_EXACT_CLASS_TARGETS = {
+    "nemo_text_processing.text_normalization.normalize.Normalizer",
+    "transformer_engine.pytorch.optimizers.fused_adam.FusedAdam",
+}
+
+ALLOWED_LEGACY_FALLBACK_TARGETS = {
+    "src.multi_classification_models.EncDecMultiClassificationModel",
+}
+
+
+class UnsafeTargetError(ValueError):
+    """Raised when config-driven instantiation requests a disallowed target."""
+
+
+def _is_target_allowed(target: str) -> bool:
+    """
+    Return True if the Hydra `_target_` should be allowed to be instantiated.
+    """
+    # cheap prefix check
+    if not any(target.startswith(prefix) for prefix in ALLOWED_TARGET_PREFIXES):
         return False
-    return any(target_path.startswith(prefix) for prefix in ALLOWED_TARGET_PREFIXES)
+
+    # resolve to object
+    try:
+        obj = hydra.utils.get_class(target)
+    except Exception:
+        # Hydra fails on functions; try get_object instead
+        try:
+            obj = hydra.utils.get_object(target)
+        except Exception as e2:
+            # For NeMo targets that passed prefix check, be more lenient with import errors
+            # This handles cases where dependencies might be missing during testing
+            if target.startswith("nemo."):
+                # Check if this is a missing dependency issue vs a malicious target
+                error_msg = str(e2).lower()
+                if any(missing_dep in error_msg for missing_dep in ['no module named', 'modulenotfounderror']):
+                    # This appears to be a legitimate NeMo target with missing dependencies
+                    # Apply additional checks based on the target path structure
+                    target_parts = target.split('.')
+                    if len(target_parts) >= 3:  # e.g., nemo.collections.asr
+                        module_path = '.'.join(target_parts[:-1])  # Remove function/class name
+                        # Check if the module path is in one of our approved prefixes.
+                        if (
+                            any(module_path.startswith(p) for p in ALLOWED_CALLABLE_PREFIXES)
+                            or any(module_path.startswith(p) for p in ALLOWED_ADAPTER_STRATEGY_PREFIXES)
+                            or any(
+                                module_path.startswith(p) for p in ALLOWED_CLASS_PREFIXES_WITH_OPTIONAL_DEPENDENCIES
+                            )
+                        ):
+                            # This is likely a legitimate NeMo function/class that we can't import
+                            # due to missing dependencies. We'll assume it's safe.
+                            return True
+            return False
+
+    # @experimental / @deprecated wrap the class in a wrapt proxy that passes
+    # isinstance(.., type) but breaks issubclass(); unwrap to the real class.
+    while hasattr(obj, "__wrapped__"):
+        obj = obj.__wrapped__
+
+    # If it's a class: allow only subclasses of safe bases
+    if isinstance(obj, type):
+        if target.startswith("nemo.core.config.") and is_dataclass(obj):
+            return True
+
+        from nemo.core.classes.modelPT import ModelPT
+
+        if target in ALLOWED_EXACT_CLASS_TARGETS:
+            return True
+
+        serialization_cls = globals().get("Serialization")
+        if serialization_cls is not None:
+            try:
+                if issubclass(obj, serialization_cls):
+                    return True
+            except TypeError:
+                return False
+
+        SAFE_BASES = (torch.nn.Module, ModelPT)
+        try:
+            if issubclass(obj, SAFE_BASES):
+                return True
+        except TypeError:
+            return False
+
+        try:
+            if issubclass(obj, torch.utils.data.Dataset):
+                return True
+        except TypeError:
+            return False
+
+        if target.startswith("torch.optim."):
+            try:
+                return issubclass(obj, torch.optim.Optimizer)
+            except TypeError:
+                return False
+
+        if target.startswith("torchmetrics."):
+            try:
+                from torchmetrics import Metric
+
+                return issubclass(obj, Metric)
+            except (ImportError, TypeError):
+                return False
+
+        if target == "torch.distributed.fsdp.MixedPrecisionPolicy":
+            return is_dataclass(obj)
+
+        module_name = getattr(obj, "__module__", "") or ""
+        if any(module_name.startswith(p) for p in ALLOWED_ADAPTER_STRATEGY_PREFIXES):
+            from nemo.core.classes.mixins.adapter_mixin_strategies import AbstractAdapterStrategy
+
+            try:
+                return issubclass(obj, AbstractAdapterStrategy)
+            except TypeError:
+                return False
+
+        if target.startswith("nemo.collections.common.tokenizers.") or target.startswith(
+            "nemo.collections.tts.torch.tts_tokenizers."
+        ):
+            try:
+                from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
+                from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
+                return issubclass(obj, (BaseTokenizer, TokenizerSpec))
+            except (ImportError, TypeError):
+                return False
+
+        if target.startswith("nemo.collections.tts.g2p.") or target == "nemo.collections.tts.torch.g2ps.EnglishG2p":
+            try:
+                from nemo.collections.tts.g2p.models.base import BaseG2p
+
+                return issubclass(obj, BaseG2p)
+            except (ImportError, TypeError):
+                return False
+
+        if target.startswith("nemo.collections.tts.parts.preprocessing."):
+            try:
+                from nemo.collections.tts.parts.preprocessing.audio_trimming import AudioTrimmer
+
+                return issubclass(obj, AudioTrimmer)
+            except (ImportError, TypeError):
+                return False
+
+        if target.startswith("nemo.collections.tts.parts.utils.callbacks"):
+            try:
+                from nemo.collections.tts.parts.utils.callbacks import ArtifactGenerator
+
+                return issubclass(obj, ArtifactGenerator)
+            except (ImportError, TypeError):
+                return False
+
+        if target.startswith("nemo.collections.audio.parts.submodules.flow."):
+            try:
+                from nemo.collections.audio.parts.submodules.flow import (
+                    ConditionalFlow,
+                    ConditionalFlowMatchingSampler,
+                )
+
+                return issubclass(obj, (ConditionalFlow, ConditionalFlowMatchingSampler))
+            except (ImportError, TypeError):
+                return False
+
+        if target.startswith("nemo.core.optim.lr_scheduler."):
+            try:
+                from torch.optim.lr_scheduler import _LRScheduler
+
+                return issubclass(obj, _LRScheduler)
+            except (ImportError, TypeError):
+                return False
+
+        if target == "nemo.collections.speechlm2.parts.lr_only_resume.ScaleRestoredLearningRate":
+            try:
+                from lightning.pytorch.callbacks import Callback
+
+                return issubclass(obj, Callback)
+            except (ImportError, TypeError):
+                return False
+
+        if target.startswith("nemo.collections.speechlm2.parts.parallel."):
+            try:
+                from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy
+
+                return issubclass(obj, ModelParallelStrategy)
+            except (ImportError, TypeError):
+                return False
+
+        if target.startswith("lightning.pytorch."):
+            try:
+                if target.startswith("lightning.pytorch.accelerators."):
+                    from lightning.pytorch.accelerators import Accelerator
+
+                    return issubclass(obj, Accelerator)
+                if target.startswith("lightning.pytorch.callbacks."):
+                    from lightning.pytorch.callbacks import Callback
+
+                    return issubclass(obj, Callback)
+                if target.startswith("lightning.pytorch.loggers."):
+                    from lightning.pytorch.loggers.logger import Logger
+
+                    return issubclass(obj, Logger)
+                if target.startswith("lightning.pytorch.strategies."):
+                    from lightning.pytorch.strategies import Strategy
+
+                    return issubclass(obj, Strategy)
+            except (ImportError, TypeError):
+                return False
+
+    # If it's a callable function: allow only if in approved submodules.
+    if callable(obj) and not isinstance(obj, type):
+        module_name = getattr(obj, "__module__", "") or ""
+        if any(module_name.startswith(p) for p in ALLOWED_CALLABLE_PREFIXES):
+            return True
+        return False
+
+    # otherwise disallow
+    return False
+
+
+def _unsafe_target_error(target_path: str, config_key: str) -> ValueError:
+    return UnsafeTargetError(
+        f"Instantiation of unsafe target '{target_path}' is blocked. "
+        f"The '{config_key}' must point to a class or function within an approved namespace. "
+        f"This restriction is in place to prevent potential arbitrary code execution."
+    )
+
+
+def _get_allowed_target_class(target_path: str):
+    if not _is_target_allowed(target_path):
+        raise _unsafe_target_error(target_path, "target")
+    return import_class_by_path(target_path)
 
 
 def _validate_config_targets_recursive(config_node: Any):
@@ -87,11 +341,7 @@ def _validate_config_targets_recursive(config_node: Any):
         if "_target_" in config_node:
             target_path = config_node["_target_"]
             if not _is_target_allowed(target_path):
-                raise ValueError(
-                    f"Instantiation of unsafe target '{target_path}' is blocked. "
-                    f"The '_target_' must point to a class or function within an approved namespace. "
-                    f"This restriction is in place to prevent potential arbitrary code execution."
-                )
+                raise _unsafe_target_error(target_path, "_target_")
         for key, value in config_node.items():
             _validate_config_targets_recursive(value)
     elif isinstance(config_node, Sequence) and not isinstance(config_node, str):  # Handles ListConfig and list
@@ -523,25 +773,22 @@ class Typing(ABC):
                 )
 
 
-class Serialization(ABC):
+class Serialization(ABC):  # pylint: disable=C0115
     @classmethod
-    def from_config_dict(cls, config: 'DictConfig', trainer: Optional['Trainer'] = None):
+    def from_config_dict(cls, config: 'DictConfig', trainer: Optional['Trainer'] = None):  # noqa: F821
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
-        if _HAS_HYDRA:
-            if isinstance(config, DictConfig):
-                config = OmegaConf.to_container(config, resolve=True)
-                config = OmegaConf.create(config)
-                OmegaConf.set_struct(config, True)
+        if isinstance(config, DictConfig):
+            config = model_utils.convert_model_config_to_dict_config(config)
 
-            config = maybe_update_config_version(config)
+        config = maybe_update_config_version(config, make_copy=False)
 
         # Hydra 0.x API
-        if ('cls' in config or 'target' in config) and 'params' in config and _HAS_HYDRA:
+        if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
             instance = safe_instantiate(config=config)
         # Hydra 1.x API
-        elif '_target_' in config and _HAS_HYDRA:
+        elif '_target_' in config:
             # regular hydra-based instantiation
             instance = safe_instantiate(config=config)
         else:
@@ -552,17 +799,22 @@ class Serialization(ABC):
                 target_cls_path = config["target"]  # No guarantee that this is a omegaconf class
                 imported_cls = None
                 try:
-                    # try to import the target class
-                    imported_cls = import_class_by_path(target_cls_path)
-                    # if calling class (cls) is subclass of imported class,
-                    # use subclass instead
-                    if issubclass(cls, imported_cls):
+                    if target_cls_path in ALLOWED_LEGACY_FALLBACK_TARGETS:
                         imported_cls = cls
+                    else:
+                        # try to import the target class
+                        imported_cls = _get_allowed_target_class(target_cls_path)
+                        # if calling class (cls) is subclass of imported class,
+                        # use subclass instead
+                        if issubclass(cls, imported_cls):
+                            imported_cls = cls
                     accepts_trainer = Serialization._inspect_signature_for_trainer(imported_cls)
                     if accepts_trainer:
                         instance = imported_cls(cfg=config, trainer=trainer)
                     else:
                         instance = imported_cls(cfg=config)
+                except UnsafeTargetError:
+                    raise
                 except Exception as e:
                     # record previous error
                     tb = traceback.format_exc()
@@ -594,12 +846,8 @@ class Serialization(ABC):
         """Returns object's configuration to config dictionary"""
         if hasattr(self, '_cfg') and self._cfg is not None:
             # Resolve the config dict
-            if _HAS_HYDRA and isinstance(self._cfg, DictConfig):
-                config = OmegaConf.to_container(self._cfg, resolve=True)
-                config = OmegaConf.create(config)
-                OmegaConf.set_struct(config, True)
-
-                config = maybe_update_config_version(config)
+            config = model_utils.convert_model_config_to_dict_config(self._cfg)
+            config = maybe_update_config_version(config, make_copy=False)
 
             self._cfg = config
 
@@ -621,7 +869,7 @@ class Serialization(ABC):
             return False
 
 
-class FileIO(ABC):
+class FileIO(ABC):  # pylint: disable=C0115
     def save_to(self, save_path: str):
         """
         Standardized method to save a tarfile containing the checkpoint, config, and any additional artifacts.
@@ -640,7 +888,7 @@ class FileIO(ABC):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
-        trainer: Optional['Trainer'] = None,
+        trainer: Optional['Trainer'] = None,  # noqa: F821
         save_restore_connector: SaveRestoreConnector = None,
     ):
         """
@@ -687,7 +935,7 @@ class FileIO(ABC):
         Returns:
         """
         if hasattr(self, '_cfg'):
-            self._cfg = maybe_update_config_version(self._cfg)
+            self._cfg = maybe_update_config_version(self._cfg, make_copy=False)
             with open(path2yaml_file, 'w', encoding='utf-8') as fout:
                 OmegaConf.save(config=self._cfg, f=fout, resolve=True)
         else:
@@ -696,7 +944,7 @@ class FileIO(ABC):
 
 @total_ordering
 @dataclass
-class PretrainedModelInfo:
+class PretrainedModelInfo:  # pylint: disable=C0115
     pretrained_model_name: str
     description: str
     location: str
@@ -772,7 +1020,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
-        trainer: Optional['Trainer'] = None,
+        trainer: Optional['Trainer'] = None,  # noqa: F821
         save_restore_connector: SaveRestoreConnector = None,
         return_model_file: Optional[bool] = False,
     ):
@@ -871,7 +1119,8 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
                 f"Model {model_name} was not found. Check cls.list_available_models()\n"
                 f"for the list of all available models."
             )
-        filename = location_in_the_cloud.split("/")[-1]
+        # Use PurePosixPath for cloud URLs which always use forward slashes
+        filename = PurePosixPath(location_in_the_cloud).name
         url = location_in_the_cloud.replace(filename, "")
         cache_dir = Path.joinpath(resolve_cache_dir(), f'{filename[:-5]}')
         # If either description and location in the cloud changes, this will force re-download
@@ -909,7 +1158,8 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
             -   The path to the NeMo model (.nemo file) in some cached directory (managed by HF Hub).
         """
         # Resolve the model name without origin for filename
-        resolved_model_filename = model_name.split("/")[-1] + '.nemo'
+        # Use PurePosixPath since HuggingFace repo names use forward slashes (e.g., "nvidia/model-name")
+        resolved_model_filename = PurePosixPath(model_name).name + '.nemo'
 
         # Try to take from cache first - if not fallback to options below
         if not refresh_cache:
@@ -1079,6 +1329,7 @@ class typecheck:
         return self.wrapped_call(wrapped)
 
     def unwrapped_call(self, wrapped):
+        """Call without typechecking"""
         return wrapped
 
     @wrapt.decorator(enabled=is_typecheck_enabled)
@@ -1194,6 +1445,7 @@ class typecheck:
 
     @staticmethod
     def enable_wrapping(enabled: bool = True):
+        """Enables typechecking"""
         typecheck.set_typecheck_enabled(enabled)
         if enabled:
             typecheck.__call__ = nemo.core.classes.common.typecheck.wrapped_call

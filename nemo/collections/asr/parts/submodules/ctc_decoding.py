@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -380,7 +381,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 arpa_lm_path=self.cfg.wfst.get('arpa_lm_path', None),
                 wfst_lm_path=self.cfg.wfst.get('wfst_lm_path', None),
                 riva_decoding_cfg=self.cfg.wfst.get('riva_decoding_cfg', None),
-                k2_decoding_cfg=self.cfg.wfst.get('k2_decoding_cfg', None),
             )
 
             self.decoding.override_fold_consecutive_value = False

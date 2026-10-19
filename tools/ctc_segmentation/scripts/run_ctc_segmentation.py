@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,7 +44,10 @@ parser.add_argument(
 parser.add_argument("--window_len", type=int, default=8000, help="Window size for ctc segmentation algorithm")
 parser.add_argument("--sample_rate", type=int, default=16000, help="Sampling rate, Hz")
 parser.add_argument(
-    "--model", type=str, default="QuartzNet15x5Base-En", help="Path to model checkpoint or pre-trained model name",
+    "--model",
+    type=str,
+    default="stt_en_fastconformer_ctc_large",
+    help="Path to model checkpoint or pre-trained model name",
 )
 parser.add_argument("--debug", action="store_true", help="Flag to enable debugging messages")
 parser.add_argument(

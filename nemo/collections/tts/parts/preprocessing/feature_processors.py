@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,10 +20,7 @@ from typing import Optional
 
 import torch
 
-from nemo.utils.decorators import experimental
 
-
-@experimental
 class FeatureProcessor(ABC):
     @abstractmethod
     def process(self, training_example: dict) -> None:

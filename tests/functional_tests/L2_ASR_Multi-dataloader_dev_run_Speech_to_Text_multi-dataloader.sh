@@ -1,4 +1,5 @@
-# Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,5 +19,5 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo exampl
     trainer.accelerator="gpu" \
     trainer.max_epochs=1 \
     trainer.max_steps=1 \
-    +trainer.num_sanity_val_steps=1 \
+    ++trainer.num_sanity_val_steps=1 \
     exp_manager.exp_dir=/tmp/speech_to_text_results

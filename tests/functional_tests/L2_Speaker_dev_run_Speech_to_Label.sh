@@ -1,4 +1,5 @@
-# Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,14 +16,8 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo exampl
     model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
     model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
     model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+    model.labels=['cat','dog'] \
     trainer.devices=1 \
     trainer.accelerator="gpu" \
     +trainer.fast_dev_run=True \
-    model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-    ~model.preprocessor.window_size \
-    ~model.preprocessor.window_stride \
-    ~model.preprocessor.window \
-    ~model.preprocessor.n_mels \
-    ~model.preprocessor.n_mfcc \
-    ~model.preprocessor.n_fft \
     exp_manager.exp_dir=/tmp/speech_to_label_results

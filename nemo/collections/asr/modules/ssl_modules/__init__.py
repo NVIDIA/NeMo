@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,9 +18,16 @@ from nemo.collections.asr.modules.ssl_modules.augmentation import (
     SpeakerNoiseAugmentation,
 )
 from nemo.collections.asr.modules.ssl_modules.masking import ConvFeatureMaksingWrapper, RandomBlockMasking
-from nemo.collections.asr.modules.ssl_modules.multi_layer_feat import (
-    ConformerMultiLayerFeatureExtractor,
-    ConformerMultiLayerFeaturePreprocessor,
-)
+from nemo.collections.asr.modules.ssl_modules.multi_layer_feat import ConformerMultiLayerFeaturePreprocessor
 from nemo.collections.asr.modules.ssl_modules.multi_softmax_decoder import MultiSoftmaxDecoder
 from nemo.collections.asr.modules.ssl_modules.quantizers import RandomProjectionVectorQuantizer
+
+__all__ = [
+    'MultiSpeakerNoiseAugmentation',
+    'SpeakerNoiseAugmentation',
+    'ConvFeatureMaksingWrapper',
+    'RandomBlockMasking',
+    'ConformerMultiLayerFeaturePreprocessor',
+    'MultiSoftmaxDecoder',
+    'RandomProjectionVectorQuantizer',
+]

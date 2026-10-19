@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,8 +33,7 @@ class BCEWithLogitsLoss(nn.BCEWithLogitsLoss, Serialization, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "logits": NeuralType(["B"] + ["ANY"] * (self._logits_dim - 1), LogitsType()),
             "labels": [NeuralType(["B"] + ["ANY"] * (self._logits_dim - 2), LabelsType())],
@@ -42,8 +42,7 @@ class BCEWithLogitsLoss(nn.BCEWithLogitsLoss, Serialization, Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(

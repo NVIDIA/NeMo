@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,10 +26,8 @@ from torch import Tensor
 
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
 from nemo.collections.tts.parts.utils.tts_dataset_utils import get_audio_filepaths, normalize_volume, stack_tensors
-from nemo.utils.decorators import experimental
 
 
-@experimental
 class Featurizer(ABC):
     @abstractmethod
     def save(self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path, overwrite: bool = True) -> None:
@@ -78,7 +77,10 @@ def _get_feature_filepath(
 
 
 def _features_exists(
-    feature_names: List[Optional[str]], manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path,
+    feature_names: List[Optional[str]],
+    manifest_entry: Dict[str, Any],
+    audio_dir: Path,
+    feature_dir: Path,
 ) -> bool:
     for feature_name in feature_names:
         if feature_name is None:

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -68,6 +69,19 @@ if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; t
     Use '|' as a separator between symbols, for example: ';|:' (Optional)]
   --USE_NEMO_NORMALIZATION Set to 'True' to use NeMo Normalization tool to convert
     numbers from written to spoken format. By default num2words package will be used. (Optional)"
+  exit 1
+fi
+
+# check if num2words and ctc_segmentation are installed
+if ! command -v num2words &> /dev/null; then
+  echo "num2words could not be found"
+  echo "please install using tools/ctc_segmentation/requirements.txt"
+  exit 1
+fi
+
+if ! python -c "import ctc_segmentation" &> /dev/null; then
+  echo "ctc_segmentation could not be found"
+  echo "please install using tools/ctc_segmentation/requirements.txt"
   exit 1
 fi
 

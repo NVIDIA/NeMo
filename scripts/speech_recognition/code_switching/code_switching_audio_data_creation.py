@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -124,7 +125,6 @@ def create_cs_data(
     cs_data_sampling_rate: int,
     is_lid_manifest: bool,
 ):
-
     """
     Args:
         intermediate_cs_manifest_list: the intermediate cs manifest obtained from code_switching_manifest_creation.py as a list

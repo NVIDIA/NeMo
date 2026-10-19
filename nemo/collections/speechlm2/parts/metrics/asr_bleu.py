@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,7 +58,7 @@ class ASRBLEU:
 
     def update(
         self, name: str, refs: list[str], pred_audio: torch.Tensor, pred_audio_lens: torch.Tensor = None
-    ) -> None:
+    ) -> list[str]:
         if self.asr is None:
             self.reset()
 
@@ -70,7 +71,7 @@ class ASRBLEU:
                 batch_size=pred_audio.shape[0],
                 verbose=False,
             )
-
+        asr_hyps_texts = []
         for ref, asr_hyp in zip(refs, asr_hyps):
             asr_hyp = asr_hyp.text
             self._refs[name].append(self.normalizer(ref))
@@ -78,6 +79,9 @@ class ASRBLEU:
             if self.verbose:
                 asrb = sacrebleu.sentence_bleu(asr_hyp, [ref]).score
                 logging.info(f"[REF]\t{ref}\n[ASR]\t{asr_hyp} [{asrb:.2f}]")
+            asr_hyps_texts.append(asr_hyp)
+
+        return asr_hyps_texts
 
     def compute(self) -> dict[str, torch.Tensor]:
         """Computes the final score and deallocates ASR and partial results."""

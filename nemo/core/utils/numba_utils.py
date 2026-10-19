@@ -1,4 +1,5 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,6 +82,7 @@ def set_numba_compat_strictness(strict: bool):
 
 @contextlib.contextmanager
 def with_numba_compat_strictness(strict: bool):
+    """Context manager for setting numba compatibility checks temporary"""
     initial_strictness = is_numba_compat_strict()
     set_numba_compat_strictness(strict=strict)
     yield
@@ -102,15 +104,15 @@ def numba_cpu_is_supported(min_version: str) -> bool:
     # If numba is not installed
     if module_available is None:
         return False
-    else:
-        return True
+
+    return module_available is True
 
 
 def numba_cuda_is_supported(min_version: str) -> bool:
     """
     Tests if an appropriate version of numba is installed, and if it is,
     if cuda is supported properly within it.
-    
+
     Args:
         min_version: The minimum version of numba that is required.
 
@@ -127,25 +129,20 @@ def numba_cuda_is_supported(min_version: str) -> bool:
     if module_available is True:
         from numba import cuda
 
-        # this method first arrived in 0.53, and that's the minimum version required
-        if hasattr(cuda, 'is_supported_version'):
-            try:
-                cuda_available = cuda.is_available()
-                if cuda_available:
-                    cuda_compatible = cuda.is_supported_version()
-                else:
-                    cuda_compatible = False
+        try:
+            cuda_available = cuda.is_available()
+            if cuda_available:
+                cuda_compatible = cuda.cudadrv.runtime.get_version()[0] in (12, 13)
+            else:
+                cuda_compatible = False
 
-                if is_numba_compat_strict():
-                    return cuda_available and cuda_compatible
-                else:
-                    return cuda_available
+            if is_numba_compat_strict():
+                return cuda_available and cuda_compatible
+            else:
+                return cuda_available
 
-            except OSError:
-                # dlopen(libcudart.dylib) might fail if CUDA was never installed in the first place.
-                return False
-        else:
-            # assume cuda is supported, but it may fail due to CUDA incompatibility
+        except Exception:
+            # dlopen(libcudart.dylib) might fail if CUDA was never installed in the first place.
             return False
 
     else:
@@ -173,9 +170,9 @@ def is_numba_cuda_fp16_supported(return_reason: bool = False) -> Union[bool, Tup
     )[0]
 
     if numba_fp16_version_correct:
-        reason += f"Numba CUDA FP16 is supported in installed numba version."
+        reason += "Numba CUDA FP16 is supported in installed numba version."
     else:
-        reason += f"Numba CUDA FP16 is not supported in installed numba version."
+        reason += "Numba CUDA FP16 is not supported in installed numba version."
 
     result = use_nvidia_binding and numba_fp16_version_correct
 
@@ -188,7 +185,7 @@ def is_numba_cuda_fp16_supported(return_reason: bool = False) -> Union[bool, Tup
 def skip_numba_cuda_test_if_unsupported(min_version: str):
     """
     Helper method to skip pytest test case if numba cuda is not supported.
-    
+
     Args:
         min_version: The minimum version of numba that is required.
     """

@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +15,8 @@
 
 import json
 from pathlib import Path
+
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
 def get_batch_starts_ends(manifest_filepath, batch_size):
@@ -69,6 +72,7 @@ def get_manifest_lines_batch(manifest_filepath, start, end):
         for line_i, line in enumerate(f):
             if line_i >= start and line_i <= end:
                 data = json.loads(line)
+                data["audio_filepath"] = get_full_path(data["audio_filepath"], manifest_filepath)
                 if "text" in data:
                     # remove any BOM, any duplicated spaces, convert any
                     # newline chars to spaces

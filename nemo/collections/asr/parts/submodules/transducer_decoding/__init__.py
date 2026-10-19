@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+from nemo.collections.asr.parts.submodules.transducer_decoding.batched_hyps import BatchedHyps
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
+    BatchedBeamState,
     BatchedLabelLoopingState,
     GreedyBatchedLabelLoopingComputerBase,
 )
@@ -28,4 +32,6 @@ __all__ = [
     "GreedyBatchedRNNTLabelLoopingComputer",
     "GreedyBatchedTDTLabelLoopingComputer",
     "BatchedLabelLoopingState",
+    "BatchedBeamState",
+    "BatchedHyps",
 ]

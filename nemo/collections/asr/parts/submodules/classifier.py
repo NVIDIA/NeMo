@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,7 +38,11 @@ class Classifier(NeuralModule, Exportable):
         """
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
-    def __init__(self, hidden_size: int, dropout: float = 0.0,) -> None:
+    def __init__(
+        self,
+        hidden_size: int,
+        dropout: float = 0.0,
+    ) -> None:
         """
         Initializes the Classifier base module.
         Args:

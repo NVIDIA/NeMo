@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,9 +47,9 @@ def main():
     parser.add_argument(
         "--asr_model",
         type=str,
-        default="QuartzNet15x5Base-En",
+        default="stt_en_fastconformer_ctc_large",
         required=True,
-        help="Pass: 'QuartzNet15x5Base-En'",
+        help="Pass: 'stt_en_fastconformer_ctc_large'",
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")

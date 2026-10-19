@@ -1,4 +1,5 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,10 +20,26 @@ from nemo.collections.asr.parts.mixins.mixins import (
     ASRBPEMixin,
     ASRModuleMixin,
     DiarizationMixin,
+    PromptStreamingMixin,
 )
+from nemo.collections.asr.parts.mixins.multitalker_asr_mixins import SpeakerKernelMixin
 from nemo.collections.asr.parts.mixins.transcription import (
     ASRTranscriptionMixin,
     TranscribeConfig,
     TranscriptionMixin,
     TranscriptionReturnType,
 )
+
+__all__ = [
+    'ASRAdapterModelMixin',
+    'ASRBPEMixin',
+    'ASRModuleMixin',
+    'ASRTranscriptionMixin',
+    'DiarizationMixin',
+    'InterCTCMixin',
+    'PromptStreamingMixin',
+    'SpeakerKernelMixin',
+    'TranscribeConfig',
+    'TranscriptionMixin',
+    'TranscriptionReturnType',
+]

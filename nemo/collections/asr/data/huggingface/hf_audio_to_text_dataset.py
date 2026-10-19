@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +24,11 @@ from nemo.collections.asr.data.huggingface.hf_audio_to_text import (
 
 
 def get_hf_audio_to_text_bpe_dataset(
-    config: DictConfig, global_rank: int, world_size: int, tokenizer, augmentor=None,
+    config: DictConfig,
+    global_rank: int,
+    world_size: int,
+    tokenizer,
+    augmentor=None,
 ):
     if "streaming" in config and config["streaming"]:
         dataset = HFIterableAudioToBPEDataset(
@@ -72,7 +77,10 @@ def get_hf_audio_to_text_bpe_dataset(
 
 
 def get_hf_audio_to_text_char_dataset(
-    config: DictConfig, global_rank: int, world_size: int, augmentor=None,
+    config: DictConfig,
+    global_rank: int,
+    world_size: int,
+    augmentor=None,
 ):
     if "streaming" in config and config["streaming"]:
         dataset = HFIterableAudioToCharDataset(

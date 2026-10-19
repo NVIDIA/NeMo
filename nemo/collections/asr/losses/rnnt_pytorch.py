@@ -1,5 +1,6 @@
 # ! /usr/bin/python
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,8 +25,7 @@ from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossTy
 class RNNTLossPytorch(Loss):
     @property
     def input_types(self):
-        """Input types definitions for CTCLoss.
-        """
+        """Input types definitions for CTCLoss."""
         return {
             "acts": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
@@ -126,8 +126,7 @@ class TDTLossPytorch(Loss):
 
     @property
     def input_types(self):
-        """Input types definitions for CTCLoss.
-        """
+        """Input types definitions for CTCLoss."""
         return {
             "acts": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
@@ -256,8 +255,7 @@ class MultiblankRNNTLossPytorch(Loss):
 
     @property
     def input_types(self):
-        """Input types definitions for CTCLoss.
-        """
+        """Input types definitions for CTCLoss."""
         return {
             "acts": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),

@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,8 +44,7 @@ class BeamSearchDecoderWithLM(NeuralModule):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
             "log_probs_length": NeuralType(tuple('B'), LengthsType()),
@@ -52,8 +52,7 @@ class BeamSearchDecoderWithLM(NeuralModule):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": NeuralType(('B', 'T'), PredictionsType())}
 
     def __init__(

@@ -1,4 +1,5 @@
-# Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/asr/transcribe_speech.py \
-    pretrained_name="QuartzNet15x5Base-En" \
+    pretrained_name="nvidia/stt_en_fastconformer_ctc_large" \
     audio_dir="/home/TestData/an4_transcribe/test_subset/" \
     output_filename="/tmp/stt_test_res.json" \
     amp=true

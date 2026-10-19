@@ -1,5 +1,6 @@
 # ! /usr/bin/python
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +31,7 @@
 import inspect
 import operator
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -333,8 +334,7 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
 class RNNTLoss(Loss):
     @property
     def input_types(self):
-        """Input types definitions for CTCLoss.
-        """
+        """Input types definitions for RNNTLoss."""
         return {
             "log_probs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             "targets": NeuralType(('B', 'T'), LabelsType()),
@@ -344,7 +344,7 @@ class RNNTLoss(Loss):
 
     @property
     def output_types(self):
-        """Output types definitions for CTCLoss.
+        """Output types definitions for RNNTLoss.
         loss:
             NeuralType(None)
         """
@@ -395,7 +395,7 @@ class RNNTLoss(Loss):
                                  standard blank, and the standard blank is the last symbol in the vocab)
                 TDT: num_classes = V. Note, V here does not include any of the "duration outputs".
 
-            reduction: Type of reduction to perform on loss. Possible values are 
+            reduction: Type of reduction to perform on loss. Possible values are
                 `mean_batch`, 'mean_volume`, `mean`, `sum` or None.
                 `None` will return a torch vector comprising the individual loss values of the batch.
                 `mean_batch` will average the losses in the batch
@@ -418,6 +418,22 @@ class RNNTLoss(Loss):
         self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs)
         self._force_float32 = RNNT_LOSS_RESOLVER[loss_name].force_float32
         self._fp16_compat_checked = False
+
+    def warmup(self, device: Union[str, torch.device]) -> bool:
+        """Warm supported Numba RNNT/TDT kernels before allocating training activations.
+
+        Returns whether warmup ran; False for CPU devices or unsupported backends.
+        """
+        if not NUMBA_RNNT_AVAILABLE:
+            return False
+        if isinstance(self._loss, RNNTLossNumba):
+            dtypes = [torch.float32]
+            if not self._force_float32 and numba_utils.is_numba_cuda_fp16_supported():
+                dtypes.append(torch.float16)
+            return self._loss.warmup(device, dtypes=dtypes)
+        if isinstance(self._loss, TDTLossNumba):
+            return self._loss.warmup(device)
+        return False
 
     def reduce(self, losses, target_lengths):
 
@@ -463,9 +479,7 @@ class RNNTLoss(Loss):
                 self._fp16_compat_checked = True
 
             # Upcast the activation tensor and compute loss and grads in fp32
-            logits_orig = log_probs
             log_probs = log_probs.float()
-            del logits_orig  # save memory *before* computing the loss
 
         # Ensure that shape mismatch does not occur due to padding
         # Due to padding and subsequent downsampling, it may be possible that

@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +15,9 @@
 
 
 import torch
-from hydra.utils import instantiate
 from tqdm import tqdm
 
+from nemo.core.classes.common import safe_instantiate
 from nemo.core.config import hydra_runner
 
 
@@ -38,36 +39,15 @@ def preprocess_ds_for_fastpitch_align(dataloader):
     get_pitch_stats(pitch_list)
 
 
-def preprocess_ds_for_mixer_tts_x(dataloader):
-    pitch_list = []
-    for batch in tqdm(dataloader, total=len(dataloader)):
-        (
-            audios,
-            audio_lengths,
-            tokens,
-            tokens_lengths,
-            align_prior_matrices,
-            pitches,
-            pitches_lengths,
-            lm_tokens,
-        ) = batch
-
-        pitch = pitches.squeeze(0)
-        pitch_list.append(pitch[pitch != 0])
-
-    get_pitch_stats(pitch_list)
-
-
 CFG_NAME2FUNC = {
     "ds_for_fastpitch_align": preprocess_ds_for_fastpitch_align,
     "ds_for_mixer_tts": preprocess_ds_for_fastpitch_align,
-    "ds_for_mixer_tts_x": preprocess_ds_for_mixer_tts_x,
 }
 
 
 @hydra_runner(config_path='ljspeech/ds_conf', config_name='ds_for_fastpitch_align')
 def main(cfg):
-    dataset = instantiate(cfg.dataset)
+    dataset = safe_instantiate(cfg.dataset)
     dataloader = torch.utils.data.DataLoader(
         dataset=dataset,
         batch_size=1,

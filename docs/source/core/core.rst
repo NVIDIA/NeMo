@@ -17,23 +17,23 @@ NeMo models contain everything needed to train and reproduce conversational AI m
 NeMo uses `Hydra <https://hydra.cc/>`_ for configuring both NeMo models and the PyTorch Lightning Trainer.
 
 .. note::
-    Every NeMo model has an example configuration file and training script that can be found `here <https://github.com/NVIDIA/NeMo/tree/stable/examples>`__.
+    Every NeMo model has an example configuration file and training script that can be found `here <https://github.com/NVIDIA-NeMo/Speech/tree/stable/examples>`__.
 
 The end result of using NeMo, `Pytorch Lightning <https://github.com/PyTorchLightning/pytorch-lightning>`__, and Hydra is that NeMo models all have the same look and feel and are also fully compatible with the PyTorch ecosystem.
 
 Pretrained
 ----------
 
-NeMo comes with many pretrained models for each of our collections: ASR, NLP, and TTS. Every pretrained NeMo model can be downloaded 
+NeMo comes with many pretrained models for each of our collections: ASR, TTS, Audio, and SpeechLM2. Every pretrained NeMo model can be downloaded 
 and used with the ``from_pretrained()`` method.
 
-As an example, we can instantiate QuartzNet with the following:
+As an example, we can instantiate a Parakeet model with the following:
 
 .. code-block:: Python
 
     import nemo.collections.asr as nemo_asr
 
-    model = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En")
+    model = nemo_asr.models.ASRModel.from_pretrained(model_name="nvidia/parakeet-tdt-0.6b-v2")
 
 To see all available pretrained models for a specific NeMo model, use the ``list_available_models()`` method:
 
@@ -44,13 +44,12 @@ To see all available pretrained models for a specific NeMo model, use the ``list
 For detailed information on the available pretrained models, refer to the collections documentation: 
 
 - :doc:`Automatic Speech Recognition (ASR) <../asr/intro>`
-- :doc:`Natural Language Processing (NLP) <../nlp/models>`
 - :doc:`Text-to-Speech Synthesis (TTS) <../tts/intro>`
 
 Training
 --------
 
-NeMo leverages `PyTorch Lightning <https://www.pytorchlightning.ai/>`__ for model training. PyTorch Lightning lets NeMo decouple the
+NeMo uses `PyTorch Lightning <https://lightning.ai/docs/pytorch/stable/>`__ for model training. PyTorch Lightning lets NeMo decouple the
 conversational AI code from the PyTorch training code. This means that NeMo users can focus on their domain (ASR, NLP, TTS) and 
 build complex AI applications without having to rewrite boilerplate code for PyTorch training.
 
@@ -63,8 +62,8 @@ When using PyTorch Lightning, NeMo users can automatically train with:
 - early stopping
 - and more
 
-The two main aspects of the Lightning API are the `LightningModule <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#>`_ 
-and the `Trainer <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html>`_.
+The two main aspects of the Lightning API are the `LightningModule <https://lightning.ai/docs/pytorch/stable/common/lightning_module>`_
+and the `Trainer <https://lightning.ai/docs/pytorch/stable/common/trainer>`_.
 
 PyTorch Lightning ``LightningModule``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -169,21 +168,21 @@ While validation logic can be found in ``validation_step``:
         return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
 PyTorch Lightning then handles all of the boilerplate code needed for training. Virtually any aspect of training can be customized
-via PyTorch Lightning `hooks <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#hooks>`_, 
-`Plugins <https://pytorch-lightning.readthedocs.io/en/stable/extensions/plugins.html>`_, 
-`callbacks <https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html>`_, or by overriding `methods <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#methods>`_. 
+via PyTorch Lightning `hooks <https://lightning.ai/docs/pytorch/stable/common/hooks>`_,
+`strategies <https://lightning.ai/docs/pytorch/stable/extensions/strategy>`_,
+`callbacks <https://lightning.ai/docs/pytorch/stable/extensions/callbacks>`_, or by overriding
+`LightningModule methods <https://lightning.ai/docs/pytorch/stable/common/lightning_module>`_.
 
 For more domain-specific information, see:
 
 - :doc:`Automatic Speech Recognition (ASR) <../asr/intro>`
-- :doc:`Natural Language Processing (NLP) <../nlp/models>`
 - :doc:`Text-to-Speech Synthesis (TTS) <../tts/intro>`
 
 PyTorch Lightning Trainer
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Since every NeMo model is a ``LightningModule``, we can automatically take advantage of the PyTorch Lightning ``Trainer``. Every NeMo 
-`example <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ training script uses the ``Trainer`` object to fit the model.
+`example <https://github.com/NVIDIA-NeMo/Speech/tree/v1.0.2/examples>`_ training script uses the ``Trainer`` object to fit the model.
 
 First, instantiate the model and trainer, then call ``.fit``:
 
@@ -202,7 +201,7 @@ First, instantiate the model and trainer, then call ``.fit``:
     # Or we can run the test loop on test data by calling
     trainer.test(model=model)
 
-All `trainer flags <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-flags>`_ can be set from from the NeMo configuration. 
+All `Trainer arguments <https://lightning.ai/docs/pytorch/stable/common/trainer>`_ can be set in the NeMo configuration.
     
 
 Configuration
@@ -230,7 +229,7 @@ With Hydra, we can configure everything needed for NeMo with three interfaces:
 YAML
 ~~~~
 
-NeMo provides YAML configuration files for all of our `example <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ training scripts.
+NeMo provides YAML configuration files for all of our `example <https://github.com/NVIDIA-NeMo/Speech/tree/v1.0.2/examples>`_ training scripts.
 YAML files make it easy to experiment with different model and training configurations.
 
 Every NeMo example YAML has the same underlying configuration structure:
@@ -294,8 +293,8 @@ CLI
 With NeMo and Hydra, every aspect of model training can be modified from the command-line. This is extremely helpful for running lots 
 of experiments on compute clusters or for quickly testing parameters during development.
 
-All NeMo `examples <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ come with instructions on how to
-run the training/inference script from the command-line (e.g. see `here <https://github.com/NVIDIA/NeMo/blob/stable/examples/asr/asr_ctc/speech_to_text_ctc.py>`__
+All NeMo `examples <https://github.com/NVIDIA-NeMo/Speech/tree/stable/examples>`_ come with instructions on how to
+run the training/inference script from the command-line (e.g. see `here <https://github.com/NVIDIA-NeMo/Speech/blob/stable/examples/asr/asr_ctc/speech_to_text_ctc.py>`__
 for an example).
 
 With Hydra, arguments are set using the ``=`` operator:
@@ -339,8 +338,8 @@ We can specify configuration files using the ``--config-path`` and ``--config-na
 .. code-block:: bash
 
     python examples/asr/asr_ctc/speech_to_text_ctc.py \
-        --config-path=conf/quartznet \
-        --config-name=quartznet_15x5 \
+        --config-path=conf/conformer \
+        --config-name=conformer_ctc_bpe \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         ~model.test_ds \
@@ -404,15 +403,15 @@ configuration for a Novograd optimizer with a Cosine Annealing learning rate sch
             warmup_ratio: null
             min_lr: 1e-9:
 
-.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ has optimizer and scheduler configurations for every NeMo model.
+.. note:: `NeMo Examples <https://github.com/NVIDIA-NeMo/Speech/tree/stable/examples>`_ has optimizer and scheduler configurations for every NeMo model.
 
 Optimizers can be configured from the CLI as well:
 
 .. code-block:: bash
 
     python examples/asr/asr_ctc/speech_to_text_ctc.py \
-        --config-path=conf/quartznet \
-        --config-name=quartznet_15x5 \
+        --config-path=conf/conformer \
+        --config-name=conformer_ctc_bpe \
         ...
         # train with the adam optimizer
         model.optim=adam \
@@ -684,7 +683,7 @@ Use a Custom Model Card Template for the Hub
 Nested NeMo Models
 ------------------
 
-In some cases, it may be helpful to use NeMo models inside other NeMo models. For example, we can incorporate language models into ASR models to use in a decoding process to improve accuracy or use hybrid ASR-TTS models to generate audio from the text on the fly to train or fine-tune the ASR model.
+In some cases, it may be helpful to use NeMo models inside other NeMo models. For example, we can incorporate language models into ASR models to use in a decoding process to improve accuracy.
 
 There are three ways to instantiate child models inside parent models:
 

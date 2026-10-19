@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -59,7 +60,6 @@ from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, Index, LengthsType, LossType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 
 class SEANetResnetBlock(NeuralModule):
@@ -537,7 +537,6 @@ def _mask_3d(tensor: Tensor, lengths: Tensor):
     return tensor * mask
 
 
-@experimental
 class EuclideanCodebook(NeuralModule):
     """
     Codebook with Euclidean distance.
@@ -739,6 +738,16 @@ class ResidualVectorQuantizer(VectorQuantizerBase):
             ]
         )
 
+    @property
+    def num_codebooks(self):
+        """Returns the number of codebooks."""
+        return len(self.codebooks)
+
+    @property
+    def codebook_size(self):
+        """Returns the size of the codebook for each group."""
+        return self.codebooks[0].codebook_size
+
     # Override output types, since this quantizer returns commit_loss
     @property
     def output_types(self):
@@ -837,7 +846,7 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
     def __init__(self, num_codebooks: int, num_groups: int, codebook_dim: int, **kwargs):
         super().__init__()
 
-        self.num_codebooks = num_codebooks
+        self._num_codebooks = num_codebooks
         self.num_groups = num_groups
         self.codebook_dim = codebook_dim
 
@@ -857,6 +866,16 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
         logging.debug('\tcodebook_dim:            %d', self.codebook_dim)
         logging.debug('\tnum_codebooks_per_group: %d', self.num_codebooks_per_group)
         logging.debug('\tcodebook_dim_per_group:  %d', self.codebook_dim_per_group)
+
+    @property
+    def num_codebooks(self):
+        """Returns the number of codebooks."""
+        return self._num_codebooks
+
+    @property
+    def codebook_size(self):
+        """Returns the size of the codebook for each group."""
+        return self.rvqs[0].codebook_size
 
     @property
     def num_codebooks_per_group(self):

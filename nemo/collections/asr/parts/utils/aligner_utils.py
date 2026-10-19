@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -878,6 +879,7 @@ def get_batch_variables(
     buffered_chunk_params: dict = {},
     padding_value: float = -3.4e38,
     has_hypotheses: bool = False,
+    verbose: bool = True,
 ):
     """
     Args:
@@ -947,7 +949,9 @@ def get_batch_variables(
                 if has_hypotheses:
                     hypotheses = audio
                 else:
-                    hypotheses = model.transcribe(audio, return_hypotheses=True, batch_size=batch_size)
+                    hypotheses = model.transcribe(
+                        audio, return_hypotheses=True, batch_size=batch_size, verbose=verbose
+                    )
         else:
             assert isinstance(audio, list) or isinstance(
                 audio, str

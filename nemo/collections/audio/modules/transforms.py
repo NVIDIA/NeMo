@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -185,25 +186,23 @@ class SpectrogramToAudio(NeuralModule):
         magnitude_power: Transform magnitude of the spectrogram as x^(1/magnitude_power).
         scale: Spectrogram will be scaled with 1/scale before the inverse transform.
 
-    Streaming usage (center=False):
+    Streaming usage (``center=False``)::
 
-    ```python
-    # analysis should use the same window and center=False
-    # Prefer hamming for center=False (see note below)
-    window = torch.hamming_window(fft_length)
-    spec2audio = SpectrogramToAudio(fft_length=fft_length, hop_length=hop_length, center=False)
-    spec2audio.window = window
-    spec2audio.use_streaming = True
-    spec2audio.reset_streaming()
+        # analysis should use the same window and center=False
+        # Prefer hamming for center=False (see note below)
+        window = torch.hamming_window(fft_length)
+        spec2audio = SpectrogramToAudio(fft_length=fft_length, hop_length=hop_length, center=False)
+        spec2audio.window = window
+        spec2audio.use_streaming = True
+        spec2audio.reset_streaming()
 
-    parts = []
-    for t in range(0, N, K):
-        frames = spec[..., t : t + K]   # (B, C, F, K), complex
-        out, _ = spec2audio(input=frames)
-        parts.append(out)
-    tail = spec2audio.stream_finalize()
-    x_stream = torch.cat(parts + [tail], dim=-1)
-    ```
+        parts = []
+        for t in range(0, N, K):
+            frames = spec[..., t : t + K]   # (B, C, F, K), complex
+            out, _ = spec2audio(input=frames)
+            parts.append(out)
+        tail = spec2audio.stream_finalize()
+        x_stream = torch.cat(parts + [tail], dim=-1)
 
     Notes: ``window`` must match analysis; call ``reset_streaming()`` before a new stream;
     ``stream_finalize()`` flushes the tail (empty if ``hop_length == win_length``).

@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Utility functions for handling data operations, including datastore access and caching."""
+
 import os
 import pathlib
 import shutil
 import subprocess
+import tempfile
 from functools import lru_cache
 from typing import Any, Callable, Dict, Iterable, Tuple
 from urllib.parse import urlparse
@@ -77,10 +81,9 @@ def is_datastore_cache_shared() -> bool:
 
     if cache_shared == 0:
         return False
-    elif cache_shared == 1:
+    if cache_shared == 1:
         return True
-    else:
-        raise ValueError(f'Unexpected value of env {constants.NEMO_ENV_DATA_STORE_CACHE_SHARED}')
+    raise ValueError(f'Unexpected value of env {constants.NEMO_ENV_DATA_STORE_CACHE_SHARED}')
 
 
 def ais_cache_base() -> str:
@@ -150,11 +153,10 @@ def ais_binary() -> str:
     if os.path.isfile(default_path):
         logging.info('ais available at the default path: %s', default_path, mode=LogMode.ONCE)
         return default_path
-    else:
-        logging.warning(
-            f'AIS binary not found with `which ais` and at the default path {default_path}.', mode=LogMode.ONCE
-        )
-        return None
+    logging.warning(
+        f'AIS binary not found with `which ais` and at the default path {default_path}.', mode=LogMode.ONCE
+    )
+    return None
 
 
 def datastore_path_to_local_path(store_path: str) -> str:
@@ -185,7 +187,8 @@ def open_datastore_object_with_binary(path: str, num_retries: int = 5):
 
     Args:
         path: path to an object
-        num_retries: number of retries if the get command fails with ais binary, as AIS Python SDK has its own retry mechanism
+        num_retries: number of retries if the get command fails with ais binary,
+            as AIS Python SDK has its own retry mechanism
 
     Returns:
         File-like object that supports read()
@@ -200,39 +203,55 @@ def open_datastore_object_with_binary(path: str, num_retries: int = 5):
 
         if not binary:
             raise RuntimeError(
-                f"AIS binary is not found, cannot resolve {path}. Please either install it or install Lhotse with `pip install lhotse`.\n"
-                "Lhotse's native open_best supports AIS Python SDK, which is the recommended way to operate with the data from AIStore.\n"
-                "See AIS binary installation instructions at https://github.com/NVIDIA/aistore?tab=readme-ov-file#install-from-release-binaries.\n"
+                f"AIS binary is not found, cannot resolve {path}. "
+                "Please either install it or install Lhotse with `pip install lhotse`.\n"
+                "Lhotse's native open_best supports AIS Python SDK, "
+                "which is the recommended way to operate with the data from AIStore.\n"
+                "See AIS binary installation instructions at "
+                "https://github.com/NVIDIA/aistore?tab=readme-ov-file#install-from-release-binaries.\n"
             )
 
-        cmd = f'{binary} get {path} -'
+        cmd = [binary, 'get', path, '-']
 
         done = False
 
         for _ in range(num_retries):
-            proc = subprocess.Popen(
-                cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False  # bytes mode
-            )
-            stream = proc.stdout
-            if stream.peek(1):
-                done = True
-                break
+            with subprocess.Popen(
+                cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False  # bytes mode
+            ) as proc:
+                stream = proc.stdout
+                if stream.peek(1):
+                    done = True
+                    return stream
 
         if not done:
-            error = proc.stderr.read().decode("utf-8", errors="ignore").strip()
+            with subprocess.Popen(
+                cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False
+            ) as proc:
+                error = proc.stderr.read().decode("utf-8", errors="ignore").strip()
             raise ValueError(
-                f"{path} couldn't be opened with AIS binary after {num_retries} attempts because of the following exception: {error}"
+                f"{path} couldn't be opened with AIS binary "
+                f"after {num_retries} attempts because of the following exception: {error}"
             )
+    return None
 
-        return stream
 
+def open_best(path: str, mode: str = "rb", num_retries: int = 5):
+    """Open a file using the best available method (Lhotse, datastore binary, or standard open).
 
-def open_best(path: str, mode: str = "rb"):
+    Args:
+        path: path to the file or datastore object
+        mode: file opening mode (default: "rb")
+        num_retries: number of attempts when the binary datastore client is used
+
+    Returns:
+        File-like object
+    """
     if LHOTSE_AVAILABLE:
         return lhotse_open_best(path, mode=mode)
     if is_datastore_path(path):
-        return open_datastore_object_with_binary(path)
-    return open(path, mode=mode)
+        return open_datastore_object_with_binary(path, num_retries=num_retries)
+    return open(path, mode=mode, encoding='utf-8' if 'b' not in mode else None)
 
 
 def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -> str:
@@ -243,7 +262,8 @@ def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -
     Args:
         path: path to an object
         force: force download, even if a local file exists
-        num_retries: number of retries if the get command fails with ais binary, as AIS Python SDK has its own retry mechanism
+        num_retries: number of retries if the get command fails with ais binary,
+            as AIS Python SDK has its own retry mechanism
 
     Returns:
         Local path of the object.
@@ -252,21 +272,28 @@ def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -
 
         local_path = datastore_path_to_local_path(store_path=path)
 
-        if not os.path.isfile(local_path) or force:
+        if not os.path.isfile(local_path) or os.path.getsize(local_path) == 0 or force:
             # Either we don't have the file in cache or we force download it
             # Enhancement: if local file is present, check some tag and compare against remote
             local_dir = os.path.dirname(local_path)
             if not os.path.isdir(local_dir):
                 os.makedirs(local_dir, exist_ok=True)
 
-            with open(local_path, 'wb') as f:
-                f.write(open_best(path).read(), num_retries=num_retries)
+            temp_path = None
+            try:
+                with open_best(path, num_retries=num_retries) as source:
+                    with tempfile.NamedTemporaryFile(dir=local_dir, prefix='.download-', delete=False) as f:
+                        temp_path = f.name
+                        f.write(source.read())
+                os.replace(temp_path, local_path)
+            finally:
+                if temp_path is not None and os.path.exists(temp_path):
+                    os.unlink(temp_path)
 
         return local_path
 
-    else:
-        # Assume the file is local
-        return path
+    # Assume the file is local
+    return path
 
 
 class DataStoreObject:
@@ -342,7 +369,7 @@ def datastore_object_get(store_object: DataStoreObject) -> bool:
     return store_object.get() is not None
 
 
-def wds_url_opener(
+def wds_url_opener(  # pylint: disable=unused-argument
     data: Iterable[Dict[str, Any]],
     handler: Callable[[Exception], bool],
     **kw: Dict[str, Any],
@@ -355,7 +382,7 @@ def wds_url_opener(
     Args:
         data: Iterator over dict(url=...).
         handler: Exception handler.
-        **kw: Keyword arguments for gopen.gopen.
+        **kw: Keyword arguments for gopen.gopen (unused, kept for API compatibility).
 
     Yields:
         A stream of url+stream pairs.
@@ -368,8 +395,7 @@ def wds_url_opener(
             stream = open_best(url, mode="rb")
             sample.update(stream=stream)
             yield sample
-        except Exception as exn:
+        except Exception as exn:  # pylint: disable=broad-exception-caught
             if handler(exn):
                 continue
-            else:
-                break
+            break

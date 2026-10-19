@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -230,7 +231,7 @@ def syllabify(pron, alaska_rule=True):
     nuclei = []
     onsets = []
     i = -1
-    for (j, seg) in enumerate(mypron):
+    for j, seg in enumerate(mypron):
         if seg in VOWELS:
             nuclei.append([seg])
             onsets.append(mypron[i + 1 : j])  # actually interludes, r.n.
@@ -276,7 +277,7 @@ def destress(syllab):
     Generate a syllabification with nuclear stress information removed
     """
     syls = []
-    for (onset, nucleus, coda) in syllab:
+    for onset, nucleus, coda in syllab:
         nuke = [p[:-1] if p[-1] in {"0", "1", "2"} else p for p in nucleus]
         syls.append((onset, nuke, coda))
     return syls

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +18,6 @@ import importlib
 import math
 import sys
 from numbers import Number
-from typing import Iterable, Literal
 
 import click
 import lightning.pytorch as pl
@@ -375,7 +375,10 @@ def oomptimizer(
                 config_path is None and module_name is None
             ), "--pretrained-name cannot be used together with --module-name/--config-path"
             click.echo(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
-            model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
+            if pretrained_name.endswith('.nemo'):
+                model = ASRModel.restore_from(pretrained_name, trainer=trainer).to(device)
+            else:
+                model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
         else:
             assert config_path is not None, "--module-name requires --config-path to be specified as well."
             assert module_name is not None, "--config-path requires --module-name to be specified as well."

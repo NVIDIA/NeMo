@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +16,6 @@
 import os
 
 import librosa
-import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 import scipy
@@ -144,6 +144,8 @@ class TestGenerateApproximateNoiseField:
         assert relative_mse_imag < relative_mse_tol
 
         if save_figures:
+            import matplotlib.pyplot as plt
+
             # For debugging and visualization template
             figure_dir = os.path.expanduser('~/_coherence')
             if not os.path.exists(figure_dir):

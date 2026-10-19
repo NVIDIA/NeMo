@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,8 +26,8 @@ from nemo.utils import logging
 
 
 def process_collection(id, col):
-    """ Helper function processing the collection.
-    
+    """Helper function processing the collection.
+
     Args:
         id: (short) name of the collection.
         col: a collection (python module).
@@ -41,7 +42,7 @@ def process_collection(id, col):
 
 
 def main():
-    """ Main function generating a JSON file with list of NeMo collections. """
+    """Main function generating a JSON file with list of NeMo collections."""
     # Parse filename.
     parser = argparse.ArgumentParser()
     parser.add_argument('--filename', help='Name of the output JSON file', type=str, default="collections.json")

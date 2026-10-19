@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,7 +55,7 @@ def __process_data(data_folder: str, dst_folder: str):
             for wavs in os.listdir(cur_dir):
                 audio_id = wavs.strip(".wav")
                 audio_filepath = os.path.abspath(os.path.join(cur_dir, wavs))
-                duration = subprocess.check_output('soxi -D {0}'.format(audio_filepath), shell=True)
+                duration = subprocess.check_output(["soxi", "-D", audio_filepath])
                 duration = float(duration)
                 text = trans_text[audio_id]
                 uttrances.append(

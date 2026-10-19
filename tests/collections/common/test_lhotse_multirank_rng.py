@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -194,10 +195,10 @@ def test_dataloader_multiple_ranks_trng(nemo_tarred_manifest_path: tuple[str, st
     dp1 = get_lhotse_dataloader_from_config(config=config, global_rank=1, world_size=2, dataset=_Identity())
 
     dloaders = zip(*[iter(dl) for dl in (dp0, dp0_cpy, dp0_incrseed, dp1)])
+    batches = [next(dloaders) for _ in range(5)]
+    b0_batches, b0_cpy_batches, b0_incrseed_batches, b1_batches = map(list, zip(*batches))
 
-    for i in range(5):
-        b0, b0_cpy, b0_incrseed, b1 = next(dloaders)
-        assert b0 != b0_cpy
-        assert b0 != b1
-        assert b0_incrseed != b1
-        assert b0 != b0_incrseed
+    assert b0_batches != b0_cpy_batches
+    assert b0_batches != b1_batches
+    assert b0_incrseed_batches != b1_batches
+    assert b0_batches != b0_incrseed_batches

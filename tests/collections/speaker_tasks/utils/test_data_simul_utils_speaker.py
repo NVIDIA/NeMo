@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -410,7 +411,7 @@ class TestDataAnnotator:
     def test_create_new_ctm_entry(self, annotator):
         words, alignments, speaker_id = generate_words_and_alignments(sample_index=0)
         session_name = 'test_session'
-        ctm_list = annotator.create_new_ctm_entry(
+        ctm_list, word_and_ts_list = annotator.create_new_ctm_entry(
             words=words, alignments=alignments, session_name=session_name, speaker_id=speaker_id, start=alignments[0]
         )
         assert ctm_list[0] == (
@@ -424,6 +425,7 @@ class TestDataAnnotator:
                 conf=None,
                 type_of_token='lex',
                 speaker=speaker_id,
+                output_precision=annotator._params.data_simulator.outputs.output_precision,
             ),
         )
         assert ctm_list[1] == (
@@ -437,8 +439,13 @@ class TestDataAnnotator:
                 conf=None,
                 type_of_token='lex',
                 speaker=speaker_id,
+                output_precision=annotator._params.data_simulator.outputs.output_precision,
             ),
         )
+        # Test word_and_ts_list
+        assert len(word_and_ts_list) == 2
+        assert word_and_ts_list[0] == (words[1], alignments[1], alignments[1] + (alignments[1] - alignments[0]))
+        assert word_and_ts_list[1] == (words[2], alignments[2], alignments[2] + (alignments[2] - alignments[1]))
 
 
 class TestSpeechSampler:

@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,20 +14,17 @@
 # limitations under the License.
 
 import itertools
-import json
 import os
-import tempfile
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
 
-import editdistance
 import torch
 import torch.distributed as dist
+from kaldialign import edit_distance
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
 from torch.utils.data import DataLoader
 from torchmetrics.text import SacreBLEUScore
-from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
@@ -529,7 +527,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 wer_scores, wer_words = 0, 0
                 for h, r in zip(_translations, _ground_truths):
                     wer_words += len(r.split())
-                    wer_scores += editdistance.eval(h.split(), r.split())
+                    wer_scores += edit_distance(r.split(), h.split())['total']
                 wer_score = 1.0 * wer_scores * self.world_size / wer_words
 
             else:

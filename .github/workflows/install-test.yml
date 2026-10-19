@@ -21,7 +21,7 @@ jobs:
         installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Check disk space before cleanup
         run: df -h
@@ -39,7 +39,7 @@ jobs:
       - name: Check disk space after cleanup
         run: df -h
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "${{ matrix.python }}"
 
@@ -57,7 +57,6 @@ jobs:
             export NEMO_REPO
             export INSTALL_DIR=$(pwd)
 
-            bash docker/common/install_dep.sh --library "te,mcore,extra" --mode install
             pip install --no-cache-dir ".[all]"
           fi
 
@@ -67,7 +66,7 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in "asr" "tts" "nlp" "lightning" "core"; do
+          for collection in "asr" "tts" "lightning" "core"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
 
@@ -81,7 +80,7 @@ jobs:
         installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Check disk space before cleanup
         run: df -h
@@ -103,7 +102,7 @@ jobs:
         run: df -h
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python }}
 
@@ -116,7 +115,6 @@ jobs:
             pip install --no-cache-dir ".[all]"
           else
             export INSTALL_DIR=$(pwd)
-            bash docker/common/install_dep.sh --library "te,mcore,extra" --mode install
             pip install --no-cache-dir ".[all]"
           fi
 
@@ -126,9 +124,57 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in "asr" "tts" "nlp" "lightning" "core"; do
+          for collection in "asr" "tts" "lightning" "core"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
+
+  test-asr-install-linux-amd:
+    name: ubuntu-22.04-amd-py${{ matrix.python }}-asr
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Check disk space before cleanup
+        run: df -h
+
+      - name: Free up disk space
+        run: |
+          # Remove unnecessary packages and files on Ubuntu
+          sudo apt-get clean
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/az || true
+          # Clear pip and npm caches
+          pip cache purge || true
+          sudo npm cache clean --force || true
+
+      - name: Check disk space after cleanup
+        run: df -h
+
+      - name: Install Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install NeMo
+        run: |
+          pip install --no-cache-dir --upgrade pip
+          pip install --no-cache-dir ".[asr]"
+
+      - name: Check disk space after installation
+        run: df -h
+
+      - name: Run import checks
+        run: |
+          # Run import checks
+          python tests/core_ptl/check_imports.py --domain asr
 
   test-installs-linux-arm:
     name: ubuntu-22.04-arm-py${{ matrix.python }}-${{ matrix.installer }}
@@ -140,7 +186,7 @@ jobs:
         installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Check disk space before cleanup
         run: df -h
@@ -162,7 +208,7 @@ jobs:
         run: df -h
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python }}
 
@@ -175,7 +221,6 @@ jobs:
             pip install --no-cache-dir ".[all]"
           else
             export INSTALL_DIR=$(pwd)
-            bash docker/common/install_dep.sh --library "te,mcore,extra" --mode install
             pip install --no-cache-dir ".[all]"
           fi
 
@@ -185,6 +230,54 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in "asr" "tts" "nlp" "lightning" "core"; do
+          for collection in "asr" "tts" "lightning" "core"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
+
+  test-asr-installs-linux-arm:
+    name: ubuntu-22.04-arm-py${{ matrix.python }}-asr
+    runs-on: ubuntu-22.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Check disk space before cleanup
+        run: df -h
+
+      - name: Free up disk space
+        run: |
+          # Remove unnecessary packages and files on Ubuntu ARM
+          sudo apt-get clean
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/az || true
+          # Clear pip and npm caches
+          pip cache purge || true
+          sudo npm cache clean --force || true
+
+      - name: Check disk space after cleanup
+        run: df -h
+
+      - name: Install Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install NeMo
+        run: |
+          pip install --no-cache-dir --upgrade pip
+          pip install --no-cache-dir ".[asr]"
+
+      - name: Check disk space after installation
+        run: df -h
+
+      - name: Run import checks
+        run: |
+          # Run import checks
+          python tests/core_ptl/check_imports.py --domain asr

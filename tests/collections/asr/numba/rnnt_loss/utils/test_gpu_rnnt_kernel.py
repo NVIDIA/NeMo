@@ -1,4 +1,5 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,7 +99,18 @@ class TestRNNTCUDAKernels:
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # sync kernel
@@ -109,12 +121,12 @@ class TestRNNTCUDAKernels:
         diff = ground_alphas - alphas[0].cpu().numpy()
 
         assert np.abs(diff).mean() <= threshold
-        assert np.square(diff).mean() <= (threshold ** 2)
+        assert np.square(diff).mean() <= (threshold**2)
 
         ll_diff = ground_log_likelihood - llForward[0].cpu().numpy()
 
         assert np.abs(ll_diff).mean() <= threshold
-        assert np.square(ll_diff).mean() <= (threshold ** 2)
+        assert np.square(ll_diff).mean() <= (threshold**2)
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
@@ -168,7 +180,18 @@ class TestRNNTCUDAKernels:
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # sync kernel
@@ -179,12 +202,12 @@ class TestRNNTCUDAKernels:
         diff = ground_alphas - betas[0].cpu().numpy()
 
         assert np.abs(diff).mean() <= threshold
-        assert np.square(diff).mean() <= (threshold ** 2)
+        assert np.square(diff).mean() <= (threshold**2)
 
         ll_diff = ground_log_likelihood - llBackward[0].cpu().numpy()
 
         assert np.abs(ll_diff).mean() <= threshold
-        assert np.square(ll_diff).mean() <= (threshold ** 2)
+        assert np.square(ll_diff).mean() <= (threshold**2)
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
@@ -258,12 +281,34 @@ class TestRNNTCUDAKernels:
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # gamma kernel
@@ -296,7 +341,7 @@ class TestRNNTCUDAKernels:
         diff = true_grads - grads[0].cpu().numpy()
 
         assert np.abs(diff).mean() <= threshold
-        assert np.square(diff).mean() <= (threshold ** 2) * 5.0
+        assert np.square(diff).mean() <= (threshold**2) * 5.0
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
@@ -370,12 +415,34 @@ class TestRNNTCUDAKernels:
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # gamma kernel
@@ -408,7 +475,7 @@ class TestRNNTCUDAKernels:
         diff = true_grads - grads[0].cpu().numpy()
 
         assert np.abs(diff).mean() <= threshold
-        assert np.square(diff).mean() <= (threshold ** 2) * 5
+        assert np.square(diff).mean() <= (threshold**2) * 5
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
@@ -482,12 +549,34 @@ class TestRNNTCUDAKernels:
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # gamma kernel
@@ -520,7 +609,7 @@ class TestRNNTCUDAKernels:
         diff = true_grads - grads[0].cpu().numpy()
 
         assert np.abs(diff).mean() <= threshold
-        assert np.square(diff).mean() <= (threshold ** 2) * 5
+        assert np.square(diff).mean() <= (threshold**2) * 5
 
 
 class TestTDTCUDAKernels:

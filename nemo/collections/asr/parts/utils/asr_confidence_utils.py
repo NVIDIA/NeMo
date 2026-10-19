@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,13 +17,13 @@ import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from functools import partial
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.utils import logging
+if TYPE_CHECKING:
+    from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
 class ConfidenceMethodConstants:
@@ -366,22 +367,28 @@ class ConfidenceMixin(ABC):
         self.confidence_aggregation_bank = get_confidence_aggregation_bank()
         self._aggregate_confidence = self.confidence_aggregation_bank[self.word_confidence_aggregation]
 
-        # Update preserve frame confidence
+        # Update preserve frame confidence from strategy-specific config (greedy or batched beam).
+        strategy_overrides = None
         if self.cfg.strategy in ['greedy', 'greedy_batch']:
+            strategy_overrides = self.cfg.greedy
+        elif self.cfg.strategy in ['malsd_batch', 'maes_batch']:
+            strategy_overrides = self.cfg.beam
+
+        if strategy_overrides is not None:
             if not self.preserve_frame_confidence:
-                self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
+                self.preserve_frame_confidence = strategy_overrides.get('preserve_frame_confidence', False)
                 # OmegaConf.structured ensures that post_init check is always executed
-                confidence_method_cfg = OmegaConf.structured(self.cfg.greedy).get('confidence_method_cfg', None)
+                confidence_method_cfg = OmegaConf.structured(strategy_overrides).get('confidence_method_cfg', None)
                 self.confidence_method_cfg = (
                     OmegaConf.structured(ConfidenceMethodConfig())
                     if confidence_method_cfg is None
                     else OmegaConf.structured(ConfidenceMethodConfig(**confidence_method_cfg))
                 )
             if not self.tdt_include_duration_confidence:
-                self.tdt_include_duration_confidence = self.cfg.greedy.get('tdt_include_duration_confidence', False)
+                self.tdt_include_duration_confidence = strategy_overrides.get('tdt_include_duration_confidence', False)
 
     @abstractmethod
-    def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:
+    def compute_confidence(self, hypotheses_list: List["Hypothesis"]) -> List["Hypothesis"]:
         """Computes high-level (per-token and/or per-word) confidence scores for a list of hypotheses.
         Assumes that `frame_confidence` is present in the hypotheses.
 
@@ -394,7 +401,7 @@ class ConfidenceMixin(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
+    def _aggregate_token_confidence(self, hypothesis: "Hypothesis") -> List[float]:
         """Implemented by subclass in order to aggregate token confidence to a word-level confidence.
 
         Args:
@@ -447,7 +454,7 @@ class ConfidenceMixin(ABC):
             prev_underline = False
             for i, token_id in enumerate(token_ids):
                 token = self.decode_ids_to_tokens([int(token_id)])[0]
-                token_text = self.decode_tokens_to_str([int(token_id)])
+                token_text = self.decode_ids_to_str([int(token_id)])
                 # treat `<unk>` as a separate word regardless of the next token
                 # to match the result of `tokenizer.ids_to_text`
                 if (token != token_text or prev_unk) and i > j:

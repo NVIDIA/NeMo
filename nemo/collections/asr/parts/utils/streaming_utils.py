@@ -1,4 +1,5 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,10 +14,13 @@
 # limitations under the License.
 
 import copy
+import logging
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Iterator, NamedTuple, Optional, Tuple
+
 import librosa
 import numpy as np
 import torch
@@ -26,6 +30,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import PromptedAudioToTextMiniBatch
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.parts.context_biasing.biasing_multi_model import BiasingRequestItemConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.preprocessing.segment import get_samples
@@ -1030,6 +1035,7 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         batch_size=32,
         max_steps_per_timestep: int = 5,
         stateful_decoding: bool = False,
+        target_lang_id=None,
     ):
         '''
         Args:
@@ -1039,12 +1045,14 @@ class BatchedFrameASRRNNT(FrameBatchASR):
             batch_size: Number of independent audio samples to process at each step.
             max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
             stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
+            target_lang_id: Optional target language ID for multilingual AST models.
         '''
         super().__init__(asr_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size)
 
         # OVERRIDES OF THE BASE CLASS
         self.max_steps_per_timestep = max_steps_per_timestep
         self.stateful_decoding = stateful_decoding
+        self.target_lang_id = target_lang_id
 
         self.all_alignments = [[] for _ in range(self.batch_size)]
         self.all_preds = [[] for _ in range(self.batch_size)]
@@ -1061,12 +1069,18 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         print("Performing Stateful decoding :", self.stateful_decoding)
 
+        if self.target_lang_id is not None:
+            logging.info("Using target language ID")
         # OVERRIDES
         self.frame_bufferer = BatchedFeatureFrameBufferer(
             asr_model=asr_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer
         )
 
         self.reset()
+
+    def set_target_lang_id(self, target_lang_id):
+        """Set the target language ID for multilingual models."""
+        self.target_lang_id = target_lang_id
 
     def reset(self):
         """
@@ -1156,7 +1170,7 @@ class BatchedFrameASRRNNT(FrameBatchASR):
             feat_signals.append(feat_signal)
             feat_signal_lens.append(feat_signal_len)
 
-            # preserve batch indeices
+            # preserve batch indices
             new_batch_keys.append(idx)
 
         if len(feat_signals) == 0:
@@ -1167,7 +1181,51 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         del feat_signals, feat_signal_lens
 
-        encoded, encoded_len = self.asr_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
+        # Handle prompt if needed - check if model supports prompts
+        prompt_tensor = None
+        if hasattr(self.asr_model, 'num_prompts') or hasattr(self.asr_model, 'prompt_kernel'):
+            # Get prompt dictionary from model config
+            prompt_dict = getattr(self.asr_model._cfg, 'model_defaults', {}).get('prompt_dictionary', {})
+            if not prompt_dict:
+                logging.ValueError("Prompt dictionary is empty in model config")
+
+            # Get prompt index from dictionary or default to 0
+            prompt_idx = 0  # Default value
+            if self.target_lang_id is not None and isinstance(self.target_lang_id, str):
+                prompt_idx = prompt_dict.get(self.target_lang_id, 0)
+                if prompt_idx == 0 and self.target_lang_id not in prompt_dict:
+                    logging.ValueError(f"Prompt ID '{self.target_lang_id}' not found in prompt dictionary")
+
+            # Create target prompt tensor with calculated time dimension
+            time_length = feat_signal.shape[2]
+            hidden_length = math.ceil(time_length / 8)
+
+            # Get number of prompts from model
+            if hasattr(self.asr_model, 'num_prompts'):
+                num_prompts = self.asr_model.num_prompts
+            else:
+                # Fallback: get from config or use default
+                num_prompts = getattr(self.asr_model._cfg, 'model_defaults', {}).get('num_prompts', 128)
+
+            prompt_tensor = torch.zeros(
+                [feat_signal.size(0), hidden_length, num_prompts], dtype=feat_signal.dtype, device=device
+            )
+
+            # Set the target language
+            for i in range(prompt_tensor.size(0)):
+                prompt_tensor[i, :, prompt_idx] = 1
+
+        # Call model forward with or without prompt
+        if prompt_tensor is not None:
+            encoded, encoded_len = self.asr_model.forward(
+                processed_signal=feat_signal,
+                processed_signal_length=feat_signal_len,
+                prompt=prompt_tensor,
+            )
+        else:
+            encoded, encoded_len = self.asr_model.forward(
+                processed_signal=feat_signal, processed_signal_length=feat_signal_len
+            )
 
         # filter out partial hypotheses from older batch subset
         if self.stateful_decoding and self.previous_hypotheses is not None:
@@ -1636,6 +1694,202 @@ class CacheAwareStreamingAudioBuffer:
             self.buffer_idx += shift_size
             self.step += 1
             yield audio_chunk, chunk_lengths
+
+    def iter_with_right_context(
+        self, right_context_size: int
+    ) -> Iterator[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
+        """
+        Iterate over ASR chunks and separate diarization chunks with future context.
+
+        Args:
+            right_context_size (int): Number of future input-feature frames appended only to the diarization view.
+
+        Yields:
+            asr_chunk (torch.Tensor): Legacy cache-aware ASR input with shape
+                ``(batch_size, feature_dim, asr_frame_count)``.
+            asr_chunk_lengths (torch.Tensor): Valid frame count for each ASR batch row.
+            diar_chunk (torch.Tensor): Diarization input containing the ASR cache and central region followed by
+                ``right_context_size`` future frames.
+            diar_chunk_lengths (torch.Tensor): Valid cache, central, and future frame count for each diarization row.
+
+        Raises:
+            TypeError: If ``right_context_size`` is not an integer or is a boolean.
+            ValueError: If ``right_context_size`` is negative.
+        """
+        if not isinstance(right_context_size, int) or isinstance(right_context_size, bool):
+            raise TypeError("right_context_size must be an integer.")
+        if right_context_size < 0:
+            raise ValueError("right_context_size must be non-negative.")
+        if right_context_size == 0:
+            for asr_chunk, asr_chunk_lengths in self:
+                yield asr_chunk, asr_chunk_lengths, asr_chunk, asr_chunk_lengths
+            return
+        yield from self._iter_with_right_context(right_context_size=right_context_size)
+
+    def _prepare_chunk_view(
+        self,
+        main_chunk: torch.Tensor,
+        cache_pre_encode: torch.Tensor,
+        zeros_pads: Optional[torch.Tensor],
+        expected_main_size: Optional[int] = None,
+        normalization_lengths: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Add pre-encoder cache, normalization, and optional fixed-width right padding to a feature view.
+
+        Args:
+            main_chunk (torch.Tensor): Central feature slice, optionally including future context, with shape
+                ``(batch_size, feature_dim, main_frame_count)``.
+            cache_pre_encode (torch.Tensor): Real pre-encoder cache frames prepended to ``main_chunk``.
+            zeros_pads (Optional[torch.Tensor]): Missing left-cache frames added after normalization.
+            expected_main_size (Optional[int]): Required physical width of the central-plus-context region. If set,
+                a short final view is right-padded to this width.
+            normalization_lengths (Optional[torch.Tensor]): Per-row valid lengths used to compute normalization
+                statistics. If omitted, the complete physical view is normalized.
+
+        Returns:
+            audio_chunk (torch.Tensor): Prepared cache-aware feature view.
+            chunk_lengths (torch.Tensor): Per-row semantic lengths that exclude right padding.
+        """
+        added_len = cache_pre_encode.size(-1)
+        audio_chunk = torch.cat((cache_pre_encode, main_chunk), dim=-1)
+
+        if self.online_normalization:
+            if normalization_lengths is None:
+                normalization_lengths = torch.tensor([audio_chunk.size(-1)] * audio_chunk.size(0))
+            audio_chunk, _, _ = normalize_batch(
+                x=audio_chunk,
+                seq_len=normalization_lengths,
+                normalize_type=self.model_normalize_type,
+            )
+
+        if zeros_pads is not None:
+            # TODO: check here when zero_pads is not None and added_len is already non-zero
+            audio_chunk = torch.cat((zeros_pads, audio_chunk), dim=-1)
+            added_len += zeros_pads.size(-1)
+
+        if expected_main_size is not None:
+            expected_chunk_size = added_len + expected_main_size
+            right_pad_size = expected_chunk_size - audio_chunk.size(-1)
+            if right_pad_size > 0:
+                audio_chunk = torch.nn.functional.pad(audio_chunk, (0, right_pad_size))
+
+        max_chunk_lengths = self.streams_length - self.buffer_idx
+        max_chunk_lengths = max_chunk_lengths + added_len
+        chunk_lengths = torch.clamp(max_chunk_lengths, min=0, max=audio_chunk.size(-1))
+        return audio_chunk, chunk_lengths
+
+    def _iter_with_right_context(
+        self, right_context_size: int
+    ) -> Iterator[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
+        """
+        Build dedicated ASR and diarization views while advancing by the ASR shift.
+
+        Args:
+            right_context_size (int): Positive number of future input-feature frames for diarization.
+
+        Yields:
+            asr_chunk (torch.Tensor): Unmodified ASR cache-aware feature view.
+            asr_chunk_lengths (torch.Tensor): Per-row valid lengths for ``asr_chunk``.
+            diar_chunk (torch.Tensor): Wider diarization view with a fixed physical future-context suffix.
+            diar_chunk_lengths (torch.Tensor): Per-row valid lengths for ``diar_chunk``.
+        """
+        while True:
+            if self.buffer_idx >= self.buffer.size(-1):
+                return
+
+            if self.buffer_idx == 0 and isinstance(self.streaming_cfg.chunk_size, list):
+                if self.pad_and_drop_preencoded:
+                    chunk_size = self.streaming_cfg.chunk_size[1]
+                else:
+                    chunk_size = self.streaming_cfg.chunk_size[0]
+            else:
+                chunk_size = (
+                    self.streaming_cfg.chunk_size[1]
+                    if isinstance(self.streaming_cfg.chunk_size, list)
+                    else self.streaming_cfg.chunk_size
+                )
+
+            if self.buffer_idx == 0 and isinstance(self.streaming_cfg.shift_size, list):
+                if self.pad_and_drop_preencoded:
+                    shift_size = self.streaming_cfg.shift_size[1]
+                else:
+                    shift_size = self.streaming_cfg.shift_size[0]
+            else:
+                shift_size = (
+                    self.streaming_cfg.shift_size[1]
+                    if isinstance(self.streaming_cfg.shift_size, list)
+                    else self.streaming_cfg.shift_size
+                )
+
+            main_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size]
+
+            if self.sampling_frames is not None:
+                # checking to make sure the audio chunk has enough frames to produce at least one output after
+                # downsampling
+                if self.buffer_idx == 0 and isinstance(self.sampling_frames, list):
+                    cur_sampling_frames = self.sampling_frames[0]
+                else:
+                    cur_sampling_frames = (
+                        self.sampling_frames[1] if isinstance(self.sampling_frames, list) else self.sampling_frames
+                    )
+                if main_chunk.size(-1) < cur_sampling_frames:
+                    return
+
+            # Adding the cache needed for the pre-encoder part of the model to the chunk
+            # if there is not enough frames to be used as the pre-encoding cache, zeros would be added
+            zeros_pads = None
+            if self.buffer_idx == 0 and isinstance(self.streaming_cfg.pre_encode_cache_size, list):
+                if self.pad_and_drop_preencoded:
+                    cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[1]
+                else:
+                    cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[0]
+                cache_pre_encode = torch.zeros(
+                    (main_chunk.size(0), self.input_features, cache_pre_encode_num_frames),
+                    device=main_chunk.device,
+                    dtype=main_chunk.dtype,
+                )
+            else:
+                if isinstance(self.streaming_cfg.pre_encode_cache_size, list):
+                    pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size[1]
+                else:
+                    pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size
+
+                start_pre_encode_cache = self.buffer_idx - pre_encode_cache_size
+                if start_pre_encode_cache < 0:
+                    start_pre_encode_cache = 0
+                cache_pre_encode = self.buffer[:, :, start_pre_encode_cache : self.buffer_idx]
+                if cache_pre_encode.size(-1) < pre_encode_cache_size:
+                    zeros_pads = torch.zeros(
+                        (
+                            main_chunk.size(0),
+                            main_chunk.size(-2),
+                            pre_encode_cache_size - cache_pre_encode.size(-1),
+                        ),
+                        device=main_chunk.device,
+                        dtype=main_chunk.dtype,
+                    )
+
+            asr_chunk, asr_chunk_lengths = self._prepare_chunk_view(
+                main_chunk=main_chunk,
+                cache_pre_encode=cache_pre_encode,
+                zeros_pads=zeros_pads,
+            )
+            diar_main_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size + right_context_size]
+            diar_normalization_lengths = (self.streams_length - self.buffer_idx + cache_pre_encode.size(-1)).clamp(
+                min=0, max=cache_pre_encode.size(-1) + diar_main_chunk.size(-1)
+            )
+            diar_chunk, diar_chunk_lengths = self._prepare_chunk_view(
+                main_chunk=diar_main_chunk,
+                cache_pre_encode=cache_pre_encode,
+                zeros_pads=zeros_pads,
+                expected_main_size=chunk_size + right_context_size,
+                normalization_lengths=diar_normalization_lengths,
+            )
+
+            self.buffer_idx += shift_size
+            self.step += 1
+            yield asr_chunk, asr_chunk_lengths, diar_chunk, diar_chunk_lengths
 
     def is_buffer_empty(self):
         if self.buffer_idx >= self.buffer.size(-1):
@@ -2145,6 +2399,7 @@ class ContextSize:
                 f"than expected chunk with right context {expected_context}"
             )
         # consider first everything is moved to right/left context, then move to chunk
+        prev_left, prev_chunk, prev_right = self.left, self.chunk, self.right
         self.left += self.chunk
         self.chunk = 0
         self.right += num_frames
@@ -2152,13 +2407,19 @@ class ContextSize:
             # move all samples to chunk, empty right part
             self.chunk = self.right
             self.right = 0
-        else:
+        elif self.right > expected_context.chunk:
             self.chunk = expected_context.chunk
             self.right -= expected_context.chunk
         extra_samples = max(self.total() - expected_context.total(), 0)
         self.left -= extra_samples
         if not is_last_chunk:
-            assert self.right == expected_context.right
+            if self.right != expected_context.right or (self.chunk != expected_context.chunk and self.chunk != 0):
+                logging.warning(
+                    f"Prev: {prev_left} - {prev_chunk} - {prev_right}\n"
+                    f"Added {num_frames}\n"
+                    f"Curr: {self.left} - {self.chunk} - {self.right}\n"
+                    f"Expected context <any> - {expected_context.chunk} - {expected_context.right}"
+                )
         return extra_samples
 
     def __str__(self):
@@ -2269,7 +2530,7 @@ class StreamingBatchedAudioBuffer:
         )
         # leave only full_ctx_audio_samples in buffer
         if extra_samples_in_buffer > 0:
-            self.samples = self.samples[:, extra_samples_in_buffer:].clone()
+            self.samples = self.samples[:, extra_samples_in_buffer:]
 
 
 def load_audio(file_path: str | Path, sample_rate: int = 16000) -> tuple[torch.Tensor, int]:
@@ -2278,39 +2539,155 @@ def load_audio(file_path: str | Path, sample_rate: int = 16000) -> tuple[torch.T
     return torch.tensor(audio, dtype=torch.float32), sr
 
 
+class AudioItem(NamedTuple):
+    audio_signal: torch.Tensor
+    biasing_request: BiasingRequestItemConfig | None
+
+
 class AudioBatch(NamedTuple):
     audio_signals: torch.Tensor
     audio_signal_lengths: torch.Tensor
+    biasing_requests: list[BiasingRequestItemConfig | None] | None
 
     @staticmethod
     def collate_fn(
-        audio_batch: list[torch.Tensor],
+        audio_batch: list[AudioItem],
     ) -> "AudioBatch":
         """
         Collate audio signals to batch
         """
         audio_signals = pad_sequence(
-            [audio_tensor for audio_tensor in audio_batch], batch_first=True, padding_value=0.0
+            [audio_item.audio_signal for audio_item in audio_batch], batch_first=True, padding_value=0.0
         )
-        audio_signal_lengths = torch.tensor([audio_tensor.shape[0] for audio_tensor in audio_batch]).long()
+        audio_signal_lengths = torch.tensor([audio_item.audio_signal.shape[0] for audio_item in audio_batch]).long()
+        biasing_requests = [audio_item.biasing_request for audio_item in audio_batch]
 
         return AudioBatch(
             audio_signals=audio_signals,
             audio_signal_lengths=audio_signal_lengths,
+            biasing_requests=None if all([request is None for request in biasing_requests]) else biasing_requests,
         )
 
 
 class SimpleAudioDataset(Dataset):
     """Dataset constructed from audio filenames. Each item - audio"""
 
-    def __init__(self, audio_filenames: list[str | Path], sample_rate: int = 16000):
+    def __init__(
+        self,
+        audio_filenames: list[str | Path],
+        sample_rate: int = 16000,
+        biasing_requests: list[BiasingRequestItemConfig | None] | None = None,
+    ):
         super().__init__()
         self.audio_filenames = audio_filenames
         self.sample_rate = sample_rate
+        self.biasing_requests = (
+            biasing_requests if biasing_requests is not None else [None for _ in range(len(self.audio_filenames))]
+        )
+        if len(self.biasing_requests) != len(self.audio_filenames):
+            raise ValueError(
+                f"Length of biasing requests {len(self.biasing_requests)} "
+                "expected to be equal to the length of audio filenames {len(self.audio_filenames)}"
+            )
 
-    def __getitem__(self, item: int) -> torch.Tensor:
-        audio, _ = load_audio(self.audio_filenames[item])
-        return audio
+    def __getitem__(self, item: int) -> AudioItem:
+        audio, _ = load_audio(self.audio_filenames[item], sample_rate=self.sample_rate)
+        return AudioItem(audio_signal=audio, biasing_request=self.biasing_requests[item])
 
     def __len__(self):
         return len(self.audio_filenames)
+
+
+class DynamicLengthTensor:
+    """Data structure to handle [Batch, Length, ...] tensor data with dynamic Length (dim=1) axis"""
+
+    def __init__(
+        self,
+        batch_size: int,
+        init_length: int,
+        dim_shape: int | list[int] | None = None,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ):
+        self._max_length = init_length if init_length >= 1 else 1  # min 1 required for 2x growth
+        self.batch_size = batch_size
+        self.device = device
+        self.dtype = dtype or torch.get_default_dtype()
+        if dim_shape is None:
+            self.dim_shape = []
+        elif isinstance(dim_shape, int):
+            self.dim_shape = [dim_shape]
+        else:
+            assert isinstance(dim_shape, list)
+            self.dim_shape = dim_shape
+        self.data = torch.zeros([batch_size, self._max_length] + self.dim_shape, dtype=self.dtype, device=device)
+        self.lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
+
+    def clear_(self):
+        """
+        Clears storage
+        """
+        self.lengths.fill_(0)
+        self.data.fill_(0)
+
+    def _allocate_more(self, min_add_length: int | None = None):
+        """
+        Allocate at least 2x space for tensors, similar to common C++ std::vector implementations
+        to maintain O(1) insertion time complexity
+        """
+        add_len = self._max_length if min_add_length is None else max(min_add_length, self._max_length)
+        add_shape = [self.batch_size, add_len] + self.dim_shape
+        self.data = torch.cat((self.data, self.data.new_zeros(add_shape)), dim=1)
+        self._max_length += add_len
+
+    def to_device(self, device: str | torch.device) -> "DynamicLengthTensor":
+        """Move storage to device"""
+        self.device = device
+        self.data = self.data.to(device=device)
+        self.lengths = self.lengths.to(device=device)
+        return self
+
+    def append_(self, data: torch.Tensor, lengths: torch.Tensor | None = None):
+        """Append new data along length dimension"""
+        cur_len = self.lengths.max().item()
+        other_len = data.shape[1] if lengths is None else lengths.max().item()
+        if cur_len + other_len >= self._max_length:
+            self._allocate_more(min_add_length=cur_len + other_len - self._max_length + 1)
+        self.append_no_checks_(data=data[:, :other_len], lengths=lengths)
+
+    def append_no_checks_(self, data: torch.Tensor, lengths: torch.Tensor | None = None):
+        """Append new data along length dimension without checks"""
+        other_len = data.shape[1]
+        indices = torch.arange(other_len, device=self.device)
+        shifted_indices = self.lengths[:, None] + indices[None, :]
+        # add trailing len(dim_shape) axes to shifted_indices
+        shifted_indices = shifted_indices[(..., *(None for _ in range(len(self.dim_shape))))]
+        self.data.scatter_(dim=1, index=shifted_indices.expand([-1, -1] + self.dim_shape), src=data)
+        if lengths is None:
+            self.lengths += other_len
+        else:
+            self.lengths += lengths
+
+    def clone(self) -> "DynamicLengthTensor":
+        """Return a copy of self"""
+        new_dynamic_tensor = DynamicLengthTensor(
+            batch_size=self.batch_size,
+            init_length=self._max_length,
+            dim_shape=self.dim_shape,
+            device=self.device,
+            dtype=self.dtype,
+        )
+        new_dynamic_tensor.data.copy_(self.data)
+        new_dynamic_tensor.lengths.copy_(self.lengths)
+        return new_dynamic_tensor
+
+    def merge_(self, other: "DynamicLengthTensor") -> "DynamicLengthTensor":
+        """
+        Merge two dynamic tensors
+        NB: this will reallocate memory
+
+        Args:
+            other: DynamicLengthTensor
+        """
+        self.append_(data=other.data, lengths=other.lengths)
+        return self

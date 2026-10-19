@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,16 +14,10 @@
 # limitations under the License.
 
 
+from typing import List, Optional
+
 import numpy as np
 import torch
-
-try:
-    from cuda import cudart
-
-    HAVE_CUDA_PYTHON = True
-except ImportError:
-    HAVE_CUDA_PYTHON = False
-from typing import List, Optional
 
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils.cuda_python_utils import (
@@ -31,6 +26,10 @@ from nemo.core.utils.cuda_python_utils import (
     run_nvrtc,
     with_conditional_node,
 )
+from nemo.core.utils.optional_libs import CUDA_PYTHON_AVAILABLE, cuda_python_required
+
+if CUDA_PYTHON_AVAILABLE:
+    from cuda.bindings import runtime as cudart
 
 _CUDA_PROGRAM_NAME = b"while_loop_conditional.cu"
 
@@ -77,7 +76,7 @@ def create_inner_while_loop_kernel():
 
 class RNNTGreedyDecodeCudaGraph:
     def __init__(self, max_symbols: int, caller):
-        if HAVE_CUDA_PYTHON:
+        if CUDA_PYTHON_AVAILABLE:
             check_cuda_python_cuda_graphs_conditional_nodes_supported()
         else:
             raise ValueError("Cannot instantiate RNNTGreedyDecodeCudaGraph without `pip install cuda-python`")
@@ -114,6 +113,7 @@ class RNNTGreedyDecodeCudaGraph:
 
         self.caller = caller
 
+    @cuda_python_required
     def _reinitialize(self, max_time, batch_size, encoder_output, encoder_output_length):
         if self.first_call:
             # We need to call the original _greedy_decode_blank_as_pad
@@ -205,7 +205,8 @@ class RNNTGreedyDecodeCudaGraph:
             # Get max sequence length
             self.max_out_len_t = self.encoder_output_length.max()
 
-            capture_status, _, graph, _, _ = cu_call(
+            # NB: depending on cuda-python version, cudaStreamGetCaptureInfo can return either 5 or 6 elements
+            capture_status, _, graph, *_ = cu_call(
                 cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=self.device).cuda_stream)
             )
             assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive

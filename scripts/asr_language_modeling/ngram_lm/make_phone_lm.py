@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -214,7 +215,8 @@ class NgramCounts(object):
             lines_processed += 1
         if lines_processed == 0 or args.verbose > 0:
             print(
-                "make_phone_lm.py: processed {0} lines of input".format(lines_processed), file=sys.stderr,
+                "make_phone_lm.py: processed {0} lines of input".format(lines_processed),
+                file=sys.stderr,
             )
 
     # This backs off the counts by subtracting 1 and assigning the subtracted
@@ -271,7 +273,8 @@ class NgramCounts(object):
                 if self.backoff_symbol in counts_for_hist.word_to_count:
                     total_excluding_backoff -= counts_for_hist.word_to_count[self.backoff_symbol]
         print(
-            "total count = {0}, excluding backoff = {1}".format(total, total_excluding_backoff), file=sys.stderr,
+            "total count = {0}, excluding backoff = {1}".format(total, total_excluding_backoff),
+            file=sys.stderr,
         )
 
     def GetHistToStateMap(self):
@@ -297,7 +300,8 @@ class NgramCounts(object):
         total_count = float(counts_for_hist.total_count)
         if not word in counts_for_hist.word_to_count:
             print(
-                "make_phone_lm.py: no prob for {0} -> {1} " "[no such count]".format(hist, word), file=sys.stderr,
+                "make_phone_lm.py: no prob for {0} -> {1} " "[no such count]".format(hist, word),
+                file=sys.stderr,
             )
             return None
         prob = float(counts_for_hist.word_to_count[word]) / total_count
@@ -415,7 +419,11 @@ class NgramCounts(object):
                         assert word == self.backoff_symbol
                         backoff_fst_state = hist_to_state[hist[1 : len(hist)]]
                         print(
-                            this_fst_state, backoff_fst_state, word_disambig_symbol, 0, this_cost,
+                            this_fst_state,
+                            backoff_fst_state,
+                            word_disambig_symbol,
+                            0,
+                            this_cost,
                         )
 
     # This function returns a set of n-grams that cannot currently be pruned
@@ -600,7 +608,8 @@ class NgramCounts(object):
             backoff_count = self.GetProb(hist[1:], word) * backoff_total
         except Exception:
             print(
-                "problem getting backoff count: hist = {0}, word = {1}".format(hist, word), file=sys.stderr,
+                "problem getting backoff count: hist = {0}, word = {1}".format(hist, word),
+                file=sys.stderr,
             )
             sys.exit(1)
 
@@ -788,7 +797,12 @@ class NgramCounts(object):
             # print the number of n-grams.  Add 1 for the 1-gram
             # section because of <s>, we print -99 as the prob so we
             # have a place to put the backoff prob.
-            print("ngram {0}={1}".format(hist_len + 1, self.GetNumNgrams(hist_len) + (1 if hist_len == 0 else 0),))
+            print(
+                "ngram {0}={1}".format(
+                    hist_len + 1,
+                    self.GetNumNgrams(hist_len) + (1 if hist_len == 0 else 0),
+                )
+            )
 
         print("")
 
@@ -808,7 +822,8 @@ class NgramCounts(object):
                         assert prob != None and prob > 0
                         backoff_prob = self.GetProb((hist) + (word,), self.backoff_symbol)
                         line = "{0}\t{1}".format(
-                            "%.5f" % math.log10(prob), " ".join(self.IntToString(x) for x in hist + (word,)),
+                            "%.5f" % math.log10(prob),
+                            " ".join(self.IntToString(x) for x in hist + (word,)),
                         )
                         if backoff_prob != None:
                             line += "\t{0}".format("%.5f" % math.log10(backoff_prob))

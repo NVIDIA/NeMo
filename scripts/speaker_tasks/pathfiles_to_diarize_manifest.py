@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,7 +53,9 @@ if __name__ == "__main__":
     parser.add_argument("--paths2ctm_files", help="path to ctm files", type=str)
     parser.add_argument("--manifest_filepath", help="path to output manifest file", type=str, required=True)
     parser.add_argument(
-        "--add_duration", help="add duration of audio files to output manifest files.", action='store_true',
+        "--add_duration",
+        help="add duration of audio files to output manifest files.",
+        action='store_true',
     )
     args = parser.parse_args()
 

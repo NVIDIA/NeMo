@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -141,18 +142,26 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
                     f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
                 )
             decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding
+            need_change_decoding = False
             if timestamps or (override_config is not None and override_config.timestamps):
                 logging.info(
                     "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, \
                         with output[idx].timestep['word'/'segment'/'char']"
                 )
                 return_hypotheses = True
-                with open_dict(decoding_cfg):
-                    decoding_cfg.compute_timestamps = True
+                if decoding_cfg.get("compute_timestamps", None) is not True:
+                    # compute_timestamps None, False or non-existent -> change to True
+                    need_change_decoding = True
+                    with open_dict(decoding_cfg):
+                        decoding_cfg.compute_timestamps = True
             else:
-                with open_dict(decoding_cfg):
-                    decoding_cfg.compute_timestamps = False
-            self.change_decoding_strategy(decoding_cfg, decoder_type=self.cur_decoder, verbose=False)
+                if decoding_cfg.get("compute_timestamps", None) is not False:
+                    # compute_timestamps None, True or non-existent -> change to False
+                    need_change_decoding = True
+                    with open_dict(decoding_cfg):
+                        decoding_cfg.compute_timestamps = False
+            if need_change_decoding:
+                self.change_decoding_strategy(decoding_cfg, decoder_type=self.cur_decoder, verbose=False)
 
         return ASRTranscriptionMixin.transcribe(
             self,
@@ -331,7 +340,11 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
             self.cur_decoder = "rnnt"
             return super().change_decoding_strategy(decoding_cfg=decoding_cfg, verbose=verbose)
 
-        assert decoder_type == 'ctc' and hasattr(self, 'ctc_decoder')
+        if decoder_type != 'ctc' or not hasattr(self, 'ctc_decoder'):
+            raise ValueError(
+                f"Unsupported decoder_type '{decoder_type}'. "
+                f"Expected 'ctc' with a 'ctc_decoder' attribute on the model."
+            )
         if decoding_cfg is None:
             # Assume same decoding config as before
             logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")

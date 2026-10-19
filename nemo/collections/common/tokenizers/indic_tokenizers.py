@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +15,8 @@
 
 from typing import List
 
+from nemo.utils.dependency import assert_optional_dependency_available
+
 
 class IndicProcessor:
     """
@@ -24,6 +27,7 @@ class IndicProcessor:
     def __init__(self, lang_id: str):
         if lang_id != 'hi':
             raise NotImplementedError
+        assert_optional_dependency_available("sacremoses")
         from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)
@@ -41,7 +45,9 @@ class IndicProcessor:
         return self.moses_detokenizer.detokenize(tokens)
 
     def tokenize(self, text: str):
+        """Return text unchanged."""
         return text
 
     def normalize(self, text: str):
+        """Return text unchanged."""
         return text

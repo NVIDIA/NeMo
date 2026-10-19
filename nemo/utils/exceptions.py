@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +15,12 @@
 
 
 class NeMoBaseException(Exception):
-    """ NeMo Base Exception. All exceptions created in NeMo should inherit from this class"""
+    """NeMo Base Exception. All exceptions created in NeMo should inherit from this class"""
 
 
 class LightningNotInstalledException(NeMoBaseException):
+    """Raised when optional Lightning dependencies are required but unavailable."""
+
     def __init__(self, obj):
         message = (
             f" You are trying to use {obj} without installing all of pytorch_lightning, hydra, and "
@@ -27,6 +30,8 @@ class LightningNotInstalledException(NeMoBaseException):
 
 
 class CheckInstall:
+    """Placeholder that raises when optional Lightning dependencies are missing."""
+
     def __init__(self, *args, **kwargs):
         raise LightningNotInstalledException(self)
 

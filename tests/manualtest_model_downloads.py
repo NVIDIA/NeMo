@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,11 +37,8 @@ for refresh_cache in [True, False]:
         nemo_asr.models.EncDecCTCModel,
         refresh_cache,
         [
-            'QuartzNet15x5Base-En',
-            'QuartzNet15x5Base-Zh',
-            'QuartzNet5x5LS-En',
-            'QuartzNet15x5NR-En',
-            'Jasper10x5Dr-En',
+            'stt_en_jasper10x5dr',
+            'asr_talknet_aligner',
         ],
     )
     testclass_downloads(nemo_asr.models.EncDecCTCModelBPE, refresh_cache, ['ContextNet-192-WPE-1024-8x-Stride'])
@@ -88,8 +86,6 @@ for refresh_cache in [True, False]:
     # testclass_downloads(nemo_nlp.models.IntentSlotClassificationModel, refresh_cache, ['Joint_Intent_Slot_Assistant'])
 
     # Test TTS collection
-    testclass_downloads(nemo_tts.models.Tacotron2Model, refresh_cache, ['Tacotron2-22050Hz'])
-    testclass_downloads(nemo_tts.models.WaveGlowModel, refresh_cache, ['WaveGlow-22050Hz'])
     testclass_downloads(nemo_tts.models.SqueezeWaveModel, refresh_cache, ['SqueezeWave-22050Hz'])
     testclass_downloads(nemo_tts.models.GlowTTSModel, refresh_cache, ['GlowTTS-22050Hz'])
 

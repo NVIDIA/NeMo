@@ -1,4 +1,5 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +24,8 @@ import tarfile
 import urllib.request
 
 from tqdm import tqdm
+
+from nemo.utils.tar_utils import safe_extract
 
 parser = argparse.ArgumentParser(description="Aishell Data download")
 parser.add_argument("--data_root", required=True, default=None, type=str)
@@ -88,9 +91,8 @@ def __extract_all_files(filepath: str, data_root: str, data_dir: str):
 
 def extract_file(filepath: str, data_dir: str):
     try:
-        tar = tarfile.open(filepath)
-        tar.extractall(data_dir)
-        tar.close()
+        with tarfile.open(filepath) as tar:
+            safe_extract(tar, data_dir)
     except Exception:
         logging.info("Not extracting. Maybe already there?")
 
@@ -132,11 +134,15 @@ def __process_data(data_folder: str, dst_folder: str):
                 text = transcript_dict[audio_id]
                 for li in text:
                     vocab_count[li] = vocab_count.get(li, 0) + 1
-                duration = subprocess.check_output("soxi -D {0}".format(audio_path), shell=True)
+                duration = subprocess.check_output(["soxi", "-D", audio_path])
                 duration = float(duration)
                 json_lines.append(
                     json.dumps(
-                        {"audio_filepath": os.path.abspath(audio_path), "duration": duration, "text": text,},
+                        {
+                            "audio_filepath": os.path.abspath(audio_path),
+                            "duration": duration,
+                            "text": text,
+                        },
                         ensure_ascii=False,
                     )
                 )

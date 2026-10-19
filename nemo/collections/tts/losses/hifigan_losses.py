@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,7 +97,7 @@ class DiscriminatorLoss(Loss):
         g_losses = []
         for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
             r_loss = torch.mean((1 - dr) ** 2)
-            g_loss = torch.mean(dg ** 2)
+            g_loss = torch.mean(dg**2)
             loss += r_loss + g_loss
             r_losses.append(r_loss.item())
             g_losses.append(g_loss.item())
@@ -125,8 +126,8 @@ class GeneratorLoss(Loss):
         loss = 0
         gen_losses = []
         for dg in disc_outputs:
-            l = torch.mean((1 - dg) ** 2)
-            gen_losses.append(l)
-            loss += l
+            layer_loss = torch.mean((1 - dg) ** 2)
+            gen_losses.append(layer_loss)
+            loss += layer_loss
 
         return loss, gen_losses

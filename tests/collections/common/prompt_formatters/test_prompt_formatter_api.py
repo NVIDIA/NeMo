@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,6 +49,13 @@ def test_prompt_formatter_inference_using_content(bpe_tokenizer):
     assert ans.keys() == ans2.keys()
     for k in ans:
         torch.testing.assert_close(ans[k], ans2[k])
+
+
+def test_prompt_formatter_ignores_unused_encode_dialog_kwargs(bpe_tokenizer):
+    formatter = _DummyPromptFormatter(bpe_tokenizer)
+    ans = formatter.encode_dialog([{"role": "user", "slots": {"text": "hi"}}], enable_thinking=False)
+    recovered = bpe_tokenizer.ids_to_text(ans["input_ids"])
+    assert recovered == "<s>hi</s>"
 
 
 def test_prompt_formatter_training(bpe_tokenizer):

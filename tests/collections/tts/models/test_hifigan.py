@@ -1,4 +1,5 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +26,6 @@ available_models = [model.pretrained_model_name for model in HifiGanModel.list_a
 
 
 @pytest.fixture(params=available_models, ids=available_models)
-@pytest.mark.run_only_on('GPU')
 def pretrained_model(request, get_language_id_from_pretrained_model_name):
     model_name = request.param
     language_id = get_language_id_from_pretrained_model_name(model_name)

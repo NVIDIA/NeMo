@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,15 +16,6 @@
 import pytest
 import torch
 from omegaconf import DictConfig
-
-try:
-    import importlib
-
-    importlib.import_module('torchaudio')
-
-    HAVE_TORCHAUDIO = True
-except ModuleNotFoundError:
-    HAVE_TORCHAUDIO = False
 
 from nemo.collections.audio.models.maxine import BNR2
 
@@ -81,7 +73,6 @@ class TestBNR2Model:
     """Test BNR 2 model."""
 
     @pytest.mark.unit
-    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
     def test_constructor(self, maxine_model_fixture):
         """Test that the model can be constructed from a config dict."""
         model = maxine_model_fixture.train()
@@ -90,7 +81,6 @@ class TestBNR2Model:
         assert isinstance(instance2, BNR2)
 
     @pytest.mark.unit
-    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
     @pytest.mark.parametrize(
         "batch_size, sample_len",
         [

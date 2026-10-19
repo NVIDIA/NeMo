@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,7 +38,10 @@ def build_manifest(data_root, transcripts_path, manifest_path, wav_path):
 
                 file_id = line[line.find('(') + 1 : -2]  # e.g. "cen4-fash-b"
                 audio_path = os.path.join(
-                    data_root, wav_path, file_id[file_id.find('-') + 1 : file_id.rfind('-')], file_id + '.wav',
+                    data_root,
+                    wav_path,
+                    file_id[file_id.find('-') + 1 : file_id.rfind('-')],
+                    file_id + '.wav',
                 )
 
                 duration = librosa.core.get_duration(filename=audio_path)

@@ -1,5 +1,6 @@
 # ! /usr/bin/python
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,13 +28,12 @@ class AngularSoftmaxLoss(Loss, Typing):
     reference: https://openaccess.thecvf.com/content_CVPR_2019/papers/Deng_ArcFace_Additive_Angular_Margin_Loss_for_Deep_Face_Recognition_CVPR_2019_paper.pdf
     args:
     scale: scale value for cosine angle
-    margin: margin value added to cosine angle 
+    margin: margin value added to cosine angle
     """
 
     @property
     def input_types(self):
-        """Input types definitions for AnguarLoss.
-        """
+        """Input types definitions for AnguarLoss."""
         return {
             "logits": NeuralType(('B', 'D'), LogitsType()),
             "labels": NeuralType(('B',), LabelsType()),
