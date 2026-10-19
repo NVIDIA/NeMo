@@ -668,6 +668,29 @@ class TestHybridBackendWeightMapping:
         assert mapped_name == canonical_name
         assert mapped_tensor is tensor
 
+    @pytest.mark.parametrize(
+        ("source_name", "hf_name"),
+        [
+            ("llm.model.embed_tokens.weight", "backbone.embed_tokens.weight"),
+            # ModelOpt exports already use NemotronH's own embedding name.
+            ("backbone.embeddings.weight", "backbone.embeddings.weight"),
+            ("llm.lm_head.weight", "lm_head.weight"),
+        ],
+    )
+    def test_pads_vocabulary_tensors_to_served_vocab(self, source_name, hf_name):
+        import torch
+
+        from nemo.collections.speechlm2.vllm.salm.backends import HybridBackend
+
+        backend = HybridBackend(SimpleNamespace(text_config=SimpleNamespace(vocab_size=6)))
+        tensor = torch.ones(4, 3)
+        [(mapped_name, mapped_tensor)] = backend.nemo_to_hf_llm_weights([(source_name, tensor)])
+
+        assert mapped_name == hf_name
+        assert mapped_tensor.shape == (6, 3)
+        assert torch.equal(mapped_tensor[:4], tensor)
+        assert not mapped_tensor[4:].any()
+
     @staticmethod
     def _lora_weights():
         import torch
@@ -2160,7 +2183,7 @@ class TestMTPPlugin:
         assert torch.equal(result, torch.zeros(2, 2))
 
     def test_target_weight_split_excludes_salm_mtp_and_rejects_bare_mtp(self):
-        """The target loader should route SALM draft weights and reject native names."""
+        """The target loader should route SALM draft weights, leave a bundled CTC head, and reject native names."""
         import torch
 
         from nemo.collections.speechlm2.vllm.salm.model import NeMoSpeechLMForConditionalGeneration
@@ -2173,6 +2196,8 @@ class TestMTPPlugin:
                 ("llm.mtp.layers.0.weight", torch.ones(4)),
                 ("llm.model.layers.0.weight", llm_tensor),
                 ("llm.model.layers.0._extra_state", torch.ones(5)),
+                ("ctc_timestamp.decoder.decoder_layers.0.weight", torch.ones(6)),
+                ("ctc_timestamp.tokenizer.model_proto", torch.ones(7, dtype=torch.uint8)),
             ]
         )
 
@@ -2265,6 +2290,7 @@ class TestMTPPlugin:
         from nemo.collections.speechlm2.vllm.salm.mtp import NeMoSpeechLMMTP
 
         model = object.__new__(NeMoSpeechLMMTP)
+        torch.nn.Module.__init__(model)
         object.__setattr__(
             model,
             "config",
@@ -2304,11 +2330,13 @@ class TestMTPPlugin:
 
     @pytest.mark.parametrize("pattern", [None, "", 3])
     def test_mtp_load_weights_rejects_invalid_serialized_pattern(self, monkeypatch, pattern):
+        import torch
         from vllm.model_executor.models.nemotron_h_mtp import NemotronHMTP
 
         from nemo.collections.speechlm2.vllm.salm.mtp import NeMoSpeechLMMTP
 
         model = object.__new__(NeMoSpeechLMMTP)
+        torch.nn.Module.__init__(model)
         object.__setattr__(
             model,
             "config",
@@ -2318,6 +2346,53 @@ class TestMTPPlugin:
 
         with pytest.raises(ValueError, match="non-empty string"):
             NeMoSpeechLMMTP.load_weights(model, [])
+
+    def test_mtp_load_weights_rejects_checkpoint_without_draft_head(self, monkeypatch):
+        """A quantized export that dropped llm.mtp.* must fail instead of drafting from uninitialized weights."""
+        import torch
+        from vllm.model_executor.models.nemotron_h_mtp import NemotronHMTP
+
+        from nemo.collections.speechlm2.vllm.salm.mtp import NeMoSpeechLMMTP
+
+        model = object.__new__(NeMoSpeechLMMTP)
+        torch.nn.Module.__init__(model)
+        object.__setattr__(
+            model,
+            "config",
+            SimpleNamespace(mtp_hybrid_override_pattern="*E", vocab_size=3),
+        )
+        monkeypatch.setattr(NemotronHMTP, "load_weights", lambda self, weights: {name for name, _ in weights})
+        tensor = torch.ones(1, 2)
+
+        with pytest.raises(ValueError, match="no 'llm.mtp"):
+            NeMoSpeechLMMTP.load_weights(
+                model,
+                [("backbone.layers.0.mixer.in_proj.weight", tensor), ("lm_head.weight", tensor)],
+            )
+
+    def test_mtp_load_weights_accepts_checkpoint_with_draft_head(self, monkeypatch):
+        """A checkpoint carrying llm.mtp.* passes the guard and hands the head tensors to vLLM's loader."""
+        import torch
+        from vllm.model_executor.models.nemotron_h_mtp import NemotronHMTP
+
+        from nemo.collections.speechlm2.vllm.salm.mtp import NeMoSpeechLMMTP
+
+        model = object.__new__(NeMoSpeechLMMTP)
+        torch.nn.Module.__init__(model)
+        object.__setattr__(
+            model,
+            "config",
+            SimpleNamespace(mtp_hybrid_override_pattern="*E", vocab_size=3),
+        )
+        monkeypatch.setattr(NemotronHMTP, "load_weights", lambda self, weights: {name for name, _ in weights})
+        tensor = torch.ones(1, 2)
+
+        loaded = NeMoSpeechLMMTP.load_weights(
+            model,
+            [("backbone.layers.0.mixer.in_proj.weight", tensor), ("llm.mtp.layers.0.eh_proj.weight", tensor)],
+        )
+
+        assert loaded == {"mtp.layers.0.eh_proj.weight"}
 
     def test_mtp_weight_remap_splits_packed_experts(self):
         """Packed Automodel MTP experts must become vLLM per-expert weights."""
