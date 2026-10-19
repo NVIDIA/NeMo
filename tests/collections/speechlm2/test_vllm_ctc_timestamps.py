@@ -1629,6 +1629,32 @@ def test_a_checkpoint_without_a_bundled_head_keeps_timestamps_off(tmp_path):
         ct.ctc_timestamp_config(model_config)
 
 
+@pytest.mark.parametrize('as_namespace', [False, True])
+@pytest.mark.parametrize('symlink', [False, True])
+def test_bundled_ctc_keeps_json_options_and_snapshot_path(tmp_path, as_namespace, symlink):
+    from pathlib import Path
+
+    path = Path(_checkpoint(tmp_path))
+    model_dir = tmp_path
+    if symlink:
+        model_dir = tmp_path / 'snapshot'
+        model_dir.mkdir()
+        (model_dir / 'model.safetensors').symlink_to(path)
+    block = {
+        'decoder_config': {'upsampling_factor': 2},
+        'tokenizer_config': {'legacy': False},
+        'alignment_config': {'parameters': {'speaker_logprob_weight': 0.37}},
+    }
+    model_config = SimpleNamespace(
+        model=str(model_dir),
+        hf_config=SimpleNamespace(ctc_timestamps=SimpleNamespace(**block) if as_namespace else block),
+    )
+    resolved = ct.ctc_timestamp_config(model_config)
+    assert resolved['adapter_path'] == str(model_dir / 'model.safetensors')
+    assert all(resolved[key] == value for key, value in block.items())
+    assert resolved['speaker_logprob_weight'] is None
+
+
 def _sharded_checkpoint(directory, ctc_shards):
     """A sharded checkpoint whose index maps the language model to one shard and the CTC head to ``ctc_shards``."""
     safetensors_torch = pytest.importorskip("safetensors.torch")

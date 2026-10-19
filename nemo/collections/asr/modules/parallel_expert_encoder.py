@@ -1660,8 +1660,8 @@ class ParallelExpertEncoder(nn.Module):
         """
         Detach reduced-precision request-owned inputs needed after text decoding.
         ASR states are stored in BF16 unless already BF16 or FP16. Native diarization probabilities
-        use the checkpoint aligner's ``vad_threshold`` (or YAML defaults without an artifact) to produce
-        boolean labels padded to ``max_speaker_count`` speakers.
+        use the checkpoint aligner's ``vad_threshold`` (or constructor/explicit options without an artifact)
+        to produce boolean labels padded to ``max_speaker_count`` speakers.
 
         Args:
             asr_encoded (torch.Tensor): ASR states shaped ``(B, D, T)``.

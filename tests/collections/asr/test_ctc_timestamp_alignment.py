@@ -355,11 +355,16 @@ def test_em_dash_separates_alignment_words(text):
 @pytest.mark.parametrize("speaker_weight", [0.0, 0.25])
 @pytest.mark.parametrize("window_budget", [16 * 1024 * 1024, 768])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+@pytest.mark.parametrize('factor', [1, 2])
 def test_deferred_windows_release_full_vocabulary_and_preserve_alignment(
-    core_length, speaker_weight, window_budget, dtype
+    core_length, speaker_weight, window_budget, dtype, factor
 ):
     class Decoder(torch.nn.Module):
         num_classes_with_blank = 128
+        upsampling_factor = factor
+
+        def output_lengths(self, lengths):
+            return lengths * factor
 
         def __init__(self):
             super().__init__()
@@ -373,7 +378,7 @@ def test_deferred_windows_release_full_vocabulary_and_preserve_alignment(
             self.shapes.append(states.shape)
             # Depend on context as well as the frame, so incorrect window slicing changes the oracle.
             logits = states.transpose(1, 2) + states.mean(dim=-1).unsqueeze(1)
-            output = logits.log_softmax(dim=-1)
+            output = logits.repeat_interleave(factor, dim=1).log_softmax(dim=-1)
             self.outputs.append(weakref.ref(output))
             return output
 
@@ -410,14 +415,14 @@ def test_deferred_windows_release_full_vocabulary_and_preserve_alignment(
         left, right = max(start - 1, 0), min(end + 2, 7)
         lengths = (inputs.asr_encoded_lengths - left).clamp(min=0, max=right - left)
         output = decoder(inputs.asr_encoded[:, :, left:right], lengths)
-        chunks.append(output[:, start - left : end - left])
+        chunks.append(output[:, (start - left) * factor : (end - left) * factor])
     dense = torch.cat(chunks, dim=1)
     del chunks, output
     expected = aligner.prepare_alignment(
         dense,
         inputs.sortformer_sigmoids,
         transcripts,
-        ctc_lengths=inputs.asr_encoded_lengths,
+        ctc_lengths=inputs.asr_encoded_lengths * factor,
         sortformer_lengths=inputs.sortformer_lengths,
         audio_durations=durations,
     )
@@ -694,6 +699,55 @@ def _boundary_word(start=0.4, end=0.44):
 
 
 class TestBoundaryInterpolation:
+    @pytest.mark.unit
+    @pytest.mark.parametrize('offset', [0.0, 10.0])
+    def test_vad_snap_keeps_calibrated_transcript_order(self, offset):
+        calibration = _boundary_calibration()
+        calibration['offset'] = [0.2, 0.0]
+        aligner = MultiSpeakerSOTWordTimestampAligner(boundary_max_correction_seconds=0.24)
+        rows = [_boundary_word(offset + 0.40, offset + 0.44), _boundary_word(offset + 0.56, offset + 0.60)]
+        rows[0]['word'], rows[1]['word'] = 'first', 'second'
+        segments = [dict(speaker=0, start=offset + 0.5, end=offset + 1.0)]
+        _interpolate_word_boundaries(
+            rows, np.zeros((50, 2)), 0.04, offset, 2.0, segments, {0: 0}, calibration, aligner=aligner
+        )
+        outside_end = rows[0]['end']
+        result = dict(
+            ctc_frame_seconds=0.04,
+            speaker_word_timestamps={0: rows},
+            diarization_timestamps=segments,
+            speaker_tag_to_sortformer_column={0: 0},
+        )
+        words = _refine_word_timestamps(result, 24)['speaker_word_timestamps'][0]
+        assert [word['word'] for word in words] == ['first', 'second']
+        assert words[0]['start'] == pytest.approx(offset + 0.6)
+        assert words[1]['start'] >= words[0]['start'] + 0.01 - 1e-9
+        assert words[0]['end'] == outside_end
+        assert all('_outside_diarization' not in word for word in words)
+        assert result['diarization_timestamps'] == segments
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('offset', [0.0, 10.0])
+    @pytest.mark.parametrize('spacing,duration', [(0.03, 1.0), (0.0, 1.0), (0.03, 0.02)])
+    def test_recording_end_reserves_word_duration_before_spacing(self, offset, spacing, duration):
+        aligner = MultiSpeakerSOTWordTimestampAligner(
+            boundary_max_correction_seconds=0.24,
+            boundary_min_onset_spacing_seconds=spacing,
+            boundary_min_word_duration_seconds=0.04,
+        )
+        spans = [(0.88, 0.92), (0.92, 0.96)] if duration == 1.0 else [(0.0, 0.01), (0.01, 0.02)]
+        rows = [_boundary_word(offset + start, offset + end) for start, end in spans]
+        calibration = _boundary_calibration()
+        calibration['offset'] = [0.2, 0.0]
+        segments = [dict(speaker=0, start=offset, end=offset + duration)]
+        _interpolate_word_boundaries(
+            rows, np.zeros((25, 2)), 0.04, offset, duration, segments, {0: 0}, calibration, aligner=aligner
+        )
+        assert all(offset <= word['start'] <= word['end'] <= offset + duration for word in rows)
+        if duration == 1.0:
+            assert [word['start'] for word in rows] == pytest.approx([offset + 0.96 - spacing, offset + 0.96])
+            assert all(word['end'] - word['start'] >= 0.04 - 1e-9 for word in rows)
+
     @pytest.mark.unit
     @pytest.mark.parametrize('corrections,expected', [([-1.0, 1.0], (0.36, 0.64)), ([1.0, -1.0], (0.44, 0.64))])
     def test_explicit_240ms_seed_and_corrections_are_bounded(self, corrections, expected):

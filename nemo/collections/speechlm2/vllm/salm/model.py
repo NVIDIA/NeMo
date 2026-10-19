@@ -232,7 +232,8 @@ class NeMoSpeechLMForConditionalGeneration(
         device = next(encoder.parameters()).device
         # Load now rather than on the first timestamped request, so a bad artifact
         # path fails at startup instead of mid-serve.
-        aligner = get_ctc_timestamp_aligner(encoder, adapter_path, device)
+        checkpoint_config = ctc_config if isinstance(ctc_config, dict) else vars(ctc_config)
+        aligner = get_ctc_timestamp_aligner(encoder, adapter_path, device, checkpoint_config=checkpoint_config)
 
         register_aligner(aligner, tokenizer_special_tokens(vllm_config.model_config))
         install_encoder_cache_binding()

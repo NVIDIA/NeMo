@@ -270,6 +270,7 @@ def ctc_timestamp_config(model_config: Any) -> Any:
             )
         return None
     return {
+        **(ctc_config if isinstance(ctc_config, dict) else vars(ctc_config) if ctc_config is not None else {}),
         "adapter_path": bundled,
         "speaker_logprob_weight": read_speaker_prior_weight(ctc_config),
         "optional": not enabled,
@@ -313,7 +314,7 @@ def _bundled_ctc_head(model: str) -> str | None:
         return None
     with safe_open(str(path), framework="pt", device="cpu") as checkpoint:
         metadata = checkpoint.metadata() or {}
-    return str(path.resolve()) if metadata.get("ctc_timestamp_format") == CTC_TIMESTAMP_ARTIFACT_FORMAT else None
+    return str(path.absolute()) if metadata.get("ctc_timestamp_format") == CTC_TIMESTAMP_ARTIFACT_FORMAT else None
 
 
 def tokenizer_special_tokens(model_config: Any) -> tuple[str, ...]:

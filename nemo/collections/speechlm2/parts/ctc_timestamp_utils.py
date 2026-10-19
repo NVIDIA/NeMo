@@ -61,7 +61,7 @@ __all__ = [
 CTC_TIMESTAMP_ARTIFACT_FORMAT = "nemo_ctc_timestamp_artifact_v1"
 CTC_TIMESTAMP_BUNDLE_PREFIX = "ctc_timestamp."
 CTC_UPSAMPLING_MODES = ("conv_transpose", "repeat", "repeat_phase")
-# Scalar options of ``conf/alignment_params_40ms-to-10ms.yaml``, all aligner constructor defaults.
+# Required scalar options in checkpoint alignment configurations, with constructor defaults.
 _WORD_ALIGNMENT_PARAMETER_NAMES = (
     "speaker_logprob_weight",
     "speaker_activity_threshold",
@@ -374,9 +374,9 @@ class MultiSpeakerSOTWordTimestampAligner:
     """Align speaker streams with single-pass banded max-sum CTC DP and word-boundary refinement.
 
     Speaker mapping uses greedy token distributions, followed by speaker-inactive frame removal
-    and anchor-guided DP with byte backpointers. Constructor defaults match the 40 ms CTC head
-    settings of ``conf/alignment_params_40ms-to-10ms.yaml`` but carry no boundary calibration;
-    pass that file as ``word_alignment_parameters`` to also apply its calibration. Every result
+    and anchor-guided DP with byte backpointers. Constructor defaults carry no boundary calibration;
+    the checkpoint loader supplies head-specific settings and calibration from the model configuration
+    or legacy metadata. Explicit parameter mappings or YAML files are optional overrides. Every result
     receives diarization-assisted word refinement.
 
     The aligner takes model outputs, not audio: ASR states for the CTC head
@@ -501,8 +501,8 @@ class MultiSpeakerSOTWordTimestampAligner:
             vad_threshold (float): Native Sortformer threshold, distinct from speaker mapping.
                 Boolean labels supplied by callers must already use this threshold.
             interpolation_enabled (bool): Enable calibrated boundary correction when a calibration is available.
-            word_alignment_parameters (Optional[Union[str, Mapping[str, Any]]]): YAML path or mapping, such as
-                ``conf/alignment_params_40ms-to-10ms.yaml`` or checkpoint-embedded parameters, whose values
+            word_alignment_parameters (Optional[Union[str, Mapping[str, Any]]]): Explicit YAML path or mapping,
+                such as checkpoint alignment parameters, whose values
                 replace the defaults of arguments the caller does not pass; explicit arguments take
                 precedence. None applies the constructor defaults without boundary calibration. No
                 machine-local path enters prepared batches.
@@ -1794,25 +1794,30 @@ def load_ctc_timestamp_artifact(
     *,
     map_location: Union[str, torch.device] = "cpu",
     dtype: Optional[torch.dtype] = None,
+    checkpoint_config: Optional[Mapping[str, Any]] = None,
 ) -> CTCTimestampArtifact:
     """
     Load one self-contained timestamp artifact without restoring an ASR model.
     Reads either the safetensors or the torch format, loads the decoder state strictly, puts the
     decoder in eval mode with sequence-length sync disabled, and validates the tokenizer vocabulary.
+    For safetensors, the adjacent ``config.json``'s ``ctc_timestamps`` block overrides legacy
+    metadata. Explicit ``checkpoint_config`` values override that block (for vLLM HF overrides).
 
     Args:
         source (Union[str, Path]): Artifact path.
         map_location (Union[str, torch.device]): Device for the decoder.
         dtype (Optional[torch.dtype]): Decoder dtype; None keeps the stored dtype.
+        checkpoint_config (Optional[Mapping[str, Any]]): Overrides for the model's CTC configuration block.
 
     Returns:
         CTCTimestampArtifact: Decoder, tokenizer and decoder construction config.
     """
-    path = Path(source).expanduser().resolve()
+    # Keep the snapshot directory: resolving an HF symlink would lose its adjacent config.json.
+    path = Path(source).expanduser().absolute()
     if not path.is_file():
         raise FileNotFoundError(f"CTC timestamp artifact does not exist: {path}")
     payload = (
-        _load_ctc_timestamp_safetensors(path)
+        _load_ctc_timestamp_safetensors(path, checkpoint_config=checkpoint_config)
         if _is_safetensors_file(path)
         else torch.load(path, map_location="cpu", weights_only=True)
     )
@@ -1900,7 +1905,9 @@ def _is_safetensors_file(path: Path) -> bool:
     return len(prefix) == 9 and prefix[8:9] == b"{" and int.from_bytes(prefix[:8], "little") < path.stat().st_size
 
 
-def _load_ctc_timestamp_safetensors(path: Path) -> dict[str, Any]:
+def _load_ctc_timestamp_safetensors(
+    path: Path, checkpoint_config: Optional[Mapping[str, Any]] = None
+) -> dict[str, Any]:
     """
     Read a safetensors CTC timestamp artifact into the torch-format payload layout.
     Accepts a standalone artifact or a bundle whose keys and metadata use the ``ctc_timestamp.``
@@ -1908,6 +1915,7 @@ def _load_ctc_timestamp_safetensors(path: Path) -> dict[str, Any]:
 
     Args:
         path (Path): Safetensors file.
+        checkpoint_config (Optional[Mapping[str, Any]]): Explicit CTC configuration overrides.
 
     Returns:
         dict[str, Any]: ``format``, ``decoder_config``, ``decoder_state_dict`` and ``tokenizer`` payload.
@@ -1917,6 +1925,9 @@ def _load_ctc_timestamp_safetensors(path: Path) -> dict[str, Any]:
     except ImportError as error:
         raise ImportError("Loading a .safetensors CTC timestamp artifact requires safetensors.") from error
 
+    ctc_config = _read_ctc_checkpoint_config(path)
+    if checkpoint_config is not None:
+        ctc_config.update(_plain_mapping(checkpoint_config, 'ctc_timestamps'))
     with safe_open(str(path), framework="pt", device="cpu") as handle:
         metadata = handle.metadata() or {}
         if metadata.get("format") == CTC_TIMESTAMP_ARTIFACT_FORMAT:
@@ -1932,9 +1943,27 @@ def _load_ctc_timestamp_safetensors(path: Path) -> dict[str, Any]:
                 f"Expected a {CTC_TIMESTAMP_ARTIFACT_FORMAT!r} artifact. Convert the original .nemo adapter first."
             )
         try:
-            decoder_config = _plain_mapping(json.loads(metadata[decoder_config_key]), "decoder_config")
-            tokenizer_payload = _plain_mapping(json.loads(metadata[tokenizer_config_key]), "tokenizer_config")
-            alignment_config = json.loads(metadata.get('ctc_timestamp_alignment_config', 'null'))
+            decoder_config = _plain_mapping(
+                (
+                    ctc_config['decoder_config']
+                    if 'decoder_config' in ctc_config
+                    else json.loads(metadata[decoder_config_key])
+                ),
+                'decoder_config',
+            )
+            tokenizer_payload = _plain_mapping(
+                (
+                    ctc_config['tokenizer_config']
+                    if 'tokenizer_config' in ctc_config
+                    else json.loads(metadata[tokenizer_config_key])
+                ),
+                'tokenizer_config',
+            )
+            alignment_config = (
+                ctc_config['alignment_config']
+                if 'alignment_config' in ctc_config
+                else json.loads(metadata.get('ctc_timestamp_alignment_config', 'null'))
+            )
         except (KeyError, json.JSONDecodeError) as error:
             raise ValueError("Invalid CTC timestamp safetensors metadata.") from error
         decoder_prefix = f"{prefix}decoder."
@@ -2013,9 +2042,8 @@ def load_word_alignment_parameters(path: Optional[Union[str, Mapping[str, Any]]]
     Return the aligner's constructor defaults, updated by an optional YAML file or mapping.
 
     Args:
-        path (Optional[Union[str, Mapping[str, Any]]]): YAML path, such as
-            ``conf/alignment_params_40ms-to-10ms.yaml``, or a mapping such as checkpoint-embedded
-            parameters. Keys must name aligner constructor options. None returns the defaults alone,
+        path (Optional[Union[str, Mapping[str, Any]]]): Explicit YAML path or a mapping such as checkpoint
+            alignment parameters. Keys must name aligner constructor options. None returns the defaults alone,
             without boundary calibration. YAML reads are cached per resolved path; restart the
             process after editing a file.
 
@@ -2042,13 +2070,15 @@ def get_ctc_timestamp_aligner(
     owner: nn.Module,
     artifact_path: Optional[str],
     device: torch.device,
+    *,
+    checkpoint_config: Optional[Mapping[str, Any]] = None,
 ) -> MultiSpeakerSOTWordTimestampAligner:
     """
     Load and cache an inference-only aligner without registering it in ``owner``'s module tree.
-    Embedded artifact parameters take precedence over constructor defaults; explicit owner options
-    override the artifact. Legacy heads without embedded parameters use the constructor defaults,
+    Model config.json parameters take precedence over legacy embedded parameters and constructor
+    defaults; explicit owner options override the artifact. Heads without parameters use defaults,
     without boundary interpolation unless the owner options configure it.
-    The cache is keyed by the resolved path, and the aligner is rebuilt when ``owner``'s
+    The cache retains the snapshot path, and the aligner is rebuilt when ``owner``'s
     ``ctc_timestamp_alignment`` options change. Every call copies the encoder's deferred-head windows
     onto the cached aligner, so a change to them reaches it, and moves the decoder to ``device`` in
     ``owner``'s parameter dtype (float32 on CPU). The aligner keeps no reference to the encoder.
@@ -2057,18 +2087,25 @@ def get_ctc_timestamp_aligner(
         owner (nn.Module): Encoder module that holds the cache and the alignment and window settings.
         artifact_path (Optional[str]): Path to the lightweight CTC timestamp artifact.
         device (torch.device): Device for the CTC decoder.
+        checkpoint_config (Optional[Mapping[str, Any]]): CTC block from vLLM's effective HF configuration.
 
     Returns:
         MultiSpeakerSOTWordTimestampAligner: The cached aligner.
     """
     if not isinstance(artifact_path, str) or not artifact_path:
         raise ValueError("ctc_timestamp_model_path must be a non-empty lightweight artifact path.")
-    resolved_path = os.path.realpath(os.path.expanduser(artifact_path))
+    resolved_path = os.path.abspath(os.path.expanduser(artifact_path))
     cached = owner.__dict__.get("_ctc_timestamp_extractor_cache")
-    if cached is None or cached[0] != resolved_path:
+    config_changed = checkpoint_config is not None and checkpoint_config != owner.__dict__.get(
+        '_ctc_timestamp_checkpoint_config'
+    )
+    if cached is None or cached[0] != resolved_path or config_changed:
         parameter = next(owner.parameters(), None)
         dtype = parameter.dtype if parameter is not None and device.type != "cpu" else torch.float32
-        artifact = load_ctc_timestamp_artifact(resolved_path, map_location=device, dtype=dtype)
+        artifact = load_ctc_timestamp_artifact(
+            resolved_path, map_location=device, dtype=dtype, checkpoint_config=checkpoint_config
+        )
+        owner.__dict__['_ctc_timestamp_checkpoint_config'] = copy.deepcopy(checkpoint_config)
         owner.__dict__['_ctc_timestamp_artifact_parameters'] = copy.deepcopy(artifact.alignment_parameters)
         cached = (resolved_path, artifact)
         owner.__dict__.pop("_ctc_timestamp_alignment_options", None)
@@ -2086,7 +2123,7 @@ def get_ctc_timestamp_aligner(
             effective = {**defaults, **effective}
         elif 'word_alignment_parameters' not in effective:
             logging.warning(
-                'CTC artifact has no embedded alignment parameters; calibrated interpolation is disabled '
+                'CTC artifact has no alignment parameters in config.json or metadata; interpolation is disabled '
                 'unless explicitly configured.'
             )
         aligner = MultiSpeakerSOTWordTimestampAligner(
@@ -2345,6 +2382,7 @@ def _refine_word_timestamps(
     *,
     onset_snap_seconds: Optional[float] = None,
     end_blend: float = 1.0,
+    min_onset_spacing_seconds: float = 0.01,
 ) -> Dict[str, Any]:
     """
     Return a copy with same-speaker word boundaries refined inside VAD segments.
@@ -2362,6 +2400,8 @@ def _refine_word_timestamps(
         max_frames (int): Positive cap in frames.
         onset_snap_seconds (Optional[float]): Maximum backward snap; None uses the word duration cap.
         end_blend (float): Fraction of the VAD/next-word end correction to apply.
+        min_onset_spacing_seconds (float): Preserve this same-speaker spacing when feasible without
+            moving an onset later than its calibrated value.
 
     Returns:
         Dict[str, Any]: The result with refined ``speaker_word_timestamps`` and
@@ -2396,11 +2436,14 @@ def _refine_word_timestamps(
                 else None
             )
         seen = set()
-        for word, index in zip(words, memberships):
+        for i, (word, index) in enumerate(zip(words, memberships)):
             if index is None:
                 unmatched += 1
             elif index not in seen:
                 onset = intervals[index][0]
+                if i:
+                    # A later VAD segment must not snap behind an earlier, possibly outside-VAD word.
+                    onset = max(onset, min(word['start'], words[i - 1]['start'] + min_onset_spacing_seconds))
                 if 0 < word['start'] - onset <= (limit if onset_snap_seconds is None else onset_snap_seconds):
                     word['start'] = onset
                     moved += 1
@@ -2587,6 +2630,7 @@ def _align_banded_ctc(aligner, prepared):
                 prepared['config']['max_word_frames'],
                 onset_snap_seconds=aligner.onset_snap_seconds,
                 end_blend=aligner.refinement_end_blend,
+                min_onset_spacing_seconds=aligner.boundary_min_onset_spacing_seconds,
             )
         )
     return results
@@ -2751,16 +2795,17 @@ def _interpolate_word_boundaries(
     indices_by_speaker = defaultdict(list)
     for index, word in enumerate(rows):
         indices_by_speaker[word['speaker_tag']].append(index)
+    minimum_duration = aligner.boundary_min_word_duration_seconds
+    latest_onset = max(offset, upper - minimum_duration)
     for indices in indices_by_speaker.values():
-        spacing = min(aligner.boundary_min_onset_spacing_seconds, (upper - offset) / (len(indices) + 1))
+        spacing = min(aligner.boundary_min_onset_spacing_seconds, (latest_onset - offset) / max(1, len(indices) - 1))
         grid = np.arange(len(indices)) * spacing
         ordered = np.maximum.accumulate(refined[indices, 0] - grid) + grid
-        refined[indices, 0] = np.minimum(ordered, upper - len(indices) * spacing + grid)
+        refined[indices, 0] = np.minimum(ordered, latest_onset - (len(indices) - 1) * spacing + grid)
     # Neither rounding nor transcript-order repair may amplify a learned correction.
     refined = np.clip(refined, boundaries - cap, boundaries + cap)
     refined = np.clip(refined, offset, upper)
-    minimum_duration = aligner.boundary_min_word_duration_seconds
-    refined[:, 0] = np.minimum(refined[:, 0], max(offset, upper - minimum_duration))
+    refined[:, 0] = np.minimum(refined[:, 0], latest_onset)
     refined[:, 1] = np.minimum(upper, np.maximum(refined[:, 0] + minimum_duration, refined[:, 1]))
     refined[:, 1] = np.minimum(refined[:, 1], np.clip(boundaries[:, 1] + cap, offset, upper))
     # Independent start/end corrections could otherwise double the allowed duration change.
@@ -2998,6 +3043,26 @@ def _timestamp_special_token_is_added(token: str, ignored: Sequence[str], added:
     return not any(fnmatchcase(token, pattern.lower()) for pattern in ignored) and any(
         fnmatchcase(token, pattern.lower()) for pattern in added
     )
+
+
+def _read_ctc_checkpoint_config(path: Path) -> Dict[str, Any]:
+    """
+    Read the optional CTC block next to a safetensors file, without resolving snapshot symlinks.
+    Missing blocks preserve legacy metadata loading; malformed blocks fail rather than silently
+    selecting a different calibration. Model files are expected to remain fixed during inference.
+
+    Args:
+        path (Path): Checkpoint file in its model or Hugging Face snapshot directory.
+
+    Returns:
+        Dict[str, Any]: The model's ``ctc_timestamps`` block, or an empty mapping when absent.
+    """
+    config_path = path.parent / 'config.json'
+    if not config_path.is_file():
+        return {}
+    with config_path.open(encoding='utf-8') as handle:
+        config = _plain_mapping(json.load(handle), 'config.json')
+    return dict(_plain_mapping(config.get('ctc_timestamps', {}), 'ctc_timestamps'))
 
 
 def _checkpoint_alignment_parameters(
