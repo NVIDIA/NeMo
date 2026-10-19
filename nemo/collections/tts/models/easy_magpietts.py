@@ -162,7 +162,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         if self.use_utmos:
             assert HAVE_UTMOSV2, (
                 "UTMOSv2 is required for UTMOS scoring but is not installed. "
-                "Install it with: pip install git+https://github.com/sarulab-speech/UTMOSv2.git@v1.2.1"
+                "Install it with: pip install git+https://github.com/sarulab-speech/UTMOSv2.git@v1.3.0"
             )
             self._utmos_calculator = UTMOSv2Calculator(device='cpu')
             logging.info("UTMOSv2 calculator initialized for validation naturalness scoring")

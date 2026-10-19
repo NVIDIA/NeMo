@@ -32,12 +32,12 @@ from nemo.collections.tts.models.easy_magpietts import EasyMagpieTTSModel
 from nemo.collections.tts.modules.magpietts_modules import SpecialAudioToken
 from nemo.collections.tts.parts.utils.helpers import (
     get_mask_from_lengths,
-    get_speaker_embeddings_from_filepaths,
+    get_speaker_embeddings_from_waveforms,
     print_grad_weight_summary,
     process_text_for_cer,
-    transcribe_with_whisper_from_filepaths,
+    transcribe_with_whisper_from_waveforms,
 )
-from nemo.collections.tts.parts.utils.reward_audio import ram_audio_directory
+from nemo.collections.tts.parts.utils.reward_audio import resample_audio, split_audio_batch
 from nemo.utils import logging
 
 try:
@@ -123,9 +123,9 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         if self.use_utmos:
             assert HAVE_UTMOSV2, (
                 "UTMOSv2 is required for the UTMOS reward but is not installed. "
-                "Install it with: pip install git+https://github.com/sarulab-speech/UTMOSv2.git@v1.2.1"
+                "Install it with: pip install git+https://github.com/sarulab-speech/UTMOSv2.git@v1.3.0"
             )
-            # Initialize on CPU; we score from saved wav files so no GPU needed.
+            # Initialize on CPU; select the rank-local scoring device at reward time.
             self._utmos_calculator = UTMOSv2Calculator(device='cpu')
             logging.info("UTMOSv2 calculator initialized for naturalness reward")
 
@@ -468,9 +468,7 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
     def _get_audio_dir(self) -> str:
         """Return (and create if needed) the directory used to store intermediate waveforms during PO."""
         if not self.cfg.get('save_reward_audios', True):
-            if not hasattr(self, '_tmp_reward_audio_dir'):
-                raise RuntimeError('Temporary reward audio must be created inside generate_and_reward.')
-            return self._tmp_reward_audio_dir
+            raise RuntimeError('Reward audio saving is disabled.')
 
         if self.logger is not None and hasattr(self.logger, "log_dir") and self.logger.log_dir is not None:
             log_dir = self.logger.log_dir
@@ -498,31 +496,36 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
             sample_rate: Sampling rate written into the WAV header.
 
         Returns:
-            List of absolute file paths, one per batch item.
+            List of absolute file paths when saving is enabled, otherwise an empty list.
         """
+        if not self.cfg.get('save_reward_audios', True):
+            return []
         audio_dir = self._get_audio_dir()
         paths = []
         for idx in range(waveforms.size(0)):
             wav = waveforms[idx].float().detach().cpu().numpy()
             wav = wav[: int(waveform_lens[idx].item())]
-            # path = os.path.join(audio_dir, f'{prefix}_rank{self.global_rank}_{time_id}_{idx}.wav')
             path = os.path.join(audio_dir, f'{prefix}_rank{self.global_rank}_{idx}.wav')
             sf.write(path, wav, sample_rate)
             paths.append(path)
         return paths
 
-    def _get_reference_audio_paths(self, batch_repeated: Dict) -> List[str]:
+    def _get_reference_audio(self, batch_repeated: Dict):
         """
-        Build per-item reference audio paths for speaker similarity reward.
-        Priority: audio_filepaths -> context_audio -> context_audio_codes.
+        Return detached reference waveforms and their sample rate for speaker similarity.
+        Prefer context audio; otherwise decode cached context codes.
         """
         if 'context_audio' in batch_repeated and 'context_audio_lens' in batch_repeated:
             # TODO: Handle text context here support here.
-            return self._save_waveforms_to_paths(
+            self._save_waveforms_to_paths(
                 waveforms=batch_repeated['context_audio'],
                 waveform_lens=batch_repeated['context_audio_lens'],
                 prefix='reference_context_audio',
                 sample_rate=self.sample_rate,
+            )
+            return (
+                split_audio_batch(batch_repeated['context_audio'], batch_repeated['context_audio_lens']),
+                self.sample_rate,
             )
 
         if 'context_audio_codes' in batch_repeated and 'context_audio_codes_lens' in batch_repeated:
@@ -558,12 +561,13 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
                 context_codes,
                 context_lens,
             )
-            return self._save_waveforms_to_paths(
+            self._save_waveforms_to_paths(
                 waveforms=context_audio,
                 waveform_lens=context_audio_lens,
                 prefix='reference_context_codes_decoded',
                 sample_rate=self.output_sample_rate,
             )
+            return split_audio_batch(context_audio, context_audio_lens), self.output_sample_rate
 
         raise ValueError(
             "Could not construct reference audio for speaker similarity. Need one of: "
@@ -665,36 +669,40 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         )
 
     def _compute_pred_transcripts(
-        self, predicted_audio_paths: List[str], batch_repeated: Dict, reward_asr_model: str
+        self, predicted_waveforms: List[torch.Tensor], batch_repeated: Dict, reward_asr_model: str
     ) -> List[str]:
-        """Transcribe predicted audio files using either the NeMo ASR model or Whisper.
+        """Transcribe predicted waveforms using either the NeMo ASR model or Whisper.
 
-        Returns a list of processed transcript strings (one per audio file), ready for CER/WER
+        Returns a list of processed transcript strings (one per waveform), ready for CER/WER
         computation.
         """
         if reward_asr_model == 'nemo':
             pred_transcripts = self._eval_asr_model.transcribe(
-                predicted_audio_paths,
-                batch_size=len(predicted_audio_paths),
-                override_config=TranscribeConfig(
-                    use_lhotse=False, batch_size=len(predicted_audio_paths), num_workers=0
+                resample_audio(
+                    predicted_waveforms, self.output_sample_rate, int(self._eval_asr_model.cfg.sample_rate)
                 ),
+                batch_size=len(predicted_waveforms),
+                override_config=TranscribeConfig(use_lhotse=False, batch_size=len(predicted_waveforms), num_workers=0),
             )
-            return [process_text_for_cer(transcript.text) for transcript in pred_transcripts]
+            return [
+                process_text_for_cer(transcript.text if hasattr(transcript, 'text') else str(transcript))
+                for transcript in pred_transcripts
+            ]
 
         self.whisper_model.to(self.device)
-        pred_transcripts = [""] * len(predicted_audio_paths)
-        langs = batch_repeated.get('languages', ['en'] * len(predicted_audio_paths))
+        pred_transcripts = [""] * len(predicted_waveforms)
+        langs = batch_repeated.get('languages', ['en'] * len(predicted_waveforms))
         language_groups = {}
-        for item_idx, audio_path in enumerate(predicted_audio_paths):
+        for item_idx, waveform in enumerate(predicted_waveforms):
             language = langs[item_idx] if item_idx < len(langs) else 'en'
-            language_groups.setdefault(language, []).append((item_idx, audio_path))
+            language_groups.setdefault(language, []).append((item_idx, waveform))
 
         for language, grouped_items in language_groups.items():
             normalizer = self._get_cached_normalizer(language) if self._normalize_whisper_transcript else None
-            grouped_paths = [audio_path for _, audio_path in grouped_items]
-            group_transcripts = transcribe_with_whisper_from_filepaths(
-                audio_filepaths=grouped_paths,
+            grouped_waveforms = [waveform for _, waveform in grouped_items]
+            group_transcripts = transcribe_with_whisper_from_waveforms(
+                waveforms=grouped_waveforms,
+                sample_rate=self.output_sample_rate,
                 language=language,
                 whisper_processor=self.whisper_processor,
                 whisper_model=self.whisper_model,
@@ -706,17 +714,17 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         return pred_transcripts
 
     def _compute_speaker_embeddings_parallel(
-        self, predicted_audio_paths: List[str], batch: Dict, num_generations_per_item: int
+        self, predicted_waveforms: List[torch.Tensor], batch: Dict, num_generations_per_item: int
     ):
         """Extract speaker embeddings for both predicted and reference audio and align their batch
         dimensions so that cosine similarity can be computed element-wise.
         """
-        reference_audio_paths = self._get_reference_audio_paths(batch)
-        pred_speaker_embeddings = get_speaker_embeddings_from_filepaths(
-            predicted_audio_paths, self._eval_speaker_verification_model, self.device
+        reference_waveforms, reference_rate = self._get_reference_audio(batch)
+        pred_speaker_embeddings = get_speaker_embeddings_from_waveforms(
+            predicted_waveforms, self.output_sample_rate, self._eval_speaker_verification_model, self.device
         )
-        gt_speaker_embeddings = get_speaker_embeddings_from_filepaths(
-            reference_audio_paths, self._eval_speaker_verification_model, self.device
+        gt_speaker_embeddings = get_speaker_embeddings_from_waveforms(
+            reference_waveforms, reference_rate, self._eval_speaker_verification_model, self.device
         )
         if num_generations_per_item > 1:
             gt_speaker_embeddings = gt_speaker_embeddings.repeat_interleave(num_generations_per_item, dim=0)
@@ -728,59 +736,21 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
             )
         return pred_speaker_embeddings, gt_speaker_embeddings
 
-    def _compute_utmos_scores_batched(self, predicted_audio_paths: List[str]) -> List[float]:
-        """Compute UTMOSv2 naturalness scores for the given audio files.
-
-        Returns a list of zeros if UTMOS is disabled.
-        """
+    def _compute_utmos_scores_batched(self, predicted_waveforms: List[torch.Tensor]) -> List[float]:
+        """Score variable-length waveforms in batches without writing audio files."""
         if not self.use_utmos:
-            return [0.0] * len(predicted_audio_paths)
-        if len(predicted_audio_paths) == 0:
+            return [0.0] * len(predicted_waveforms)
+        if not predicted_waveforms:
             return []
-        utmos_batch_size = max(int(self.cfg.get('utmos_batch_size', len(predicted_audio_paths))), 1)
-        utmos_num_workers = max(int(self.cfg.get('utmos_num_workers', 0)), 0)
-        audio_dir = self._get_audio_dir()
-        val_list = [os.path.basename(p) for p in predicted_audio_paths]
-        batch_results = self._utmos_calculator.process_directory(
-            audio_dir, batch_size=utmos_batch_size, num_workers=utmos_num_workers, val_list=val_list
+        return self._utmos_calculator.score_waveforms(
+            predicted_waveforms,
+            sample_rate=self.output_sample_rate,
+            batch_size=max(int(self.cfg.get('utmos_batch_size', len(predicted_waveforms))), 1),
+            num_workers=max(int(self.cfg.get('utmos_num_workers', 0)), 0),
+            device=self.device if self.cfg.get('utmos_device', 'auto') == 'auto' else self.cfg.get('utmos_device'),
         )
-        return [float(item['predicted_mos']) for item in batch_results]
 
     def generate_and_reward(
-        self,
-        batch: Dict,
-        num_generations_per_item: int,
-        mode: str = 'train',
-        use_local_transformer_for_inference: bool = False,
-    ):
-        """Run autoregressive inference on the batch, compute multi-signal rewards
-        (CER, speaker similarity, UTMOSv2), and return per-item advantages.
-
-        This is the core rollout-then-reward step of the online PO pipeline.
-
-        Returns:
-            Dict containing mean/std rewards, per-item metrics, predicted codes,
-            advantages, group validities, and timing information.
-        """
-        kwargs = dict(
-            batch=batch,
-            num_generations_per_item=num_generations_per_item,
-            mode=mode,
-            use_local_transformer_for_inference=use_local_transformer_for_inference,
-        )
-        if self.cfg.get('save_reward_audios', True):
-            return self._generate_and_reward(**kwargs)
-
-        # Keep reward WAVs in host RAM until all scorers finish. The context
-        # also watches for owner death, which Python finally/atexit cannot handle.
-        with ram_audio_directory(rank=self.global_rank) as path:
-            self._tmp_reward_audio_dir = path
-            try:
-                return self._generate_and_reward(**kwargs)
-            finally:
-                del self._tmp_reward_audio_dir
-
-    def _generate_and_reward(
         self,
         batch: Dict,
         num_generations_per_item: int,
@@ -842,7 +812,8 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         if phoneme_input_type == 'pred':
             predicted_phoneme_tokens, predicted_phoneme_tokens_lens = self._unstack_rollout_phoneme_tokens(output)
         save_start_time = time.perf_counter()
-        predicted_audio_paths = self._save_waveforms_to_paths(
+        predicted_waveforms = split_audio_batch(predicted_audio, predicted_audio_lens)
+        self._save_waveforms_to_paths(
             waveforms=predicted_audio,
             waveform_lens=predicted_audio_lens,
             prefix='generated',
@@ -854,16 +825,16 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         ]
 
         rewarding_start_time = time.perf_counter()
-        pred_transcripts = self._compute_pred_transcripts(predicted_audio_paths, batch_repeated, reward_asr_model)
+        pred_transcripts = self._compute_pred_transcripts(predicted_waveforms, batch_repeated, reward_asr_model)
         try:
             pred_speaker_embeddings, gt_speaker_embeddings = self._compute_speaker_embeddings_parallel(
-                predicted_audio_paths, batch, num_generations_per_item
+                predicted_waveforms, batch, num_generations_per_item
             )
         except Exception as e:
             logging.warning(f"Speaker-embedding reward failed. Falling back to zero SSIM reward. Error: {e}")
             pred_speaker_embeddings = None
             gt_speaker_embeddings = None
-        utmos_scores = self._compute_utmos_scores_batched(predicted_audio_paths)
+        utmos_scores = self._compute_utmos_scores_batched(predicted_waveforms)
 
         batch_metrics = []
         cer_reward_weight = self.cfg.get('cer_reward_weight', 0.5)

@@ -286,18 +286,30 @@ positive ``inference_phoneme_temperature``, ``inference_phoneme_topk>=2``, and
 ``phoneme_confidence_unk_threshold=0``. Phoneme sampling temperature and top-k
 can be configured independently of audio sampling.
 
-``model.save_reward_audios`` defaults to ``True``. Set it to ``False`` to remove
-generated and reference WAVs when each ``generate_and_reward`` call returns or
-raises an exception. Each call uses a private directory in ``/dev/shm`` (RAM-backed
-host storage, not GPU memory). Writable ``/dev/shm`` is required; there is no disk
-fallback. Reward scoring finishes before cleanup; returned codes, rewards, and
-metrics remain available.
+``model.save_reward_audios`` defaults to ``True``. Set it to ``False`` to skip
+all generated/reference WAV writes during online reward scoring. ASR, speaker
+similarity, and UTMOS consume detached, true-length waveforms directly; no
+shared-memory directories or cleanup processes are created. Saved WAVs are only
+debugging artifacts and are not read back by reward models.
 
-A lightweight cleanup process also removes the directory if the training process
-exits abruptly, including ``SIGTERM``, ``SIGKILL``, or ``os._exit``. It is reaped on
-normal completion. This protection requires the cleanup process to survive:
-killing the entire job/container can kill both processes, so the job/container
-runtime must clean up its shared-memory storage in that case.
+In-memory UTMOS scoring requires UTMOSv2 **v1.3.0**::
+
+    pip install git+https://github.com/sarulab-speech/UTMOSv2.git@v1.3.0
+
+The scorer resamples from ``output_sample_rate`` to the UTMOS model configuration's
+rate (16 kHz for the default pretrained model). It uses upstream CPU NumPy/librosa
+preprocessing on each unpadded clip, then batches the resulting fixed-size features
+for model inference. ``model.utmos_batch_size`` controls inference batching and
+``model.utmos_num_workers`` controls CPU preprocessing workers (default 0).
+``model.utmos_device=auto`` (default) scores on the training rank's device; set it
+to ``cpu`` to avoid keeping an additional reward model on the GPU.
+
+NeMo ASR and speaker inputs are resampled to their model's configured sample rate.
+Whisper inputs are resampled to 16 kHz and converted to CPU NumPy arrays at its
+feature-extractor boundary. Speaker inference retains tensors on the model's
+device. Waveforms remain local to the reward call and are not cached between
+iterations. Avoiding WAV encoding also removes the previous PCM-16 quantization,
+so reward scores can differ from the file-based path.
 
 See Also
 ########
