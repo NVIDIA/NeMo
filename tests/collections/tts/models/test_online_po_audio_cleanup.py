@@ -97,21 +97,25 @@ def test_reward_consumers_receive_trimmed_waveforms(tmp_path, save_audio, failur
     assert not hasattr(model, '_tmp_reward_audio_dir')
 
 
-def test_nemo_asr_receives_resampled_waveforms():
+def test_reward_router_receives_waveforms_and_sample_rate():
     seen = []
 
-    def transcribe(audio, **kwargs):
+    def transcribe(audio, sample_rate, languages):
         seen.extend(audio)
-        assert [wav.numel() for wav in audio] == [1600, 3200]
-        assert kwargs['override_config'].num_workers == 0
-        return ['HELLO', SimpleNamespace(text='WORLD')]
+        assert sample_rate == 24000
+        assert languages == ['en', 'hi']
+        assert [wav.numel() for wav in audio] == [2400, 4800]
+        return ['HELLO', 'WORLD']
 
     model = SimpleNamespace(
         output_sample_rate=24000,
-        _eval_asr_model=SimpleNamespace(cfg=SimpleNamespace(sample_rate=16000), transcribe=transcribe),
+        _reward_asr_router=SimpleNamespace(transcribe=transcribe),
+        _normalize_reward_transcript=False,
+        reward_asr_log_samples=0,
+        trainer=None,
     )
     result = EasyMagpieTTSModelOnlinePO._compute_pred_transcripts(
-        model, [torch.ones(2400), torch.ones(4800)], {}, 'nemo'
+        model, [torch.ones(2400), torch.ones(4800)], {'languages': ['en', 'hi']}
     )
     assert result == ['hello', 'world']
     assert len(seen) == 2

@@ -370,6 +370,15 @@ transcription; the default retains the base model's validation ASR selection.
 recipes are translated when ``reward_asr`` is absent. Worker processes are
 closed during model teardown.
 
+Reward ASR backends accept true-length waveforms plus their actual sample rate.
+Process-isolated NeMo and Qwen workers receive lossless float32 samples through
+their existing stdin pipe rather than file paths. NeMo resamples to its model's
+configured rate; Qwen receives ``(numpy_array, sample_rate)`` inputs and performs
+its own frontend conversion. Worker request buffers are released after scoring,
+and closing a backend reaps the worker and closes its pipes. Validation with
+``validation_asr_backend=reward`` passes waveforms to the same router; validation
+WAVs remain available as logging artifacts.
+
 See Also
 ########
 

@@ -50,6 +50,7 @@ from nemo.collections.tts.parts.utils.helpers import (
     transcribe_with_whisper,
     transcribe_with_whisper_from_filepaths,
 )
+from nemo.collections.tts.parts.utils.reward_audio import split_audio_batch
 from nemo.core.classes.common import safe_instantiate
 from nemo.utils import logging
 
@@ -1741,7 +1742,9 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                             raise RuntimeError(
                                 "validation_asr_backend='reward' requires reward ASR transcription support"
                             )
-                        pred_transcripts = self._compute_pred_transcripts(predicted_audio_paths, batch)
+                        pred_transcripts = self._compute_pred_transcripts(
+                            split_audio_batch(infer_output.predicted_audio, infer_output.predicted_audio_lens), batch
+                        )
                     elif self.use_multilingual_asr:
                         self.whisper_model.to(self.device)
                         languages = batch.get('languages', None)

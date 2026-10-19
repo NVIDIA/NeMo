@@ -36,7 +36,7 @@ from nemo.collections.tts.parts.utils.helpers import (
     process_text_for_cer,
 )
 from nemo.collections.tts.parts.utils.reward_asr import RewardASRRouter
-from nemo.collections.tts.parts.utils.reward_audio import resample_audio, split_audio_batch
+from nemo.collections.tts.parts.utils.reward_audio import split_audio_batch
 from nemo.utils import logging
 
 try:
@@ -738,10 +738,10 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
             f"prompt: {prompt_text}\n{table}\n"
         )
 
-    def _compute_pred_transcripts(self, predicted_audio_paths: List[str], batch_repeated: Dict) -> List[str]:
+    def _compute_pred_transcripts(self, predicted_waveforms: List[torch.Tensor], batch_repeated: Dict) -> List[str]:
         """Route reward transcription by language, then normalize consistently for CER/WER."""
-        languages = list(batch_repeated.get('languages', ['en'] * len(predicted_audio_paths)))
-        raw_transcripts = self._reward_asr_router.transcribe(predicted_audio_paths, languages)
+        languages = list(batch_repeated.get('languages', ['en'] * len(predicted_waveforms)))
+        raw_transcripts = self._reward_asr_router.transcribe(predicted_waveforms, self.output_sample_rate, languages)
         pred_transcripts = []
         logged_languages: Dict[str, int] = {}
         for item_idx, (language, transcript) in enumerate(zip(languages, raw_transcripts)):

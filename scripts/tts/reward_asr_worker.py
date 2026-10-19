@@ -16,10 +16,13 @@
 """Persistent JSON-lines worker for process-isolated reward ASR backends."""
 
 import argparse
+import base64
 import contextlib
 import json
 import re
 import sys
+
+import numpy as np
 
 
 QWEN_LANGUAGE_MAP = {
@@ -56,10 +59,13 @@ def load_qwen(args):
         max_new_tokens=args.max_new_tokens,
     )
 
-    def transcribe(audio_paths, languages, attention_context):
+    def transcribe(waveforms, sample_rate, languages, attention_context):
         del attention_context
         qwen_languages = [QWEN_LANGUAGE_MAP.get(language, language) for language in languages]
-        return [result.text for result in model.transcribe(audio=audio_paths, language=qwen_languages)]
+        return [
+            result.text
+            for result in model.transcribe(audio=[(wav, sample_rate) for wav in waveforms], language=qwen_languages)
+        ]
 
     return transcribe
 
@@ -85,24 +91,31 @@ def load_nemo(args, language_map):
     prompted = isinstance(model, (EncDecHybridRNNTCTCBPEModelWithPrompt, EncDecRNNTBPEModelWithPrompt))
     configured_attention_context = None
 
-    def transcribe(audio_paths, languages, attention_context):
+    def transcribe(waveforms, sample_rate, languages, attention_context):
+        import torch
+        from torchaudio.functional import resample
+
         nonlocal configured_attention_context
+        target_rate = int(model.cfg.sample_rate)
+        audio = [torch.from_numpy(wav) for wav in waveforms]
+        if sample_rate != target_rate:
+            audio = [resample(wav, sample_rate, target_rate) for wav in audio]
         if attention_context is not None and attention_context != configured_attention_context:
             model.encoder.set_default_att_context_size(list(attention_context))
             configured_attention_context = list(attention_context)
 
         if not prompted:
             results = model.transcribe(
-                audio_paths,
-                batch_size=len(audio_paths),
-                override_config=TranscribeConfig(use_lhotse=False, batch_size=len(audio_paths), num_workers=0),
+                audio,
+                batch_size=len(audio),
+                override_config=TranscribeConfig(use_lhotse=False, batch_size=len(audio), num_workers=0),
             )
             return [result.text if hasattr(result, "text") else str(result) for result in results]
 
-        transcripts = [""] * len(audio_paths)
+        transcripts = [""] * len(audio)
         grouped = {}
-        for index, (audio_path, language) in enumerate(zip(audio_paths, languages)):
-            grouped.setdefault(language, []).append((index, audio_path))
+        for index, (waveform, language) in enumerate(zip(audio, languages)):
+            grouped.setdefault(language, []).append((index, waveform))
         for language, items in grouped.items():
             target_lang = language_map[language]
             config_cls = (
@@ -151,17 +164,26 @@ def main():
                 return
             if request.get("command") != "transcribe":
                 raise ValueError(f"Unknown command: {request.get('command')!r}")
-            audio_paths = request["audio_paths"]
+            sample_rate = int(request['sample_rate'])
+            if sample_rate <= 0:
+                raise ValueError('sample_rate must be positive.')
+            audio = [
+                np.frombuffer(base64.b64decode(value, validate=True), dtype='<f4').copy()
+                for value in request['waveforms']
+            ]
+            if any(wav.size == 0 for wav in audio):
+                raise ValueError('Expected nonempty waveforms.')
             languages = request["languages"]
-            if len(audio_paths) != len(languages):
-                raise ValueError(
-                    f"audio_paths and languages must have equal lengths, got {len(audio_paths)} and {len(languages)}"
-                )
+            if len(audio) != len(languages):
+                raise ValueError(f"audio and languages must have equal lengths, got {len(audio)} and {len(languages)}")
             with contextlib.redirect_stdout(sys.stderr):
-                transcripts = transcribe(audio_paths, languages, request.get("attention_context"))
+                transcripts = transcribe(audio, sample_rate, languages, request.get("attention_context"))
             emit({"status": "ok", "transcripts": transcripts})
         except Exception as error:
             emit({"status": "error", "error": repr(error)})
+        finally:
+            # Do not retain the last batch while waiting for the next request.
+            request = audio = line = None
 
 
 if __name__ == "__main__":
