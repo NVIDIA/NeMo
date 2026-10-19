@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -116,6 +117,23 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()
+
+    def freeze_encoder(self) -> None:
+        """Freeze the encoder and keep it in evaluation mode while the CTC model trains."""
+        self.encoder.freeze()
+        self._keep_encoder_in_eval = True
+
+    def unfreeze_encoder(self, partial: bool = False) -> None:
+        """Undo :meth:`freeze_encoder` and restore normal training-mode propagation."""
+        self._keep_encoder_in_eval = False
+        self.encoder.unfreeze(partial=partial)
+
+    def train(self, mode: bool = True):
+        """Set module mode without re-enabling training behavior in a frozen encoder."""
+        super().train(mode)
+        if mode and getattr(self, '_keep_encoder_in_eval', False):
+            self.encoder.eval()
+        return self
 
     def transcribe(
         self,
@@ -535,7 +553,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         encoded = encoder_output[0]
         encoded_len = encoder_output[1]
-        log_probs = self.decoder(encoder_output=encoded)
+        if getattr(self.decoder, "requires_encoded_lengths", False):
+            log_probs = self.decoder(encoder_output=encoded, encoded_lengths=encoded_len)
+        else:
+            log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
 
         return (

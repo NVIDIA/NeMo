@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,6 +42,7 @@ class HFHubMixin(
         token: Union[str, bool, None],
         map_location: str = "cpu",
         strict: bool = False,
+        trust_remote_code: bool = False,
         **model_kwargs,
     ):
         """
@@ -53,10 +55,28 @@ class HFHubMixin(
             >>> model = SALM.from_pretrained(
             ...     "nvidia/salm-model", distributed_setup=strategy.distributed_setup
             ... )
+
+        ``trust_remote_code`` is a runtime security decision. It is deliberately
+        taken from the caller and overwrites any value stored in the downloaded
+        checkpoint config so that a model repository cannot opt itself into
+        executing remote code.
+
+        ``weights_path`` may select an alternate local safetensors file while
+        ``model_id`` continues to provide config and tokenizer peripheral files.
         """
+        if not isinstance(trust_remote_code, bool):
+            raise TypeError(f"trust_remote_code must be a bool, got {type(trust_remote_code).__name__}")
+
         distributed_setup = model_kwargs.pop("distributed_setup", None)
+        weights_path = model_kwargs.pop("weights_path", None)
         device_mesh = distributed_setup.mesh_context.device_mesh if distributed_setup is not None else None
         torch_dtype = model_kwargs.pop("torch_dtype", None)
+        if weights_path is not None:
+            weights_path = Path(weights_path).expanduser().resolve()
+            if not weights_path.is_file() or weights_path.suffix != ".safetensors":
+                raise FileNotFoundError(f"weights_path must be a local safetensors file, got {weights_path}.")
+            if device_mesh is not None:
+                raise ValueError("weights_path is not yet supported with distributed_setup.")
 
         _cached_file_kwargs = dict(
             cache_dir=cache_dir,
@@ -73,6 +93,7 @@ class HFHubMixin(
         if resolved_config_file is None:
             raise RuntimeError(f"Missing {CONFIG_NAME} file for {model_id=}")
         model_kwargs['cfg'] = OmegaConf.to_container(OmegaConf.load(resolved_config_file))
+        model_kwargs['cfg']['trust_remote_code'] = trust_remote_code
         _inject_local_artifact_paths(model_kwargs['cfg'], model_id, _cached_file_kwargs)
         # The setting below tells the model's __init__ not to load the original pretrained weights
         # for individual children modules.
@@ -90,17 +111,24 @@ class HFHubMixin(
                 model_kwargs['cfg']['torch_dtype'] = (
                     torch_dtype if isinstance(torch_dtype, str) else str(torch_dtype).replace("torch.", "")
                 )
-            return super()._from_pretrained(
-                model_id=model_id,
-                revision=revision,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
-                token=token,
-                map_location=map_location,
-                strict=strict,
-                **model_kwargs,
-            )
+            if weights_path is None:
+                model = super()._from_pretrained(
+                    model_id=model_id,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                    token=token,
+                    map_location=map_location,
+                    strict=strict,
+                    **model_kwargs,
+                )
+                weights_path = cached_file(model_id, SAFETENSORS_SINGLE_FILE, **_cached_file_kwargs)
+            else:
+                model = _load_from_local_weights(cls, model_kwargs, weights_path, map_location, strict)
+            if weights_path is not None:
+                _attach_bundled_ctc_timestamp(model, weights_path)
+            return model
 
         # --- Distributed flow ---
         # Delegate to a module-level function so that ``cls(...)`` is not called
@@ -154,6 +182,10 @@ class HFHubMixin(
                 config = OmegaConf.to_container(self.cfg)
         # Ensure HF-compatible fields are present so vLLM / transformers can identify the model.
         if isinstance(config, dict):
+            config = dict(config)
+            # Remote-code trust is a runtime choice and must never be persisted
+            # in a checkpoint that can be loaded by another user.
+            config.pop("trust_remote_code", None)
             config.setdefault("model_type", "nemo_speechlm")
             config.setdefault("architectures", ["NeMoSpeechLMForConditionalGeneration"])
         return super().save_pretrained(
@@ -201,6 +233,12 @@ def _distributed_from_pretrained(
     _load_state_dict_with_dtensors(instance, str(Path(weight_file).parent))
 
     return instance
+
+
+def _load_from_local_weights(cls, model_kwargs, weights_path, map_location, strict):
+    """Construct and load outside a classmethod frame for Lightning compatibility."""
+    model = cls(**model_kwargs)
+    return cls._load_as_safetensor(model, str(weights_path), map_location, strict)
 
 
 def _load_state_dict_with_dtensors(model, weight_dir):
@@ -260,3 +298,20 @@ def _inject_local_artifact_paths(cfg: dict, model_id: str, cached_file_kwargs: d
         cfg["pretrained_llm"] = llm_backbone_path
     if "pretrained_lm_name" in cfg:
         cfg["pretrained_lm_name"] = llm_backbone_path
+
+
+def _attach_bundled_ctc_timestamp(model, weights_path: Union[str, Path]) -> None:
+    """Point a compatible speech encoder at a CTC head bundled in its SALM checkpoint."""
+    from safetensors import safe_open
+
+    from nemo.collections.speechlm2.parts.ctc_timestamp_utils import CTC_TIMESTAMP_ARTIFACT_FORMAT
+
+    resolved_path = Path(weights_path).expanduser().resolve()
+    with safe_open(str(resolved_path), framework="pt", device="cpu") as checkpoint:
+        metadata = checkpoint.metadata() or {}
+    if metadata.get("ctc_timestamp_format") != CTC_TIMESTAMP_ARTIFACT_FORMAT:
+        return
+    encoder = getattr(getattr(model, "perception", None), "encoder", None)
+    if encoder is None or not getattr(encoder, "supports_ctc_timestamp_inputs", False):
+        raise RuntimeError("Checkpoint contains a CTC timestamp head but the model has no compatible speech encoder.")
+    encoder.ctc_timestamp_model_path = str(resolved_path)

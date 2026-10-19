@@ -1,4 +1,5 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -918,6 +919,10 @@ class EasyMagpieInferenceRunner(BaseInferenceRunner):
             context_duration_min=context_duration_min,
             context_duration_max=context_duration_max,
             ignore_phoneme_languages=self.model.cfg.get('ignore_phoneme_languages', []),
+            enable_phoneme_text_input=self.model.enable_phoneme_text_input,
+            text_phoneme_token_offset=self.model.text_phoneme_token_offset,
+            phoneme_text_bop_marker=self.model.phoneme_text_bop_marker,
+            phoneme_text_eop_marker=self.model.phoneme_text_eop_marker,
             add_language_to_context_text=self.model.add_language_to_context_text,
             default_tokenizer_name=self.config.default_tokenizer_name,
         )
