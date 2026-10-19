@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import copy
 import inspect
 import json
 import math
@@ -28,7 +29,8 @@ from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
-from functools import partial
+from fnmatch import fnmatchcase
+from functools import lru_cache, partial, wraps
 from itertools import groupby
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
@@ -41,6 +43,7 @@ from torch import nn
 from nemo.collections.asr.modules.conv_asr import ConvASRDecoder
 from nemo.collections.asr.modules.transformer_encoder import TransformerEncoder
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.utils import logging
 
 __all__ = [
     "CTCTimestampArtifact",
@@ -50,6 +53,7 @@ __all__ = [
     "export_ctc_timestamp_artifact",
     "get_ctc_timestamp_aligner",
     "load_ctc_timestamp_artifact",
+    "load_word_alignment_parameters",
     "save_ctc_timestamp_artifact",
 ]
 
@@ -57,6 +61,26 @@ __all__ = [
 CTC_TIMESTAMP_ARTIFACT_FORMAT = "nemo_ctc_timestamp_artifact_v1"
 CTC_TIMESTAMP_BUNDLE_PREFIX = "ctc_timestamp."
 CTC_UPSAMPLING_MODES = ("conv_transpose", "repeat", "repeat_phase")
+# Scalar options of ``conf/alignment_params_40ms-to-10ms.yaml``, all aligner constructor defaults.
+_WORD_ALIGNMENT_PARAMETER_NAMES = (
+    "speaker_logprob_weight",
+    "speaker_activity_threshold",
+    "support_activity_threshold",
+    "vad_threshold",
+    "band_ratio",
+    "maximum_token_len",
+    "refinement_end_blend",
+    "boundary_outside_word_duration_seconds",
+    "onset_snap_seconds",
+    "boundary_max_correction_seconds",
+    "boundary_min_onset_spacing_seconds",
+    "boundary_min_word_duration_seconds",
+    "band_min_states",
+    "max_word_frames",
+    "band_full_below_frames",
+    "interpolation_enabled",
+)
+_NON_ALIGNMENT_ARGUMENTS = frozenset({"self", "ctc_decoder", "tokenizer", "word_alignment_parameters"})
 
 
 class TransformerCTCDecoder(ConvASRDecoder):
@@ -325,12 +349,35 @@ class TransformerCTCDecoder(ConvASRDecoder):
         return repeated
 
 
+def _apply_word_alignment_parameters(init: Callable[..., None]) -> Callable[..., None]:
+    """
+    Fill aligner options the caller omits from ``word_alignment_parameters``.
+
+    Args:
+        init (Callable[..., None]): Keyword-only aligner initializer.
+
+    Returns:
+        Callable[..., None]: Initializer giving explicit arguments precedence over loaded parameters.
+    """
+
+    @wraps(init)
+    def wrapper(self, **kwargs) -> None:
+        source = kwargs.get('word_alignment_parameters')
+        if source is not None:
+            kwargs = {**load_word_alignment_parameters(source), **kwargs}
+        init(self, **kwargs)
+
+    return wrapper
+
+
 class MultiSpeakerSOTWordTimestampAligner:
     """Align speaker streams with single-pass banded max-sum CTC DP and word-boundary refinement.
 
     Speaker mapping uses greedy token distributions, followed by speaker-inactive frame removal
-    and anchor-guided DP with byte backpointers. The speaker prior defaults to weight 1.0. Every
-    result receives diarization-assisted word refinement, capped at 12 frames by default.
+    and anchor-guided DP with byte backpointers. Constructor defaults match the 40 ms CTC head
+    settings of ``conf/alignment_params_40ms-to-10ms.yaml`` but carry no boundary calibration;
+    pass that file as ``word_alignment_parameters`` to also apply its calibration. Every result
+    receives diarization-assisted word refinement.
 
     The aligner takes model outputs, not audio: ASR states for the CTC head
     (:meth:`generate_from_inputs`) or CTC log probabilities (:meth:`extract_from_outputs_batch`).
@@ -344,10 +391,13 @@ class MultiSpeakerSOTWordTimestampAligner:
     """
 
     _SPEAKER_TAG_RE = re.compile(r"<spk:(\d+)>", flags=re.IGNORECASE)
+    _DEFAULT_SPECIAL_TOKEN_IGNORED = ('<spk:*>', '<sty:stt:*>', '<sty:end:*>')
+    _DEFAULT_SPECIAL_TOKEN_ADDED = ('<ev:*>',)
     # Bound vocabulary-wide output per decoder call (64 MiB at FP32), except when
     # a single context window already exceeds this budget. Never alter its context.
     _CTC_WINDOW_MAX_ELEMENTS = 16 * 1024 * 1024
 
+    @_apply_word_alignment_parameters
     def __init__(
         self,
         *,
@@ -356,11 +406,13 @@ class MultiSpeakerSOTWordTimestampAligner:
         blank_id: Optional[int] = None,
         ctc_frame_seconds: Optional[float] = None,
         sortformer_frame_seconds: Optional[float] = None,
-        speaker_activity_threshold: float = 0.5,
-        speaker_logprob_weight: float = 1.0,
-        maximum_token_len: float = 1.0,
-        max_word_frames: int = 12,
+        speaker_activity_threshold: float = 0.1881,
+        speaker_logprob_weight: float = 0.6057,
+        maximum_token_len: float = 1.0364,
+        max_word_frames: int = 19,
         timestamp_language: Optional[str] = None,
+        special_token_ignored: Optional[Sequence[str]] = None,
+        special_token_added: Optional[Sequence[str]] = None,
         epsilon: float = 1.0e-6,
         online_inference_length: int = 0,
         chunk_left_context: int = 0,
@@ -370,11 +422,20 @@ class MultiSpeakerSOTWordTimestampAligner:
         boundary_profile_points: int = 33,
         boundary_logprob_floor: float = -20.0,
         boundary_logprob_ceiling: float = 0.0,
-        boundary_max_correction_seconds: float = 0.24,
-        boundary_outside_word_duration_seconds: float = 0.24,
+        boundary_max_correction_seconds: float = 0.0400,
+        boundary_outside_word_duration_seconds: float = 0.1747,
         boundary_grid_seconds: float = 0.01,
-        boundary_min_onset_spacing_seconds: float = 0.01,
-        boundary_min_word_duration_seconds: float = 0.01,
+        boundary_min_onset_spacing_seconds: float = 0.0100,
+        boundary_min_word_duration_seconds: float = 0.0050,
+        band_ratio: float = 0.0484,
+        band_min_states: int = 50,
+        band_full_below_frames: int = 0,
+        support_activity_threshold: float = 0.0225,
+        onset_snap_seconds: Optional[float] = 0.0800,
+        refinement_end_blend: float = 0.7382,
+        vad_threshold: float = 0.4641,
+        interpolation_enabled: bool = True,
+        word_alignment_parameters: Optional[Union[str, Mapping[str, Any]]] = None,
     ) -> None:
         """
         Initialize multi-speaker SOT word timestamp alignment.
@@ -386,39 +447,73 @@ class MultiSpeakerSOTWordTimestampAligner:
             ctc_frame_seconds (Optional[float]): Duration of one CTC frame, for records without an
                 audio duration.
             sortformer_frame_seconds (Optional[float]): Explicit duration of one Sortformer frame.
-            speaker_activity_threshold (float): Threshold for speaker activity metadata.
-            speaker_logprob_weight (float): Weight of the Sortformer prior in CTC alignment; defaults to 1.0.
+            speaker_activity_threshold (float): Speaker-mapping activity threshold.
+            speaker_logprob_weight (float): Sortformer prior weight.
             maximum_token_len (float): Maximum emitted word duration in seconds.
-            max_word_frames (int): Banded CTC word duration and onset-snap cap in encoder frames; prepared
-                batches record it in CTC frames, i.e. times the CTC head's ``upsampling_factor``.
+            max_word_frames (int): Word duration cap in encoder frames. Prepared batches record it
+                in CTC frames, i.e. times the CTC head's ``upsampling_factor``.
             timestamp_language (Optional[str]): Explicit alignment-unit policy: zh/ja characters,
                 th newmm words, or unchanged whitespace words for other languages. None selects
                 per-transcript script detection.
+            special_token_ignored (Optional[Sequence[str]]): Case-insensitive glob patterns excluded
+                from acoustic alignment. Defaults to ``<spk:*>``, ``<sty:stt:*>``, ``<sty:end:*>``.
+                Ignored patterns take precedence over added patterns. Speaker tags always route
+                words to speaker streams and never receive timestamps themselves.
+            special_token_added (Optional[Sequence[str]]): Case-insensitive glob patterns for special
+                tokens aligned like words. Defaults to ``<ev:*>``. Other angle-bracket tags are
+                excluded. An empty list disables special-token alignment; None selects defaults.
             epsilon (float): Numerical floor for logarithms.
             online_inference_length (int): Core window, in encoder frames, of the deferred CTC
                 head over stored states; 0 runs it over the whole sequence at once.
             chunk_left_context (int): Encoder frames of left context per deferred head window.
             chunk_right_context (int): Encoder frames of right context per deferred head window.
             boundary_interpolation (Optional[Dict[str, Any]]): Calibrated edge interpolation parameters
-                (``weights``, ``mean`` shaped (2, 2 * boundary_profile_points), and ``offset`` shaped
-                (2,)), with start/end on axis zero. Refines boundaries before diarization refinement. None disables
-                this checkpoint-specific correction; fit it on independent calibration audio.
+                with start/end on axis zero: ``coefficients`` shaped (2, K) in the fixed temporal DCT
+                token/blank sum-difference basis, plus ``offset`` shaped (2,). The default K=24 stores
+                50 numbers and expands once at construction. Explicit ``weights`` shaped
+                (2, 2 * boundary_profile_points), with optional legacy ``mean``, are also accepted.
+                None uses the ``word_alignment_parameters`` calibration, if any, and otherwise skips
+                interpolation. Ignored when ``interpolation_enabled=False``. Refines boundaries before
+                diarization refinement.
             boundary_profile_radius_frames (int): Edge neighborhood half-width in CTC frames; defaults to 4.
             boundary_profile_points (int): Samples per token/blank profile; defaults to 33. Changing profile
-                geometry or log-probability clipping requires refitting calibration weights and means.
+                geometry or log-probability clipping requires refitting calibration coefficients.
             boundary_logprob_floor (float): Lower clip bound before interpolation; defaults to -20.0.
             boundary_logprob_ceiling (float): Upper clip bound before interpolation; defaults to 0.0.
-            boundary_max_correction_seconds (float): Absolute correction cap; defaults to 0.24. Zero disables
-                learned corrections, but retains seed duration, rounding, and ordering rules.
-            boundary_outside_word_duration_seconds (float): Seed duration for words outside their speaker's
-                VAD before applying corrections; defaults to 0.24. These words are retained.
+            boundary_max_correction_seconds (float): Absolute correction cap in seconds.
+                Also bounds outside-VAD duration deviations from the configured seed.
+                Zero disables learned corrections. Recording bounds take precedence; subsequent VAD
+                refinement may move in-segment boundaries farther to match speaker activity.
+            boundary_outside_word_duration_seconds (float): Outside-VAD seed duration in seconds.
+                These words are retained.
             boundary_grid_seconds (float): Output rounding grid relative to the recording offset;
                 defaults to 0.01. This does not change the acoustic resolution or profile sampling geometry.
-            boundary_min_onset_spacing_seconds (float): Same-speaker onset spacing target; defaults to 0.01.
+            boundary_min_onset_spacing_seconds (float): Same-speaker onset spacing in seconds.
                 Reduced when recording bounds cannot accommodate it. Zero permits coincident onsets.
-            boundary_min_word_duration_seconds (float): Minimum interpolated duration before VAD refinement;
-                defaults to 0.01. Recording bounds take precedence for shorter clips.
+            boundary_min_word_duration_seconds (float): Minimum duration before VAD refinement, in seconds.
+                Correction bounds and recording bounds take precedence.
+            band_ratio (float): Band half-width fraction of target states.
+            band_min_states (int): Additive half-width in target states.
+            band_full_below_frames (int): Full-search retained-frame threshold.
+            support_activity_threshold (float): Frame-retention activity threshold.
+            onset_snap_seconds (Optional[float]): Maximum backward onset snap; None uses the word duration cap.
+            refinement_end_blend (float): End correction fraction toward VAD/next word.
+            vad_threshold (float): Native Sortformer threshold, distinct from speaker mapping.
+                Boolean labels supplied by callers must already use this threshold.
+            interpolation_enabled (bool): Enable calibrated boundary correction when a calibration is available.
+            word_alignment_parameters (Optional[Union[str, Mapping[str, Any]]]): YAML path or mapping, such as
+                ``conf/alignment_params_40ms-to-10ms.yaml`` or checkpoint-embedded parameters, whose values
+                replace the defaults of arguments the caller does not pass; explicit arguments take
+                precedence. None applies the constructor defaults without boundary calibration. No
+                machine-local path enters prepared batches.
         """
+        if not isinstance(interpolation_enabled, bool):
+            raise ValueError('interpolation_enabled must be boolean.')
+        if not 0 <= vad_threshold <= 1:
+            raise ValueError('vad_threshold must be between zero and one.')
+        self.vad_threshold = float(vad_threshold)
+        if not interpolation_enabled:
+            boundary_interpolation = None
         if speaker_logprob_weight < 0:
             raise ValueError("speaker_logprob_weight must be non-negative.")
         if not 0 <= speaker_activity_threshold <= 1:
@@ -426,10 +521,28 @@ class MultiSpeakerSOTWordTimestampAligner:
         if maximum_token_len <= 0:
             raise ValueError("maximum_token_len must be positive.")
         self.ctc_decoder = ctc_decoder
+        self.band_ratio = float(band_ratio)
+        self.band_min_states = int(band_min_states)
+        self.band_full_below_frames = int(band_full_below_frames)
+        self.support_activity_threshold = float(support_activity_threshold)
+        self.onset_snap_seconds = onset_snap_seconds
+        self.refinement_end_blend = float(refinement_end_blend)
+        if not 0 <= self.band_ratio <= 1 or self.band_min_states < 1 or self.band_full_below_frames < 0:
+            raise ValueError('Invalid band parameters.')
+        if not 0 <= self.support_activity_threshold <= 1 or not 0 <= self.refinement_end_blend <= 1:
+            raise ValueError('Activity threshold and end blend must be in [0, 1].')
+        if onset_snap_seconds is not None and (not math.isfinite(onset_snap_seconds) or onset_snap_seconds < 0):
+            raise ValueError('Onset snap must be finite and nonnegative.')
         if isinstance(max_word_frames, bool) or not isinstance(max_word_frames, int) or max_word_frames < 1:
             raise ValueError("max_word_frames must be a positive integer.")
         self.max_word_frames = max_word_frames
         self.timestamp_language = timestamp_language
+        self.special_token_ignored = _timestamp_special_token_patterns(
+            special_token_ignored, self._DEFAULT_SPECIAL_TOKEN_IGNORED, 'special_token_ignored'
+        )
+        self.special_token_added = _timestamp_special_token_patterns(
+            special_token_added, self._DEFAULT_SPECIAL_TOKEN_ADDED, 'special_token_added'
+        )
         self.tokenizer = tokenizer
         self.blank_id = blank_id
         self.ctc_frame_seconds = ctc_frame_seconds
@@ -467,47 +580,83 @@ class MultiSpeakerSOTWordTimestampAligner:
         if self.boundary_logprob_floor >= self.boundary_logprob_ceiling:
             raise ValueError('boundary_logprob_floor must be less than boundary_logprob_ceiling.')
         if boundary_interpolation is not None:
+            boundary_interpolation = _expand_boundary_calibration(boundary_interpolation, self.boundary_profile_points)
             profile_shape = (2, 2 * self.boundary_profile_points)
-            for name, shape in [('weights', profile_shape), ('mean', profile_shape), ('offset', (2,))]:
+            shapes = [('weights', profile_shape), ('offset', (2,))]
+            if 'mean' in boundary_interpolation:
+                shapes.append(('mean', profile_shape))
+            for name, shape in shapes:
                 value = np.asarray(boundary_interpolation.get(name, []), dtype=np.float64)
                 if value.shape != shape or not np.isfinite(value).all():
                     raise ValueError(f'boundary_interpolation {name} must be finite with shape {shape}')
-        self.boundary_interpolation = boundary_interpolation
+        self.boundary_interpolation = copy.deepcopy(boundary_interpolation)
 
     @classmethod
-    def clean_sot_transcript(cls, transcript: str, special_tokens: Sequence[str]) -> str:
+    def clean_sot_transcript(
+        cls,
+        transcript: str,
+        special_tokens: Sequence[str],
+        *,
+        special_token_ignored: Optional[Sequence[str]] = None,
+        special_token_added: Optional[Sequence[str]] = None,
+    ) -> str:
         """
-        Remove decoder control tokens, preserving speaker, event and style tags.
+        Remove decoder control tokens, preserving speaker tags and allowed acoustic tags.
         Decode with special tokens kept, then clean the text here. Speaker tags mark streams;
-        event/style tags remain acoustic targets. EOS, padding and other control tokens are removed.
+        event tags remain acoustic targets by default, while style tags are excluded.
 
         Args:
             transcript (str): Decoded t-SOT transcript.
             special_tokens (Sequence[str]): The decoding tokenizer's special tokens.
+            special_token_ignored (Optional[Sequence[str]]): Exclusion patterns; None uses class defaults.
+            special_token_added (Optional[Sequence[str]]): Acoustic tag patterns; None uses class defaults.
 
         Returns:
             str: The transcript without those tokens, its words separated by single spaces.
         """
+        ignored = _timestamp_special_token_patterns(
+            special_token_ignored, cls._DEFAULT_SPECIAL_TOKEN_IGNORED, 'special_token_ignored'
+        )
+        added = _timestamp_special_token_patterns(
+            special_token_added, cls._DEFAULT_SPECIAL_TOKEN_ADDED, 'special_token_added'
+        )
         for token in special_tokens:
-            if cls._SPEAKER_TAG_RE.fullmatch(token) is None and re.fullmatch(r'<(?:ev|sty):[^<>]*>', token) is None:
+            if cls._SPEAKER_TAG_RE.fullmatch(token) is None and not _timestamp_special_token_is_added(
+                token, ignored, added
+            ):
                 transcript = transcript.replace(token, " ")
         return " ".join(transcript.split())
 
     @classmethod
-    def parse_sot_words(cls, transcript: str) -> List[Dict[str, Any]]:
+    def parse_sot_words(
+        cls,
+        transcript: str,
+        *,
+        special_token_ignored: Optional[Sequence[str]] = None,
+        special_token_added: Optional[Sequence[str]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Split a t-SOT transcript into words, treating em dashes as word separators.
         Each ``<spk:N>`` tag starts a new speaker turn. Words before the first tag have no speaker,
-        and a transcript without any tag is assigned speaker 0.
+        and a transcript without any tag is assigned speaker 0. Allowed special tags are standalone
+        alignment units even without surrounding spaces; ignored tags never become CTC targets.
 
         Args:
             transcript (str): Cleaned t-SOT transcript.
+            special_token_ignored (Optional[Sequence[str]]): Exclusion patterns; None uses class defaults.
+            special_token_added (Optional[Sequence[str]]): Acoustic tag patterns; None uses class defaults.
 
         Returns:
             List[Dict[str, Any]]: Word records with ``word``, ``speaker_tag``, ``turn_index`` (the
                 0-based tag count, or None before the first tag) and ``word_index``.
         """
-        transcript = transcript.replace("—", " ")
+        ignored = _timestamp_special_token_patterns(
+            special_token_ignored, cls._DEFAULT_SPECIAL_TOKEN_IGNORED, 'special_token_ignored'
+        )
+        added = _timestamp_special_token_patterns(
+            special_token_added, cls._DEFAULT_SPECIAL_TOKEN_ADDED, 'special_token_added'
+        )
+        transcript = re.sub(r'(<[^<>\s]+>)', r' \1 ', transcript.replace("—", " "))
         words: List[Dict[str, Any]] = []
         parts = cls._SPEAKER_TAG_RE.split(transcript)
         speaker_tag: Optional[int] = 0 if len(parts) == 1 else None
@@ -517,6 +666,12 @@ class MultiSpeakerSOTWordTimestampAligner:
                 speaker_tag, turn_index = int(part), index // 2
                 continue
             for word in part.split():
+                if (
+                    word.startswith('<')
+                    and word.endswith('>')
+                    and not _timestamp_special_token_is_added(word, ignored, added)
+                ):
+                    continue
                 words.append(
                     dict(
                         word=word,
@@ -841,7 +996,11 @@ class MultiSpeakerSOTWordTimestampAligner:
             )
             words = self._tokenize_words(
                 _timestamp_units(
-                    self.parse_sot_words(transcript),
+                    self.parse_sot_words(
+                        transcript,
+                        special_token_ignored=self.special_token_ignored,
+                        special_token_added=self.special_token_added,
+                    ),
                     self.timestamp_language or 'auto',
                 ),
                 blank_id,
@@ -895,6 +1054,14 @@ class MultiSpeakerSOTWordTimestampAligner:
         return {
             "config": {
                 "speaker_activity_threshold": self.speaker_activity_threshold,
+                "vad_threshold": self.vad_threshold,
+                "interpolation_enabled": self.boundary_interpolation is not None,
+                "band_ratio": self.band_ratio,
+                "band_min_states": self.band_min_states,
+                "band_full_below_frames": self.band_full_below_frames,
+                "support_activity_threshold": self.support_activity_threshold,
+                "onset_snap_seconds": self.onset_snap_seconds,
+                "refinement_end_blend": self.refinement_end_blend,
                 "speaker_logprob_weight": speaker_logprob_weight,
                 "maximum_token_len": self.maximum_token_len,
                 "max_word_frames": self._ctc_frames(self.max_word_frames),
@@ -909,6 +1076,8 @@ class MultiSpeakerSOTWordTimestampAligner:
                 "boundary_min_onset_spacing_seconds": self.boundary_min_onset_spacing_seconds,
                 "boundary_min_word_duration_seconds": self.boundary_min_word_duration_seconds,
                 "timestamp_language": self.timestamp_language,
+                "special_token_ignored": list(self.special_token_ignored),
+                "special_token_added": list(self.special_token_added),
                 "epsilon": self.epsilon,
             },
             "num_speaker_columns": None if sortformer_sigmoids is None else sortformer_sigmoids.shape[-1],
@@ -980,8 +1149,8 @@ class MultiSpeakerSOTWordTimestampAligner:
                     )
         return sorted(segments, key=lambda segment: (segment["start"], segment["end"], segment["speaker"]))
 
-    @staticmethod
     def _result(
+        self,
         *,
         rows: Sequence[Dict[str, Any]],
         mapping: Dict[int, Optional[int]],
@@ -1023,7 +1192,7 @@ class MultiSpeakerSOTWordTimestampAligner:
             "diarization_timestamps": list(diarization_timestamps),
             "diarization_frame_seconds": diarization_frame_seconds,
             "diarization_max_speaker_count": diarization_max_speaker_count,
-            "diarization_activity_threshold": 0.5 if diarization_frame_seconds is not None else None,
+            "diarization_activity_threshold": self.vad_threshold if diarization_frame_seconds is not None else None,
             "speaker_tag_to_sortformer_column": mapping,
             "alignment_mode": "banded",
             "requested_alignment_mode": "banded",
@@ -1411,7 +1580,7 @@ def align_prepared_batch(prepared: Dict[str, Any]) -> List[Dict[str, Any]]:
     Returns:
         List[Dict[str, Any]]: One alignment result per record.
     """
-    return MultiSpeakerSOTWordTimestampAligner(**prepared["config"]).align_prepared(prepared)
+    return MultiSpeakerSOTWordTimestampAligner(**prepared['config']).align_prepared(prepared)
 
 
 def merge_prepared_batches(batches: Sequence[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -1435,11 +1604,12 @@ def merge_prepared_batches(batches: Sequence[Dict[str, Any]]) -> Optional[Dict[s
 
 @dataclass(frozen=True)
 class CTCTimestampArtifact:
-    """Loaded CTC decoder and matching tokenizer."""
+    """Loaded CTC decoder, matching tokenizer, and optional checkpoint-bound alignment defaults."""
 
     decoder: TransformerCTCDecoder
     tokenizer: SentencePieceTokenizer
     decoder_config: dict[str, Any]
+    alignment_parameters: Optional[Dict[str, Any]] = None
 
 
 def _plain_mapping(value: Any, label: str) -> dict[str, Any]:
@@ -1511,6 +1681,8 @@ def save_ctc_timestamp_artifact(
     decoder: TransformerCTCDecoder,
     tokenizer: Any,
     decoder_config: Any,
+    *,
+    alignment_parameters: Optional[Mapping[str, Any]] = None,
 ) -> Path:
     """
     Write the decoder, tokenizer, and construction config as one lightweight artifact.
@@ -1522,6 +1694,7 @@ def save_ctc_timestamp_artifact(
         decoder (TransformerCTCDecoder): Decoder whose state dict is saved on the CPU.
         tokenizer (Any): SentencePiece tokenizer matching the decoder vocabulary.
         decoder_config (Any): Decoder construction config as a mapping or OmegaConf config.
+        alignment_parameters (Optional[Mapping[str, Any]]): Complete alignment defaults calibrated for this head.
 
     Returns:
         Path: Resolved artifact path.
@@ -1531,8 +1704,17 @@ def save_ctc_timestamp_artifact(
     config = _decoder_init_config(decoder_config)
     state_dict = {key: value.detach().cpu() for key, value in decoder.state_dict().items()}
     tokenizer_payload = _tokenizer_payload(tokenizer)
+    alignment_config = None
+    if alignment_parameters is not None:
+        alignment_config = dict(
+            schema_version=1,
+            basis_version=1,
+            upsampling_factor=config.get('upsampling_factor', 1),
+            parameters=copy.deepcopy(dict(alignment_parameters)),
+        )
+        _checkpoint_alignment_parameters(alignment_config, config)
     if path.suffix == ".safetensors":
-        _save_ctc_timestamp_safetensors(path, state_dict, tokenizer_payload, config)
+        _save_ctc_timestamp_safetensors(path, state_dict, tokenizer_payload, config, alignment_config)
         return path
     payload = {
         "format": CTC_TIMESTAMP_ARTIFACT_FORMAT,
@@ -1540,6 +1722,8 @@ def save_ctc_timestamp_artifact(
         "decoder_state_dict": state_dict,
         "tokenizer": tokenizer_payload,
     }
+    if alignment_config is not None:
+        payload['alignment_config'] = alignment_config
     torch.save(payload, path)
     return path
 
@@ -1637,6 +1821,7 @@ def load_ctc_timestamp_artifact(
             f"Expected a {CTC_TIMESTAMP_ARTIFACT_FORMAT!r} artifact. Convert the original .nemo adapter first."
         )
     config = _decoder_init_config(payload.get("decoder_config"))
+    alignment_parameters = _checkpoint_alignment_parameters(payload.get('alignment_config'), config)
     state_dict = payload.get("decoder_state_dict")
     if (
         not isinstance(state_dict, Mapping)
@@ -1650,7 +1835,9 @@ def load_ctc_timestamp_artifact(
     _disable_max_seq_length_sync(decoder)
     tokenizer = _load_sentencepiece(payload.get("tokenizer"))
     _validate_vocabulary(tokenizer, config)
-    return CTCTimestampArtifact(decoder=decoder, tokenizer=tokenizer, decoder_config=config)
+    return CTCTimestampArtifact(
+        decoder=decoder, tokenizer=tokenizer, decoder_config=config, alignment_parameters=alignment_parameters
+    )
 
 
 def _save_ctc_timestamp_safetensors(
@@ -1658,6 +1845,7 @@ def _save_ctc_timestamp_safetensors(
     state_dict: Mapping[str, torch.Tensor],
     tokenizer_payload: Mapping[str, Any],
     decoder_config: Mapping[str, Any],
+    alignment_config: Optional[Mapping[str, Any]] = None,
 ) -> None:
     """
     Write a CTC timestamp artifact as safetensors.
@@ -1669,6 +1857,7 @@ def _save_ctc_timestamp_safetensors(
         state_dict (Mapping[str, torch.Tensor]): Decoder state dict.
         tokenizer_payload (Mapping[str, Any]): Mapping from :func:`_tokenizer_payload`.
         decoder_config (Mapping[str, Any]): Decoder construction config.
+        alignment_config (Optional[Mapping[str, Any]]): Versioned checkpoint-bound alignment defaults.
     """
     try:
         from safetensors.torch import save_file
@@ -1687,6 +1876,8 @@ def _save_ctc_timestamp_safetensors(
         "decoder_config": json.dumps(config, ensure_ascii=False, separators=(",", ":")),
         "tokenizer_config": json.dumps(tokenizer_config, ensure_ascii=False, separators=(",", ":")),
     }
+    if alignment_config is not None:
+        metadata['ctc_timestamp_alignment_config'] = json.dumps(alignment_config, allow_nan=False)
     save_file(tensors, str(path), metadata=metadata)
 
 
@@ -1743,6 +1934,7 @@ def _load_ctc_timestamp_safetensors(path: Path) -> dict[str, Any]:
         try:
             decoder_config = _plain_mapping(json.loads(metadata[decoder_config_key]), "decoder_config")
             tokenizer_payload = _plain_mapping(json.loads(metadata[tokenizer_config_key]), "tokenizer_config")
+            alignment_config = json.loads(metadata.get('ctc_timestamp_alignment_config', 'null'))
         except (KeyError, json.JSONDecodeError) as error:
             raise ValueError("Invalid CTC timestamp safetensors metadata.") from error
         decoder_prefix = f"{prefix}decoder."
@@ -1765,6 +1957,7 @@ def _load_ctc_timestamp_safetensors(path: Path) -> dict[str, Any]:
         "decoder_config": decoder_config,
         "decoder_state_dict": state_dict,
         "tokenizer": tokenizer_payload,
+        "alignment_config": alignment_config,
     }
 
 
@@ -1815,6 +2008,36 @@ def _disable_max_seq_length_sync(module: nn.Module) -> None:
             submodule.sync_max_audio_length = False
 
 
+def load_word_alignment_parameters(path: Optional[Union[str, Mapping[str, Any]]] = None) -> Dict[str, Any]:
+    """
+    Return the aligner's constructor defaults, updated by an optional YAML file or mapping.
+
+    Args:
+        path (Optional[Union[str, Mapping[str, Any]]]): YAML path, such as
+            ``conf/alignment_params_40ms-to-10ms.yaml``, or a mapping such as checkpoint-embedded
+            parameters. Keys must name aligner constructor options. None returns the defaults alone,
+            without boundary calibration. YAML reads are cached per resolved path; restart the
+            process after editing a file.
+
+    Returns:
+        Dict[str, Any]: Instance-local parameters, including ``boundary_interpolation`` (None without calibration).
+    """
+    parameters = inspect.signature(MultiSpeakerSOTWordTimestampAligner.__init__).parameters
+    settings = {name: parameters[name].default for name in _WORD_ALIGNMENT_PARAMETER_NAMES}
+    settings['boundary_interpolation'] = None
+    if path is None:
+        return settings
+    if isinstance(path, Mapping):
+        overrides = dict(path)
+    else:
+        overrides = _read_word_alignment_parameters(str(Path(path).expanduser().resolve()))
+    unknown = overrides.keys() - (parameters.keys() - _NON_ALIGNMENT_ARGUMENTS)
+    if unknown:
+        raise ValueError(f'Unknown word alignment parameters: {sorted(unknown)}')
+    settings.update(copy.deepcopy(overrides))
+    return settings
+
+
 def get_ctc_timestamp_aligner(
     owner: nn.Module,
     artifact_path: Optional[str],
@@ -1822,6 +2045,9 @@ def get_ctc_timestamp_aligner(
 ) -> MultiSpeakerSOTWordTimestampAligner:
     """
     Load and cache an inference-only aligner without registering it in ``owner``'s module tree.
+    Embedded artifact parameters take precedence over constructor defaults; explicit owner options
+    override the artifact. Legacy heads without embedded parameters use the constructor defaults,
+    without boundary interpolation unless the owner options configure it.
     The cache is keyed by the resolved path, and the aligner is rebuilt when ``owner``'s
     ``ctc_timestamp_alignment`` options change. Every call copies the encoder's deferred-head windows
     onto the cached aligner, so a change to them reaches it, and moves the decoder to ``device`` in
@@ -1843,18 +2069,35 @@ def get_ctc_timestamp_aligner(
         parameter = next(owner.parameters(), None)
         dtype = parameter.dtype if parameter is not None and device.type != "cpu" else torch.float32
         artifact = load_ctc_timestamp_artifact(resolved_path, map_location=device, dtype=dtype)
-        aligner = MultiSpeakerSOTWordTimestampAligner(ctc_decoder=artifact.decoder, tokenizer=artifact.tokenizer)
-        owner.__dict__["_ctc_timestamp_extractor_cache"] = (resolved_path, aligner)
-        cached = (resolved_path, aligner)
+        owner.__dict__['_ctc_timestamp_artifact_parameters'] = copy.deepcopy(artifact.alignment_parameters)
+        cached = (resolved_path, artifact)
         owner.__dict__.pop("_ctc_timestamp_alignment_options", None)
-    aligner = cached[1]
+    current = cached[1]
     options = dict(getattr(owner, "ctc_timestamp_alignment", {}) or {})
-    if options != owner.__dict__.get("_ctc_timestamp_alignment_options", {}):
+    if options != owner.__dict__.get("_ctc_timestamp_alignment_options"):
+        defaults = copy.deepcopy(owner.__dict__.get('_ctc_timestamp_artifact_parameters'))
+        effective = dict(options)
+        if defaults is not None:
+            override = effective.pop('word_alignment_parameters', None)
+            if override is not None:
+                defaults.update(
+                    dict(override) if isinstance(override, Mapping) else _read_word_alignment_parameters(str(override))
+                )
+            effective = {**defaults, **effective}
+        elif 'word_alignment_parameters' not in effective:
+            logging.warning(
+                'CTC artifact has no embedded alignment parameters; calibrated interpolation is disabled '
+                'unless explicitly configured.'
+            )
         aligner = MultiSpeakerSOTWordTimestampAligner(
-            ctc_decoder=aligner.ctc_decoder, tokenizer=aligner.tokenizer, **options
+            ctc_decoder=current.decoder if isinstance(current, CTCTimestampArtifact) else current.ctc_decoder,
+            tokenizer=current.tokenizer,
+            **effective,
         )
         owner.__dict__["_ctc_timestamp_extractor_cache"] = (resolved_path, aligner)
-        owner.__dict__["_ctc_timestamp_alignment_options"] = options
+        owner.__dict__["_ctc_timestamp_alignment_options"] = copy.deepcopy(options)
+    else:
+        aligner = current
     aligner.online_inference_length = int(getattr(owner, "online_inference_length", 0))
     aligner.chunk_left_context = int(getattr(owner, "chunk_left_context", 0))
     aligner.chunk_right_context = int(getattr(owner, "chunk_right_context", 0))
@@ -1909,10 +2152,21 @@ def _one_pass_speaker_mapping(ctc, streams, speaker, threshold, greedy):
     return mapping
 
 
-def _banded_ctc_search(logp, labels, positions, activity_prior, greedy=None):
+def _banded_ctc_search(
+    logp: np.ndarray,
+    labels: Sequence[int],
+    positions: np.ndarray,
+    activity_prior: np.ndarray,
+    greedy: Optional[np.ndarray] = None,
+    *,
+    band_ratio: float = 0.10,
+    band_min_states: int = 100,
+    band_full_below_frames: int = 1000,
+) -> Tuple[np.ndarray, float, np.ndarray]:
     """
     Anchor-guided max-sum DP with byte backpointers; ties prefer stay, step, skip.
-    The DP runs in a band of states. Under 1000 frames the band covers every state; otherwise its
+    The DP runs in a configurable band of states. With the helper's fallback defaults, under 1000 frames
+    the band covers every state; otherwise its
     half-width is about 10% of the states plus 100. The band center interpolates from the first to the
     last state through anchors: trigrams that occur once among the greedy token onsets and once in the
     target, kept as the longest chain increasing in both time and state.
@@ -1925,13 +2179,16 @@ def _banded_ctc_search(logp, labels, positions, activity_prior, greedy=None):
             non-blank states.
         greedy (Optional[np.ndarray]): Greedy CTC column per frame shaped ``(T,)``; None computes it
             from ``logp``.
+        band_ratio (float): Half-width fraction of target states.
+        band_min_states (int): Additive half-width floor in target states.
+        band_full_below_frames (int): Full search below this retained-frame count.
 
     Returns:
         Tuple[np.ndarray, float, np.ndarray]: State per searched frame (all ``-1`` when no path
             exists), the path score (``-inf`` when none), and the first band state per frame.
     """
     frames, states = len(positions), len(labels)
-    half = states if frames < 1000 else min(states, math.ceil(0.10 * states + 100))
+    half = states if frames < band_full_below_frames else min(states, math.ceil(band_ratio * states + band_min_states))
     width = min(states, 2 * half + 1)
     starts = np.clip(np.rint(np.linspace(0, states - 1, frames)).astype(np.int64) - half, 0, states - width)
     target = labels[1::2]
@@ -2082,13 +2339,19 @@ def _ctc_banded_backtrace(previous, pointers, starts, states):
     return path, score
 
 
-def _refine_word_timestamps(result, max_frames=12):
+def _refine_word_timestamps(
+    result: Dict[str, Any],
+    max_frames: int = 12,
+    *,
+    onset_snap_seconds: Optional[float] = None,
+    end_blend: float = 1.0,
+) -> Dict[str, Any]:
     """
     Return a copy with same-speaker word boundaries refined inside VAD segments.
     Segment membership uses the original onset and half-open [start, end) VAD intervals. The first
     word of a segment snaps its onset back to the segment onset; other offsets extend to the next
     word in the segment or the segment end. Unmatched words retain their onset; their offset uses the
-    next same-speaker onset, or the original offset for the final word. Onset moves and durations are
+    next same-speaker onset, or the original offset for the final word. Durations are
     capped at ``max_frames`` frames of ``min(ctc_frame_seconds, 0.08)`` seconds, so the cap respects
     both the actual CTC frame duration and nominal 80 ms frames. Words marked as wholly outside VAD
     by boundary interpolation retain their interpolated spans instead; the private marker is removed.
@@ -2097,6 +2360,8 @@ def _refine_word_timestamps(result, max_frames=12):
         result (Dict[str, Any]): Alignment result with ``speaker_word_timestamps``, ``ctc_frame_seconds``,
             ``diarization_timestamps`` and ``speaker_tag_to_sortformer_column``.
         max_frames (int): Positive cap in frames.
+        onset_snap_seconds (Optional[float]): Maximum backward snap; None uses the word duration cap.
+        end_blend (float): Fraction of the VAD/next-word end correction to apply.
 
     Returns:
         Dict[str, Any]: The result with refined ``speaker_word_timestamps`` and
@@ -2136,7 +2401,7 @@ def _refine_word_timestamps(result, max_frames=12):
                 unmatched += 1
             elif index not in seen:
                 onset = intervals[index][0]
-                if 0 < word['start'] - onset <= limit:
+                if 0 < word['start'] - onset <= (limit if onset_snap_seconds is None else onset_snap_seconds):
                     word['start'] = onset
                     moved += 1
                 seen.add(index)
@@ -2149,6 +2414,8 @@ def _refine_word_timestamps(result, max_frames=12):
                 end = words[i + 1]['start']
             else:
                 end = intervals[index][1]
+            if end_blend != 1.0:
+                end = word['end'] + end_blend * (end - word['end'])
             word['end'] = max(word['start'], min(end, word['start'] + limit))
         refined[tag] = words
         count += len(words)
@@ -2171,7 +2438,7 @@ def _align_banded_ctc(aligner, prepared):
     Align a prepared batch with the single-pass ``banded`` backend.
     Per record, speaker tags are mapped to Sortformer columns by :func:`_one_pass_speaker_mapping`,
     and each stream is searched by :func:`_banded_ctc_search` over frames whose mapped activity is at
-    least 0.01, with the log activity as a prior. Streams with no legal path are reported in
+    least the configured support threshold, with the log activity as a prior. Streams with no legal path are reported in
     ``failed_streams``, and word timestamps are refined by :func:`_refine_word_timestamps`.
 
     Args:
@@ -2206,12 +2473,25 @@ def _align_banded_ctc(aligner, prepared):
                 if speaker is None
                 else (np.zeros(frames) if column is None else speaker[:, column].numpy())
             )
-            # Conservative support selection is separate from the >0.5 diarization labels.
-            positions = np.flatnonzero(activity >= 0.01)
+            # Support selection is separate from the native VAD label threshold.
+            positions = np.flatnonzero(activity >= aligner.support_activity_threshold)
             prior = prepared['config']['speaker_logprob_weight'] * np.log(np.maximum(activity, aligner.epsilon))
-            path, score, _ = _banded_ctc_search(ctc, labels, positions, prior, greedy)
+            path, score, _ = _banded_ctc_search(
+                ctc,
+                labels,
+                positions,
+                prior,
+                greedy,
+                band_ratio=aligner.band_ratio,
+                band_min_states=aligner.band_min_states,
+                band_full_below_frames=aligner.band_full_below_frames,
+            )
             failed = not np.isfinite(score)
-            half = len(labels) if len(positions) < 1000 else min(len(labels), math.ceil(0.10 * len(labels) + 100))
+            half = (
+                len(labels)
+                if len(positions) < aligner.band_full_below_frames
+                else min(len(labels), math.ceil(aligner.band_ratio * len(labels) + aligner.band_min_states))
+            )
             diagnostics.append(
                 dict(
                     speaker=stream['speaker_tag'],
@@ -2296,14 +2576,60 @@ def _align_banded_ctc(aligner, prepared):
                 'method': 'calibrated_edge_local_linear_interpolation',
                 'estimated_grid_seconds': aligner.boundary_grid_seconds,
                 'outside_words': sum(w.get('_outside_diarization', False) for w in rows),
-                'calibration_id': calibration.get('calibration_id'),
             }
         result['speaker_assignment_mode'] = 'token_distribution'
         result['alignment_diagnostics']['failed_streams'] = failures
         result['alignment_diagnostics']['one_pass'] = True
         result['alignment_diagnostics']['banded'] = diagnostics
-        results.append(_refine_word_timestamps(result, prepared['config']['max_word_frames']))
+        results.append(
+            _refine_word_timestamps(
+                result,
+                prepared['config']['max_word_frames'],
+                onset_snap_seconds=aligner.onset_snap_seconds,
+                end_blend=aligner.refinement_end_blend,
+            )
+        )
     return results
+
+
+def _expand_boundary_calibration(calibration: Dict[str, Any], points: int) -> Dict[str, Any]:
+    """
+    Expand compressed boundary coefficients into token/blank profile weights.
+    Modes are ordered by temporal DCT frequency, interleaving channel sum then difference.
+    This is a storage approximation, not an increase in acoustic resolution. Full-weight
+    calibrations pass through unchanged; the caller makes its own instance-local copy.
+
+    Args:
+        calibration (Dict[str, Any]): Either coefficients shaped (2, K), or full weights,
+            and start/end offsets. Compressed coefficients cannot include weights or means.
+        points (int): Number of positions per token/blank profile, matching calibration geometry.
+
+    Returns:
+        Dict[str, Any]: Calibration with full weights shaped (2, 2 * points) and offsets.
+    """
+    if 'coefficients' not in calibration:
+        return calibration
+    if 'weights' in calibration or 'mean' in calibration:
+        raise ValueError('boundary_interpolation coefficients cannot be combined with weights or mean.')
+    coefficients = np.asarray(calibration['coefficients'], dtype=np.float64)
+    if (
+        coefficients.ndim != 2
+        or coefficients.shape[0] != 2
+        or not 1 <= coefficients.shape[1] <= 2 * points
+        or not np.isfinite(coefficients).all()
+    ):
+        raise ValueError('boundary_interpolation coefficients must be finite with shape (2, K), 1 <= K <= 2 * points.')
+    positions = np.arange(points)[:, None]
+    frequency = np.arange(points)[None, :]
+    temporal = np.cos(np.pi * (positions + 0.5) * frequency / points) * np.sqrt(2 / points)
+    temporal[:, 0] /= np.sqrt(2)
+    basis = np.empty((2 * points, 2 * points))
+    basis[:points, 0::2] = basis[:points, 1::2] = temporal / np.sqrt(2)
+    basis[points:, 0::2] = temporal / np.sqrt(2)
+    basis[points:, 1::2] = -temporal / np.sqrt(2)
+    return dict(
+        weights=(coefficients @ basis[:, : coefficients.shape[1]].T).tolist(), offset=calibration.get('offset')
+    )
 
 
 def _boundary_profiles(
@@ -2370,6 +2696,9 @@ def _interpolate_word_boundaries(
     Separate start/end centered linear regressors and offsets are fitted on calibration audio,
     never on evaluation references. Correction limits, rounding, onset spacing and minimum duration
     come from the aligner; recording bounds and same-speaker transcript order are preserved.
+    Outside-VAD durations stay within the configured seed duration +/- the correction cap,
+    except when truncated by recording bounds. Correction bounds take precedence over
+    grid rounding and minimum onset spacing; such boundary cases need not fall on the output grid.
     Interpolation cannot create acoustic evidence absent in the coarse logits.
 
     Args:
@@ -2380,7 +2709,7 @@ def _interpolate_word_boundaries(
         duration (Optional[float]): Audio duration, or None to use CTC frame count times step.
         diarization (Sequence[Dict[str, Any]]): Native speaker VAD intervals in seconds.
         mapping (Dict[Optional[int], Optional[int]]): Transcript speaker to diarization column.
-        calibration (Dict[str, Any]): Start/end weights, feature means, and offsets in seconds.
+        calibration (Dict[str, Any]): Start/end weights and offsets in seconds; legacy feature means are optional.
         aligner (Optional[MultiSpeakerSOTWordTimestampAligner]): Interpolation settings. None uses
             the aligner's defaults, preserving standalone calibration-helper usage.
 
@@ -2391,6 +2720,7 @@ def _interpolate_word_boundaries(
         return
     if aligner is None:
         aligner = MultiSpeakerSOTWordTimestampAligner(boundary_interpolation=calibration)
+    calibration = _expand_boundary_calibration(calibration, aligner.boundary_profile_points)
     segments = defaultdict(list)
     for segment in diarization:
         segments[segment['speaker']].append((segment['start'], segment['end']))
@@ -2409,8 +2739,9 @@ def _interpolate_word_boundaries(
     boundaries = np.array([[w['start'], w['end']] for w in rows])
     labels = np.array([w['_boundary_labels'] for w in rows])
     profiles = _boundary_profiles(logp, boundaries, labels, step, offset, aligner=aligner)
-    centered = profiles - np.asarray(calibration['mean'])[:, None, :]
-    corrections = (centered @ np.asarray(calibration['weights'])[..., None])[..., 0]
+    if 'mean' in calibration:  # Compatibility with older, unfused calibration artifacts.
+        profiles = profiles - np.asarray(calibration['mean'])[:, None, :]
+    corrections = (profiles @ np.asarray(calibration['weights'])[..., None])[..., 0]
     corrections += np.asarray(calibration['offset'])[:, None]
     cap = aligner.boundary_max_correction_seconds
     grid_seconds = aligner.boundary_grid_seconds
@@ -2425,9 +2756,24 @@ def _interpolate_word_boundaries(
         grid = np.arange(len(indices)) * spacing
         ordered = np.maximum.accumulate(refined[indices, 0] - grid) + grid
         refined[indices, 0] = np.minimum(ordered, upper - len(indices) * spacing + grid)
+    # Neither rounding nor transcript-order repair may amplify a learned correction.
+    refined = np.clip(refined, boundaries - cap, boundaries + cap)
+    refined = np.clip(refined, offset, upper)
     minimum_duration = aligner.boundary_min_word_duration_seconds
     refined[:, 0] = np.minimum(refined[:, 0], max(offset, upper - minimum_duration))
     refined[:, 1] = np.minimum(upper, np.maximum(refined[:, 0] + minimum_duration, refined[:, 1]))
+    refined[:, 1] = np.minimum(refined[:, 1], np.clip(boundaries[:, 1] + cap, offset, upper))
+    # Independent start/end corrections could otherwise double the allowed duration change.
+    outside = np.array([word['_outside_diarization'] for word in rows], dtype=bool)
+    seed = aligner.boundary_outside_word_duration_seconds
+    refined[outside, 1] = np.minimum(
+        upper,
+        np.clip(
+            refined[outside, 1],
+            refined[outside, 0] + max(minimum_duration, seed - cap),
+            refined[outside, 0] + max(minimum_duration, seed + cap),
+        ),
+    )
     for word, (start, end) in zip(rows, refined):
         word['start'], word['end'] = float(start), float(end)
 
@@ -2612,3 +2958,95 @@ def _ctc_trigram_positions(tokens):
     for i in range(len(tokens) - 2):
         table[tuple(tokens[i : i + 3])].append(i)
     return table
+
+
+def _timestamp_special_token_patterns(value: Optional[Sequence[str]], default: Sequence[str], name: str) -> List[str]:
+    """
+    Copy configurable special-token patterns, using defaults only for None.
+
+    Args:
+        value (Optional[Sequence[str]]): User patterns, including an explicitly empty sequence.
+        default (Sequence[str]): Patterns selected when value is None.
+        name (str): Configuration name used in validation errors.
+
+    Returns:
+        List[str]: An independent list of non-empty patterns.
+    """
+    patterns = default if value is None else value
+    if (
+        isinstance(patterns, str)
+        or not isinstance(patterns, Sequence)
+        or any(not isinstance(pattern, str) or not pattern for pattern in patterns)
+    ):
+        raise ValueError(f'{name} must be a sequence of non-empty string patterns.')
+    return list(patterns)
+
+
+def _timestamp_special_token_is_added(token: str, ignored: Sequence[str], added: Sequence[str]) -> bool:
+    """
+    Check case-insensitive glob patterns, with exclusion taking precedence.
+
+    Args:
+        token (str): Candidate special token.
+        ignored (Sequence[str]): Patterns excluded from acoustic alignment.
+        added (Sequence[str]): Patterns included as acoustic alignment targets.
+
+    Returns:
+        bool: Whether the special token should receive a timestamp.
+    """
+    token = token.lower()
+    return not any(fnmatchcase(token, pattern.lower()) for pattern in ignored) and any(
+        fnmatchcase(token, pattern.lower()) for pattern in added
+    )
+
+
+def _checkpoint_alignment_parameters(
+    config: Optional[Mapping[str, Any]], decoder_config: Mapping[str, Any]
+) -> Optional[Dict[str, Any]]:
+    """
+    Validate and copy versioned, checkpoint-bound alignment defaults without reading a YAML file.
+
+    Args:
+        config (Optional[Mapping[str, Any]]): Embedded alignment envelope; None denotes a legacy artifact.
+        decoder_config (Mapping[str, Any]): Head configuration used to verify its upsampling factor.
+
+    Returns:
+        Optional[Dict[str, Any]]: Validated parameters, or None for an uncalibrated artifact.
+    """
+    if config is None:
+        return None
+    config = _plain_mapping(config, 'CTC alignment config')
+    if config.get('schema_version') != 1 or config.get('basis_version') != 1:
+        raise ValueError('Unsupported CTC alignment schema or basis version.')
+    if config.get('upsampling_factor') != decoder_config.get('upsampling_factor', 1):
+        raise ValueError('CTC alignment upsampling factor does not match the decoder.')
+    parameters = copy.deepcopy(_plain_mapping(config.get('parameters'), 'CTC alignment parameters'))
+    forbidden = {'ctc_decoder', 'tokenizer', 'blank_id', 'word_alignment_parameters'} & parameters.keys()
+    if forbidden:
+        raise ValueError(f'Invalid checkpoint alignment parameters: {sorted(forbidden)}')
+    missing = {*_WORD_ALIGNMENT_PARAMETER_NAMES, 'boundary_interpolation'} - parameters.keys()
+    if missing:
+        raise ValueError(f'Incomplete checkpoint alignment parameters: {sorted(missing)}')
+    try:
+        json.dumps(parameters, allow_nan=False)
+        MultiSpeakerSOTWordTimestampAligner(**parameters)
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(f'Invalid or incomplete checkpoint alignment parameters: {error}') from error
+    return parameters
+
+
+@lru_cache(maxsize=8)
+def _read_word_alignment_parameters(path: str) -> Dict[str, Any]:
+    """
+    Cache YAML parsing without exposing the shared dictionary to callers.
+
+    Args:
+        path (str): Resolved configuration path.
+
+    Returns:
+        Dict[str, Any]: Parsed parameter mapping, to be copied before use.
+    """
+    settings = OmegaConf.to_container(OmegaConf.load(path), resolve=True)
+    if not isinstance(settings, dict):
+        raise ValueError('Word alignment parameters must be a YAML mapping.')
+    return settings

@@ -223,12 +223,16 @@ class NeMoSpeechLMForConditionalGeneration(
             return
         encoder = self.perception.encoder
         speaker_prior_weight = read_speaker_prior_weight(ctc_config)
+        if speaker_prior_weight is not None:
+            encoder.ctc_timestamp_alignment = {
+                **(getattr(encoder, 'ctc_timestamp_alignment', None) or {}),
+                'speaker_logprob_weight': speaker_prior_weight,
+            }
         encoder.ctc_timestamp_model_path = adapter_path
         device = next(encoder.parameters()).device
         # Load now rather than on the first timestamped request, so a bad artifact
         # path fails at startup instead of mid-serve.
         aligner = get_ctc_timestamp_aligner(encoder, adapter_path, device)
-        aligner.speaker_logprob_weight = speaker_prior_weight
 
         register_aligner(aligner, tokenizer_special_tokens(vllm_config.model_config))
         install_encoder_cache_binding()
