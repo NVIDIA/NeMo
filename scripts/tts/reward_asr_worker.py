@@ -21,8 +21,12 @@ import contextlib
 import json
 import re
 import sys
+from typing import Callable, Dict, List, Optional, Sequence
 
 import numpy as np
+
+
+TranscribeFn = Callable[[Sequence[np.ndarray], int, Sequence[str], Optional[List[int]]], List[str]]
 
 
 QWEN_LANGUAGE_MAP = {
@@ -47,7 +51,17 @@ def emit(payload):
     sys.__stdout__.flush()
 
 
-def load_qwen(args):
+def load_qwen(args: argparse.Namespace) -> TranscribeFn:
+    """Load Qwen ASR and return a waveform transcription callable.
+
+    Args:
+        args: Worker CLI settings containing model, device, batch size, and
+            maximum generated token count.
+
+    Returns:
+        Callable accepting waveforms, sample rate in Hz, language codes, and an
+        optional attention context, and returning ordered transcript strings.
+    """
     import torch
     from qwen_asr import Qwen3ASRModel
 
@@ -59,7 +73,23 @@ def load_qwen(args):
         max_new_tokens=args.max_new_tokens,
     )
 
-    def transcribe(waveforms, sample_rate, languages, attention_context):
+    def transcribe(
+        waveforms: Sequence[np.ndarray],
+        sample_rate: int,
+        languages: Sequence[str],
+        attention_context: Optional[List[int]],
+    ) -> List[str]:
+        """Transcribe a waveform batch with Qwen's array/rate interface.
+
+        Args:
+            waveforms: True-length mono float32 NumPy arrays with shapes ``[T_i]``.
+            sample_rate: Actual sample rate in Hz, shared by all waveforms.
+            languages: One request language code per waveform.
+            attention_context: Unused by Qwen; accepted for worker-interface compatibility.
+
+        Returns:
+            One transcript per waveform in the original input order.
+        """
         del attention_context
         qwen_languages = [QWEN_LANGUAGE_MAP.get(language, language) for language in languages]
         return [
@@ -70,7 +100,17 @@ def load_qwen(args):
     return transcribe
 
 
-def load_nemo(args, language_map):
+def load_nemo(args: argparse.Namespace, language_map: Dict[str, str]) -> TranscribeFn:
+    """Load NeMo ASR and return a waveform transcription callable.
+
+    Args:
+        args: Worker CLI settings containing the model, device, and batch size.
+        language_map: Mapping from request language codes to NeMo prompt locales.
+
+    Returns:
+        Callable accepting waveforms, sample rate in Hz, language codes, and an
+        optional attention context, and returning ordered transcript strings.
+    """
     import nemo.collections.asr as nemo_asr
     from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models_prompt import (
         EncDecHybridRNNTCTCBPEModelWithPrompt,
@@ -91,9 +131,27 @@ def load_nemo(args, language_map):
     prompted = isinstance(model, (EncDecHybridRNNTCTCBPEModelWithPrompt, EncDecRNNTBPEModelWithPrompt))
     configured_attention_context = None
 
-    def transcribe(waveforms, sample_rate, languages, attention_context):
+    def transcribe(
+        waveforms: Sequence[np.ndarray],
+        sample_rate: int,
+        languages: Sequence[str],
+        attention_context: Optional[List[int]],
+    ) -> List[str]:
+        """Resample and transcribe a waveform batch with NeMo ASR.
+
+        Args:
+            waveforms: True-length mono float32 NumPy arrays with shapes ``[T_i]``.
+            sample_rate: Actual sample rate in Hz, shared by all waveforms.
+            languages: One request language code per waveform, used by prompted models.
+            attention_context: Optional encoder attention-context settings applied
+                before transcription.
+
+        Returns:
+            One transcript per waveform in the original input order, with NeMo
+            language tags removed for prompted models.
+        """
         import torch
-        from torchaudio.functional import resample
+        from nemo.collections.audio.parts.utils.transforms import resample
 
         nonlocal configured_attention_context
         target_rate = int(model.cfg.sample_rate)

@@ -61,7 +61,17 @@ class RewardASRBackend(abc.ABC):
 
     @abc.abstractmethod
     def transcribe(self, waveforms: Sequence[torch.Tensor], sample_rate: int, languages: Sequence[str]) -> List[str]:
-        """Return one transcript for each waveform at the supplied sample rate."""
+        """Return one transcript for each in-memory waveform.
+
+        Args:
+            waveforms: Unpadded mono tensors with shapes ``[T_i]``, in request order.
+            sample_rate: Actual input sample rate in Hz, shared by all waveforms.
+                Each backend converts to its model's expected rate when needed.
+            languages: One language code per waveform, used for routing or prompts.
+
+        Returns:
+            Transcript strings in the original waveform order.
+        """
 
     def close(self) -> None:
         """Release backend resources."""
@@ -378,6 +388,23 @@ class RewardASRRouter:
             self.backends[name] = backend_types[backend_type](backend_cfg, device_getter)
 
     def transcribe(self, waveforms: Sequence[torch.Tensor], sample_rate: int, languages: Sequence[str]) -> List[str]:
+        """Route waveform batches by language while preserving input order.
+
+        Args:
+            waveforms: Unpadded mono tensors with shapes ``[T_i]``.
+            sample_rate: Positive input sample rate in Hz, shared by all waveforms.
+            languages: One language code per waveform; unconfigured languages use
+                the default backend.
+
+        Returns:
+            One transcript per waveform in input order, or an empty list for an
+            empty request.
+
+        Raises:
+            ValueError: If the sample rate is nonpositive or waveform/language
+                counts differ.
+            RuntimeError: If a backend returns a different number of transcripts.
+        """
         if sample_rate <= 0:
             raise ValueError('sample_rate must be positive.')
         if len(waveforms) != len(languages):

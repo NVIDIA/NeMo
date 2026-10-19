@@ -739,7 +739,16 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         )
 
     def _compute_pred_transcripts(self, predicted_waveforms: List[torch.Tensor], batch_repeated: Dict) -> List[str]:
-        """Route reward transcription by language, then normalize consistently for CER/WER."""
+        """Route reward transcription by language, then normalize for CER/WER.
+
+        Args:
+            predicted_waveforms: True-length mono tensors at ``self.output_sample_rate``.
+            batch_repeated: Rollout batch with per-item ``languages`` and ``raw_texts``.
+                Missing languages default to English.
+
+        Returns:
+            One normalized transcript per waveform in its original input order.
+        """
         languages = list(batch_repeated.get('languages', ['en'] * len(predicted_waveforms)))
         raw_transcripts = self._reward_asr_router.transcribe(predicted_waveforms, self.output_sample_rate, languages)
         pred_transcripts = []
