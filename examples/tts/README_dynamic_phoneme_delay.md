@@ -89,9 +89,93 @@ advance the text/decoder clock with zero phoneme input and are omitted from the
 returned IPA/token IDs. No reference alignment is needed at inference. Its
 `wait_tokens` output reports generated waits. `--phoneme_frontend_expected_delay`
 guards the trained delay for fixed-delay checkpoints; dynamic checkpoints ignore
-this argument and always use zero fixed phoneme delay. Frontend metadata reports
+this argument and always use zero fixed phoneme delay. Its `first_phoneme_step`
+reports the one-based step of the first non-PAD/BOS/EOS prediction, excluding
+the conditioning prefix and including any fixed delay. Frontend metadata reports
 the effective `phoneme_delay: 0` and the ignored `configured_phoneme_delay`.
 
 This feature does not shift audio targets or implement dynamic-delay joint speech
 generation. In the two-model cascade, the frontend finishes IPA generation before
 the existing TTS model consumes the resulting phonemes.
+
+### Validation timing and wait coverage
+
+Text-only validation always logs the loader's target schedule under
+`val/text_only_target_*`. This is alignment-derived supervision, not a measure
+of the model's autoregressive waiting behavior. Existing token accuracy remains
+teacher-forced and excludes PAD/wait targets.
+
+The EasyMagpie Lhotse configs now run actual greedy autoregressive validation
+on every eligible text-only sequence, at every validation interval. No sample
+budget overrides are required. Both settings default to `null`:
+
+```yaml
+model:
+  text_only_val_ar_max_samples: null
+  text_only_val_ar_max_steps: null
+```
+
+`text_only_val_ar_max_samples: null` evaluates all eligible sequences across all
+validation batches on each rank. A positive integer retains optional sampling
+(per rank per validation interval), and `0` disables only the AR diagnostic.
+Older restored configs that lack this key retain the previous disabled behavior;
+set `++model.text_only_val_ar_max_samples=null` to opt them into full evaluation.
+
+`text_only_val_ar_max_steps: null` uses the frontend's existing per-sequence cap,
+`max(256, 8 * text_decoder_steps + 128)`, instead of a fixed 2,048-step ceiling.
+A positive integer optionally imposes a smaller ceiling. This cap is still
+required to stop a model that produces PADs forever or never reaches EOS.
+Truncated predictions remain visible through EOS completion and no-phoneme rates.
+
+Autoregressive validation performs an additional cached forward for each
+generated step, so full evaluation costs more than teacher-forced validation.
+Generation skips Lightning sanity checks, loads no extra model or ASR, and never
+calls the audio decoder or consumes reference IPA. It reuses the loader's
+selected text/context token IDs, the same cached decoder as the standalone
+frontend, and validation precision. Streaming mode and phoneme stacking factor
+one are required only when actually evaluating a text-only batch; audio-only
+runs are unaffected. Positive explicit sample budgets retain early architecture
+validation.
+
+Both `val/text_only_target_*` and `val/text_only_ar_*` expose:
+
+| Suffix | Meaning |
+| --- | --- |
+| `first_phoneme_step` | Mean one-based decoder step of the first real phoneme. Excludes context/prefix prefill, includes fixed delay and earlier generated PAD/BOS predictions. An immediate phoneme is step 1; steps before it equal this value minus 1. |
+| `first_phoneme_step_max` | Maximum first-phoneme step across all ranks. |
+| `wait_percent` | 100 × PAD / (PAD + real phonemes), within each sequence's valid length. BOS/EOS and batch padding are excluded. |
+| `wait_percent_mean` | Mean of individual sequences' wait percentages, so long sequences do not dominate. |
+| `no_phoneme_percent` | Percentage of sequences producing no real phoneme. These never contribute artificial zero latency to the mean/max; latency metrics are omitted if none produced a phoneme. |
+| `eos_percent` | Percentage reaching EOS. For AR decoding, 100 minus this value is the truncation percentage. Truncated predictions remain in wait coverage and first-phoneme statistics if a phoneme was produced. |
+| `samples` | Number of sequences represented. |
+
+Sums/counts and maxima are reduced across all ranks, including ranks receiving
+only speech, before ratios are computed. First-phoneme latency and macro coverage
+are sequence-weighted; `wait_percent` is token-weighted. Fixed startup delay is
+counted in latency but is not an emitted PAD token in coverage.
+
+Target statistics cover every text-only validation sequence, including packed
+turns. AR diagnostics currently require single-turn examples; multi-turn cuts
+are counted under `val/text_only_ar_skipped_multiturn_samples` rather than
+silently treating the first generated EOS as the end of an entire packed cut.
+No speech validation, training targets, losses, or sampling behavior are changed.
+
+### W&B decoding examples
+
+When a `WandbLogger` is configured, each validation interval also logs
+`val/text_only_decoding_examples`, a table built from the AR decodes already
+computed for metrics. It includes the loader's actual selected input text (raw
+or normalized), original raw text, tokenizer name, reference and generated IPA,
+exact phoneme-token match, target/generated first-phoneme steps, per-sequence
+wait percentages, generated steps/waits, EOS/truncation status, and identifiers.
+Reference and generated IPA exclude PAD/BOS/EOS. Missing-phoneme delays are null.
+
+`model.text_only_val_wandb_max_examples` defaults to **16 rows globally per
+validation interval**. It limits only displayed examples; all eligible samples
+still contribute to full validation metrics. Set it to `0` to disable tables.
+Rows come from a bounded number of first eligible examples on each rank, then
+are interleaved and uploaded once by rank zero at the current trainer global
+step. Empty/speech-only ranks participate in gathering, so a table can still be
+logged when rank zero saw no text. Each interval creates a new table and clears
+the previous buffered rows. W&B-free runs and sanity checks do not collect rows;
+no extra generation, checkpoint loading, or audio inference is performed.

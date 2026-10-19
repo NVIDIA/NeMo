@@ -90,6 +90,13 @@ model:
   # False preserves fixed delay. Requires streaming modes, stacking factor 1, and
   # both duration tokenizer paths on txt_norm_jsonl inputs. Audio batches are unchanged.
   dynamic_phoneme_delay: false
+  # Greedy text-only validation on every eligible sequence each validation interval.
+  # null samples = all; 0 disables AR; a positive value caps samples per rank.
+  # null steps uses max(256, 8 * text length + 128), so missing EOS cannot hang validation.
+  text_only_val_ar_max_samples: null
+  text_only_val_ar_max_steps: null
+  # Global W&B table row cap; this does not limit decoding or scalar metrics. 0 disables tables.
+  text_only_val_wandb_max_examples: 16
   local_transformer_n_layers: 3
   local_transformer_n_heads: 12
   local_transformer_hidden_dim: 1536

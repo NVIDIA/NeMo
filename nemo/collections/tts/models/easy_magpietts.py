@@ -51,6 +51,12 @@ from nemo.collections.tts.parts.utils.helpers import (
     transcribe_with_whisper,
     transcribe_with_whisper_from_filepaths,
 )
+from nemo.collections.tts.parts.utils.phoneme_delay_metrics import (
+    TEXT_ONLY_EXAMPLE_COLUMNS,
+    phoneme_decoding_example,
+    phoneme_delay_counts,
+    phoneme_delay_metrics,
+)
 from nemo.collections.tts.parts.utils.phoneme_loss_lexicon import PhonemeLossLexicon, make_phoneme_loss_weights
 from nemo.core.classes.common import safe_instantiate
 from nemo.utils import logging
@@ -127,6 +133,21 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         self.phoneme_corruption_type = cfg.get('phoneme_corruption_type', 'repeat_skip_unk')
         self.phoneme_loss_weight = cfg.get('phoneme_loss_weight', 1.0)
         self._initialize_phoneme_loss_lexicon()
+        examples = cfg.get('text_only_val_wandb_max_examples', 16)
+        if type(examples) is not int or examples < 0:
+            raise ValueError('text_only_val_wandb_max_examples must be an integer >= 0')
+        for key, minimum in (('text_only_val_ar_max_samples', 0), ('text_only_val_ar_max_steps', 1)):
+            value = cfg.get(key, 0 if minimum == 0 else None)
+            if value is not None and (type(value) is not int or value < minimum):
+                raise ValueError(f'{key} must be null or an integer >= {minimum}')
+        if cfg.get('text_only_val_ar_max_samples', 0) and (
+            self.phoneme_tokenizer is None
+            or self.phoneme_stacking_factor != 1
+            or self.training_modes[0].text_input_mode != 'streaming'
+        ):
+            raise ValueError(
+                'Text-only AR validation requires a phoneme tokenizer, streaming mode and stacking factor 1'
+            )
         self.parallel_codebook_loss_scale = cfg.get('parallel_codebook_loss_scale', 1.0)
         self.local_transformer_loss_scale = cfg.get('local_transformer_loss_scale', 1.0)
 
@@ -1871,6 +1892,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 sync_dist=True,
                 prog_bar=True,
             )
+            val_output.update(self._text_only_validation_delay_stats(batch))
             self.validation_step_outputs.append(val_output)
             return val_output
         # Extract inputs from batch and pass explicitly to process_batch
@@ -2182,6 +2204,8 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             self._generate_codec_silence_buffer()
 
     def on_validation_epoch_start(self) -> None:
+        self._text_only_val_ar_samples = 0
+        self._prepare_text_only_validation_examples()
         if torch.distributed.is_initialized():
             self.trainer.strategy.model.require_backward_grad_sync = False
 
@@ -2239,10 +2263,162 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                         sync_dist=True,
                     )
 
+        self._log_text_only_validation_delay_metrics()
+        self._log_text_only_validation_examples()
         self.validation_step_outputs.clear()  # free memory
 
         if torch.distributed.is_initialized():
             self.trainer.strategy.model.require_backward_grad_sync = True
+
+    def _text_only_validation_delay_stats(self, batch):
+        """Measure every target schedule and all or a bounded number of greedy samples."""
+        mode = self.training_modes[0]
+        fixed_delay = 0 if self.cfg.get('dynamic_phoneme_delay', False) else mode.streaming_phonemes_delay
+        counts, maximum = phoneme_delay_counts(
+            batch['phoneme_tokens'],
+            batch['phoneme_tokens_lens'],
+            self.phoneme_tokenizer,
+            fixed_delay,
+            self.phoneme_stacking_factor,
+        )
+        result = {'val_text_only_target_delay_counts': counts, 'val_text_only_target_delay_max': maximum}
+        budget = self.cfg.get('text_only_val_ar_max_samples', 0)
+        if budget == 0 or getattr(self.trainer, 'sanity_checking', False):
+            return result
+        if self.phoneme_stacking_factor != 1 or mode.text_input_mode != 'streaming':
+            raise ValueError('Text-only AR validation requires streaming mode and stacking factor 1')
+        from nemo.collections.tts.modules.magpietts_inference.phoneme_frontend import generate_text_only_phoneme_tokens
+
+        ar_counts, ar_max = torch.zeros_like(counts), torch.zeros_like(maximum)
+        skipped = counts.new_zeros(())
+        for index in range(batch['text'].size(0)):
+            if budget is not None and self._text_only_val_ar_samples >= budget:
+                break
+            targets = batch['phoneme_tokens'][index, : int(batch['phoneme_tokens_lens'][index])]
+            text = batch['text'][index : index + 1, : int(batch['text_lens'][index])]
+            # The independent frontend decodes a single turn. Packed multi-turn
+            # cuts still contribute target statistics; never score only turn one
+            # as though it covered the complete packed sequence.
+            if (targets == self.phoneme_tokenizer.bos_token_id).sum() != 1 or (text == self.eos_id).sum() != 1:
+                skipped += 1
+                continue
+            context = batch['context_text_tokens'][index : index + 1, : int(batch['context_text_tokens_lens'][index])]
+            devices = [text.device] if text.device.type == 'cuda' else []
+            with torch.random.fork_rng(devices=devices):
+                generated = generate_text_only_phoneme_tokens(
+                    self, text, context, mode, self.cfg.get('text_only_val_ar_max_steps', None)
+                )
+            ids = targets.new_tensor([[self.phoneme_tokenizer.bos_token_id, *generated.predicted_tokens]])
+            values, peak = phoneme_delay_counts(
+                ids, targets.new_tensor([ids.size(1)]), self.phoneme_tokenizer, fixed_delay
+            )
+            ar_counts += values
+            ar_max = torch.maximum(ar_max, peak)
+            examples = getattr(self, '_text_only_val_examples', None)
+            if examples is not None and len(examples) < self._text_only_val_examples_limit:
+
+                def item(key):
+                    values = batch.get(key)
+                    return values[index] if isinstance(values, (list, tuple)) else values
+
+                examples.append(
+                    phoneme_decoding_example(
+                        targets,
+                        generated,
+                        self.phoneme_tokenizer,
+                        fixed_delay=fixed_delay,
+                        metadata={
+                            'global_step': int(self.global_step),
+                            'epoch': int(self.current_epoch),
+                            'rank': int(self.global_rank),
+                            'sample_id': item('sample_id'),
+                            'dataset': item('dataset_names'),
+                            'language': item('languages'),
+                            'text_tokenizer': item('text_tokenizer_names'),
+                            'input_text': item('input_texts'),
+                            'raw_text': item('raw_texts'),
+                        },
+                    )
+                )
+            self._text_only_val_ar_samples += 1
+        result.update(
+            {
+                'val_text_only_ar_delay_counts': ar_counts,
+                'val_text_only_ar_delay_max': ar_max,
+                'val_text_only_ar_skipped': skipped,
+            }
+        )
+        return result
+
+    def _log_text_only_validation_delay_metrics(self):
+        # Every rank enters both collectives, even if it only received speech.
+        # Reduce counts, rather than averaging per-batch or per-rank percentages.
+        sums = torch.zeros(15, device=self.device, dtype=torch.float64)
+        maxima = torch.zeros(2, device=self.device, dtype=torch.float64)
+        for output in self.validation_step_outputs:
+            for index, kind in enumerate(('target', 'ar')):
+                key = f'val_text_only_{kind}_delay_counts'
+                if key in output:
+                    sums[index * 7 : (index + 1) * 7] += output[key]
+                    maxima[index] = torch.maximum(maxima[index], output[f'val_text_only_{kind}_delay_max'])
+            sums[-1] += output.get('val_text_only_ar_skipped', 0)
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            torch.distributed.all_reduce(sums)
+            torch.distributed.all_reduce(maxima, op=torch.distributed.ReduceOp.MAX)
+        metrics = {}
+        for index, kind in enumerate(('target', 'ar')):
+            counts = sums[index * 7 : (index + 1) * 7]
+            if counts[0] > 0:
+                metrics.update(phoneme_delay_metrics(counts, maxima[index], f'val/text_only_{kind}'))
+        if self.cfg.get('text_only_val_ar_max_samples', 0) != 0 and sums[0] > 0:
+            metrics['val/text_only_ar_skipped_multiturn_samples'] = sums[-1]
+        if metrics:
+            self.log_dict(metrics, on_step=False, on_epoch=True, sync_dist=False)
+
+    def _prepare_text_only_validation_examples(self):
+        self._text_only_val_examples = None
+        self._text_only_val_examples_limit = 0
+        limit = self.cfg.get('text_only_val_wandb_max_examples', 16)
+        if not limit or self.cfg.get('text_only_val_ar_max_samples', 0) == 0 or self.trainer.sanity_checking:
+            return
+        # Some setups only construct a W&B logger on rank zero. Agree on this
+        # flag before any rank decides whether to gather examples at epoch end.
+        enabled = torch.tensor(any(isinstance(logger, WandbLogger) for logger in self.loggers), device=self.device)
+        distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
+        if distributed:
+            torch.distributed.all_reduce(enabled, op=torch.distributed.ReduceOp.MAX)
+        if enabled.item():
+            world_size = torch.distributed.get_world_size() if distributed else 1
+            self._text_only_val_examples_limit = math.ceil(limit / world_size)
+            self._text_only_val_examples = []
+
+    def _log_text_only_validation_examples(self):
+        rows = getattr(self, '_text_only_val_examples', None)
+        if rows is None:
+            return
+        distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
+        rank = torch.distributed.get_rank() if distributed else self.global_rank
+        gathered = [rows]
+        if distributed:
+            gathered = [None] * torch.distributed.get_world_size() if rank == 0 else None
+            torch.distributed.gather_object(rows, gathered, dst=0)
+        self._text_only_val_examples = None
+        if rank != 0:
+            return
+        # Interleave ranks so the first GPU does not fill the complete table.
+        rows = [values[i] for i in range(max(map(len, gathered))) for values in gathered if i < len(values)]
+        rows = rows[: self.cfg.get('text_only_val_wandb_max_examples', 16)]
+        if not rows:
+            return
+        data = [[row.get(column) for column in TEXT_ONLY_EXAMPLE_COLUMNS] for row in rows]
+        for logger in self.loggers:
+            if isinstance(logger, WandbLogger):
+                logger.log_table(
+                    'val/text_only_decoding_examples',
+                    columns=TEXT_ONLY_EXAMPLE_COLUMNS,
+                    data=data,
+                    step=int(self.global_step),
+                )
 
     def _log_dynamic_phoneme_delay(self, batch):
         # All ranks enter this collective, including ranks receiving audio

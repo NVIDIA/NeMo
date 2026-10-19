@@ -440,8 +440,10 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
             "user_audio_turn_splitted_indices": user_audio_turn_splitted_indices,
         }
 
-    def _collate_text_channels(self, cuts: CutSet, batch_tokenizer_names: list[str]) -> Dict[str, torch.Tensor]:
-        selected_texts = [] if self.dynamic_phoneme_delay else None
+    def _collate_text_channels(
+        self, cuts: CutSet, batch_tokenizer_names: list[str], *, return_selected_texts: bool = False
+    ) -> Dict[str, torch.Tensor]:
+        selected_texts = [] if self.dynamic_phoneme_delay or return_selected_texts else None
         target_text_tokens, target_token_lens = collate_token_channel(
             cuts,
             self.text_tokenizer,
@@ -989,7 +991,7 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
         """Reuse text/phoneme collation without loading any audio or audio context."""
         if self.phoneme_tokenizer is None:
             raise ValueError("text_only training requires a phoneme tokenizer")
-        text_data = self._collate_text_channels(cuts, batch_tokenizer_names)
+        text_data = self._collate_text_channels(cuts, batch_tokenizer_names, return_selected_texts=True)
         phoneme_data = self._collate_phoneme_tokens(cuts)
         if self.dynamic_phoneme_delay:
             self._apply_dynamic_phoneme_delay(cuts, batch_tokenizer_names, text_data, phoneme_data)
@@ -1019,6 +1021,8 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
             "raw_texts": [
                 " ".join(s.text for s in cut.supervisions if s.speaker in self.output_roles) for cut in cuts
             ],
+            "input_texts": [' '.join(parts) for parts in text_data['selected_texts']],
+            "text_tokenizer_names": list(batch_tokenizer_names),
         }
         if "phoneme_loss_mask" in phoneme_data:
             batch_dict["phoneme_loss_mask"] = phoneme_data["phoneme_loss_mask"]

@@ -22,6 +22,133 @@ class PhonemeFrontendOutput:
     token_ids: Tuple[int, ...]
     decoder_steps: int
     wait_tokens: int = 0
+    first_phoneme_step: int | None = None
+
+
+@dataclass(frozen=True)
+class TextOnlyPhonemeTokenOutput:
+    """Cached greedy decoding; first_phoneme_step is one-based, excluding context."""
+
+    token_ids: Tuple[int, ...]
+    decoder_steps: int
+    wait_tokens: int
+    first_phoneme_step: int | None
+    reached_eos: bool
+    predicted_tokens: Tuple[int, ...]
+
+
+@torch.inference_mode()
+def generate_text_only_phoneme_tokens(model, text_tokens, context_tokens, mode, max_steps):
+    """Decode one already-tokenized turn, without reference IPA or audio calls.
+
+    Text includes the same BOS/EOS chosen by the loader. The first phoneme step
+    counts fixed delay and predicted waits, but excludes the conditioning prefix.
+    Incomplete outputs are returned with reached_eos=False for validation metrics.
+    With max_steps=None the cap is max(256, 8 * text steps + 128); a positive
+    max_steps optionally imposes a smaller ceiling. This function uses the caller's
+    precision and never modifies model parameters.
+    """
+    if (max_steps is not None and (type(max_steps) is not int or max_steps <= 0)) or (
+        mode.text_input_mode != 'streaming' or model.phoneme_stacking_factor != 1
+    ):
+        raise ValueError(
+            'Text-only greedy validation requires null or positive max_steps, streaming mode and stacking factor 1'
+        )
+    if text_tokens.size(0) != 1 or context_tokens.size(0) != 1:
+        raise ValueError('Text-only greedy decoding accepts one unpadded turn at a time')
+    device = text_tokens.device
+    context_lens = torch.tensor([context_tokens.size(1)], device=device, dtype=torch.long)
+    text_lens = torch.tensor([text_tokens.size(1)], device=device, dtype=torch.long)
+    dynamic = model.cfg.get('dynamic_phoneme_delay', False)
+    phoneme_delay = 0 if dynamic else mode.streaming_phonemes_delay
+    special_ids = {
+        getattr(model.phoneme_tokenizer, 'pad', None),
+        model.phoneme_tokenizer.bos_token_id,
+        model.phoneme_tokenizer.eos_token_id,
+    }
+    cas_chunk_size = model.cfg.get('text_only_cas_chunk_size', None)
+    context = model.embed_text_tokens(
+        context_tokens,
+        text_lens=context_lens,
+        disable_cas_embedding=model.disable_cas_for_context_text,
+        cas_chunk_size=cas_chunk_size,
+    )
+    if model.task_embedding is not None and mode.mode_idx is not None:
+        task = model.task_embedding(torch.tensor([mode.mode_idx], device=device)).unsqueeze(1)
+        context = torch.cat([task, context], dim=1)
+        context_lens = context_lens + 1
+    context_length = context.size(1)
+    text_embedded = model.embed_text_tokens(
+        text_tokens,
+        text_lens=text_lens,
+        is_multiturn=model.cfg.get('use_multiturn_dataset', False),
+        cas_chunk_size=cas_chunk_size,
+    )
+    if model.cfg.get('use_multiturn_dataset', False):
+        text_embedded[text_tokens == model.pad_id] = 0.0
+    delay = context_length + phoneme_delay
+    cap = max(256, text_tokens.size(1) * 8 + 128)
+    if max_steps is not None:
+        cap = min(max_steps, cap)
+
+    def fixed_embeddings(start, length):
+        result = context.new_zeros(1, length, context.size(-1))
+        if model.repeat_context:
+            positions = torch.arange(start, start + length, device=device)
+            result += model._repeat_gated_context_embeddings(context, context_lens, positions)
+        elif start < context_length:
+            end = min(start + length, context_length)
+            result[:, : end - start] += context[:, start:end]
+        begin = max(start, context_length)
+        end = min(start + length, context_length + text_embedded.size(1))
+        if begin < end:
+            result[:, begin - start : end - start] += text_embedded[:, begin - context_length : end - context_length]
+        return result
+
+    prefix = fixed_embeddings(0, delay + 1)
+    bos = torch.tensor([[[model.phoneme_tokenizer.bos_token_id]]], device=device)
+    prefix[:, delay:] += model.embed_phoneme_tokens(bos)
+    output = model.forward(
+        inputs_embeds=prefix,
+        attention_mask=torch.ones(1, delay + 1, device=device, dtype=torch.bool),
+        use_cache=True,
+        cache_position=torch.arange(delay + 1, device=device),
+        context_prefix_lens=context_lens,
+    )
+    tokens: List[int] = []
+    predicted: List[int] = []
+    waits, first = 0, None
+    for step in range(cap):
+        token = model.phoneme_final_proj(output.last_hidden_state[:, -1:]).argmax(-1)
+        token_id = int(token.item())
+        predicted.append(token_id)
+        if token_id == model.phoneme_tokenizer.eos_token_id:
+            return TextOnlyPhonemeTokenOutput(tuple(tokens), step + 1, waits, first, True, tuple(predicted))
+        is_wait = dynamic and token_id == model.phoneme_tokenizer.pad
+        if first is None and token_id not in special_ids:
+            first = phoneme_delay + step + 1
+        if is_wait:
+            waits += 1
+        else:
+            tokens.append(token_id)
+        if step + 1 == cap:
+            break
+        position = delay + step + 1
+        phoneme_input = model.embed_phoneme_tokens(token.unsqueeze(1))
+        if is_wait:
+            # Training's multiturn embedding masks PAD to zero. The clock
+            # still advances so the next source BPE becomes visible.
+            phoneme_input = torch.zeros_like(phoneme_input)
+        next_input = fixed_embeddings(position, 1) + phoneme_input
+        output = model.forward(
+            inputs_embeds=next_input,
+            attention_mask=torch.ones(1, position + 1, device=device, dtype=torch.bool),
+            use_cache=True,
+            past_key_values=output.past_key_values,
+            cache_position=torch.tensor([position], device=device),
+            context_prefix_lens=context_lens,
+        )
+    return TextOnlyPhonemeTokenOutput(tuple(tokens), cap, waits, first, False, tuple(predicted))
 
 
 class TextOnlyPhonemeFrontend:
@@ -95,91 +222,23 @@ class TextOnlyPhonemeFrontend:
         ) + [model.eos_id]
         if self.dynamic_phoneme_delay and model.cfg.get('add_text_bos', False):
             text_ids.insert(0, model.bos_id)
-        context_lens = torch.tensor([len(context_ids)], device=device, dtype=torch.long)
-        context_tokens = torch.tensor([context_ids], device=device, dtype=torch.long)
-        text_tokens = torch.tensor([text_ids], device=device, dtype=torch.long)
-        text_lens = torch.tensor([len(text_ids)], device=device, dtype=torch.long)
-        cas_chunk_size = model.cfg.get('text_only_cas_chunk_size', None)
-        context = model.embed_text_tokens(
-            context_tokens,
-            text_lens=context_lens,
-            disable_cas_embedding=model.disable_cas_for_context_text,
-            cas_chunk_size=cas_chunk_size,
+        result = generate_text_only_phoneme_tokens(
+            model,
+            torch.tensor([text_ids], device=device, dtype=torch.long),
+            torch.tensor([context_ids], device=device, dtype=torch.long),
+            self.mode,
+            self.max_steps,
         )
-        if model.task_embedding is not None and self.mode.mode_idx is not None:
-            task = model.task_embedding(torch.tensor([self.mode.mode_idx], device=device)).unsqueeze(1)
-            context = torch.cat([task, context], dim=1)
-            context_lens = context_lens + 1
-        context_length = context.size(1)
-        text_embedded = model.embed_text_tokens(
-            text_tokens,
-            text_lens=text_lens,
-            is_multiturn=model.cfg.get('use_multiturn_dataset', False),
-            cas_chunk_size=cas_chunk_size,
-        )
-        if model.cfg.get('use_multiturn_dataset', False):
-            text_embedded[text_tokens == model.pad_id] = 0.0
-        delay = context_length + self.phoneme_delay
-        cap = min(self.max_steps, max(256, len(text_ids) * 8 + 128))
-
-        def fixed_embeddings(start, length):
-            result = context.new_zeros(1, length, context.size(-1))
-            if model.repeat_context:
-                positions = torch.arange(start, start + length, device=device)
-                result += model._repeat_gated_context_embeddings(context, context_lens, positions)
-            elif start < context_length:
-                end = min(start + length, context_length)
-                result[:, : end - start] += context[:, start:end]
-            begin = max(start, context_length)
-            end = min(start + length, context_length + text_embedded.size(1))
-            if begin < end:
-                result[:, begin - start : end - start] += text_embedded[
-                    :, begin - context_length : end - context_length
-                ]
-            return result
-
-        prefix = fixed_embeddings(0, delay + 1)
-        bos = torch.tensor([[[model.phoneme_tokenizer.bos_token_id]]], device=device)
-        prefix[:, delay:] += model.embed_phoneme_tokens(bos)
-        output = model.forward(
-            inputs_embeds=prefix,
-            attention_mask=torch.ones(1, delay + 1, device=device, dtype=torch.bool),
-            use_cache=True,
-            cache_position=torch.arange(delay + 1, device=device),
-            context_prefix_lens=context_lens,
-        )
-        tokens: List[int] = []
-        waits = 0
-        for step in range(cap):
-            token = model.phoneme_final_proj(output.last_hidden_state[:, -1:]).argmax(-1)
-            token_id = int(token.item())
-            if token_id == model.phoneme_tokenizer.eos_token_id:
-                ipa = model.phoneme_tokenizer.decode(tokens).strip()
-                if not ipa:
-                    raise RuntimeError("The phoneme frontend generated empty IPA; no reference fallback is allowed")
-                return PhonemeFrontendOutput(ipa, tuple(tokens), step + 1, waits)
-            is_wait = self.dynamic_phoneme_delay and token_id == model.phoneme_tokenizer.pad
-            if is_wait:
-                waits += 1
-            else:
-                tokens.append(token_id)
-            position = delay + step + 1
-            phoneme_input = model.embed_phoneme_tokens(token.unsqueeze(1))
-            if is_wait:
-                # Training's multiturn embedding masks PAD to zero. The clock
-                # still advances so the next source BPE becomes visible.
-                phoneme_input = torch.zeros_like(phoneme_input)
-            next_input = fixed_embeddings(position, 1) + phoneme_input
-            output = model.forward(
-                inputs_embeds=next_input,
-                attention_mask=torch.ones(1, position + 1, device=device, dtype=torch.bool),
-                use_cache=True,
-                past_key_values=output.past_key_values,
-                cache_position=torch.tensor([position], device=device),
-                context_prefix_lens=context_lens,
+        if not result.reached_eos:
+            raise RuntimeError(
+                f"The phoneme frontend did not reach EOS within {result.decoder_steps} steps; "
+                "no reference fallback is allowed"
             )
-        raise RuntimeError(
-            f"The phoneme frontend did not reach EOS within {cap} steps; no reference fallback is allowed"
+        ipa = model.phoneme_tokenizer.decode(list(result.token_ids)).strip()
+        if not ipa:
+            raise RuntimeError("The phoneme frontend generated empty IPA; no reference fallback is allowed")
+        return PhonemeFrontendOutput(
+            ipa, result.token_ids, result.decoder_steps, result.wait_tokens, result.first_phoneme_step
         )
 
     def _load_model(self, codecmodel_path, device):
