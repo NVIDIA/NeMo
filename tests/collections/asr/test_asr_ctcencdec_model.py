@@ -35,15 +35,19 @@ class _LengthAwareDecoder(torch.nn.Module):
 
     requires_encoded_lengths = True
 
-    def __init__(self, num_classes_with_blank: int):
+    def __init__(self, num_classes_with_blank: int, upsampling_factor: int = 1):
         super().__init__()
         self.num_classes_with_blank = num_classes_with_blank
         self.received_lengths = None
+        self.upsampling_factor = upsampling_factor
+
+    def output_lengths(self, encoded_lengths):
+        return encoded_lengths * self.upsampling_factor
 
     def forward(self, encoder_output, encoded_lengths):
         self.received_lengths = encoded_lengths.detach().clone()
         logits = encoder_output.new_zeros(
-            encoder_output.shape[0], encoder_output.shape[-1], self.num_classes_with_blank
+            encoder_output.shape[0], encoder_output.shape[-1] * self.upsampling_factor, self.num_classes_with_blank
         )
         return torch.log_softmax(logits, dim=-1)
 
@@ -169,11 +173,12 @@ class TestEncDecCTCModel:
         assert diff <= 1e-6
 
     @pytest.mark.unit
-    def test_forward_passes_lengths_to_length_aware_decoder(self, asr_model):
+    @pytest.mark.parametrize("upsampling_factor", [1, 2])
+    def test_forward_passes_lengths_to_length_aware_decoder(self, asr_model, upsampling_factor):
         asr_model = asr_model.eval()
         asr_model.preprocessor.featurizer.dither = 0.0
         asr_model.preprocessor.featurizer.pad_to = 0
-        recording_decoder = _LengthAwareDecoder(asr_model.decoder.num_classes_with_blank)
+        recording_decoder = _LengthAwareDecoder(asr_model.decoder.num_classes_with_blank, upsampling_factor)
         asr_model.decoder = recording_decoder
 
         input_signal = torch.randn(size=(2, 512))
@@ -184,7 +189,7 @@ class TestEncDecCTCModel:
                 input_signal_length=input_lengths,
             )
 
-        assert torch.equal(recording_decoder.received_lengths, encoded_lengths)
+        assert torch.equal(recording_decoder.received_lengths * upsampling_factor, encoded_lengths)
 
     @pytest.mark.unit
     def test_predict_step(self, asr_model):
