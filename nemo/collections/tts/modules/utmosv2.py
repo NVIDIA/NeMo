@@ -14,6 +14,7 @@
 # limitations under the License.
 import copy
 import os
+from types import SimpleNamespace
 
 try:
     import utmosv2
@@ -21,7 +22,8 @@ except ImportError:
     raise ImportError(
         "UTMOSv2 is not installed. Please install it using `pip install git+https://github.com/sarulab-speech/UTMOSv2.git@v1.3.0`."
     )
-from typing import Optional
+from typing import List, Optional, Sequence, Tuple, Union
+import numpy as np
 import torch
 from threadpoolctl import threadpool_limits
 
@@ -112,13 +114,37 @@ class UTMOSv2Calculator:
         return results
 
     @torch.inference_mode()
-    def score_waveforms(self, waveforms, sample_rate: int, batch_size: int = 16, num_workers: int = 0, device=None):
+    def score_waveforms(
+        self,
+        waveforms: Sequence[torch.Tensor],
+        sample_rate: int,
+        batch_size: int = 16,
+        num_workers: int = 0,
+        device: Optional[Union[str, torch.device]] = None,
+    ) -> List[float]:
         """Score variable-length waveforms without WAV serialization.
 
         The pinned UTMOSv2 1.3.0 frontend uses CPU NumPy/librosa. Prepare each
         unpadded clip with that frontend, then batch its fixed-size features for
         inference on ``device``. Resample from the actual input rate to the model
         configuration's rate (16 kHz for the pretrained fusion_stage3 model).
+
+        Args:
+            waveforms: Mono tensors with shapes ``[T_i]``, without batch padding.
+            sample_rate: Actual input sample rate in Hz, shared by the waveforms.
+            batch_size: Maximum number of preprocessed clips per inference batch.
+            num_workers: CPU DataLoader workers; zero preprocesses in this process.
+            device: Inference device, or ``None`` to use the calculator's device.
+                CPU NumPy preprocessing is used regardless of the inference device.
+
+        Returns:
+            One predicted MOS value per waveform in the original input order.
+            An empty input sequence returns an empty list.
+
+        Raises:
+            ValueError: If batch size, worker count, sample rate, or waveform
+                dimensions are invalid.
+            RuntimeError: If the installed UTMOSv2 version is unsupported.
         """
         if batch_size <= 0 or num_workers < 0:
             raise ValueError('batch_size must be positive and num_workers nonnegative.')
@@ -155,14 +181,35 @@ def get_available_device():
 class _UTMOSWaveformDataset(torch.utils.data.Dataset):
     """Use upstream preprocessing per true-length clip, batching features rather than raw padding."""
 
-    def __init__(self, cfg, waveforms):
+    def __init__(self, cfg: SimpleNamespace, waveforms: Sequence[np.ndarray]) -> None:
+        """Store inputs for upstream per-clip preprocessing.
+
+        Args:
+            cfg: UTMOS model configuration, including sample rate, phase, and
+                dataset/frontend settings.
+            waveforms: True-length mono float32 NumPy arrays with shapes ``[T_i]``,
+                already resampled to ``cfg.sr``.
+        """
         self.cfg = cfg
         self.waveforms = waveforms
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Return the number of input waveforms."""
         return len(self.waveforms)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, ...]:
+        """Prepare one waveform using the configured UTMOS frontend.
+
+        Args:
+            index: Index of the waveform to preprocess.
+
+        Returns:
+            Feature tensors followed by a scalar dummy MOS target. Feature
+            shapes depend on ``cfg`` and are fixed for batching by the frontend.
+
+        Raises:
+            IndexError: If ``index`` is outside the input sequence.
+        """
         from utmosv2.dataset._schema import InMemoryData
         from utmosv2.utils import get_dataset
 

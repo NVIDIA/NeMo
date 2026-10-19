@@ -17,7 +17,7 @@ import copy
 import os
 import random
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import soundfile as sf
@@ -510,10 +510,26 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
             paths.append(path)
         return paths
 
-    def _get_reference_audio(self, batch_repeated: Dict):
+    def _get_reference_audio(self, batch_repeated: Dict) -> Tuple[List[torch.Tensor], int]:
         """
         Return detached reference waveforms and their sample rate for speaker similarity.
         Prefer context audio; otherwise decode cached context codes.
+
+        Args:
+            batch_repeated: Batch with ``context_audio``/``context_audio_lens`` or
+                ``context_audio_codes``/``context_audio_codes_lens``. The code
+                path also needs target ``audio_codes``/``audio_codes_lens`` for
+                examples without an audio context.
+
+        Returns:
+            A pair of true-length detached mono waveform tensors and their
+            sample rate in Hz. Raw context uses ``self.sample_rate``; decoded
+            codes use ``self.output_sample_rate``. Optional WAV exports follow
+            ``save_reward_audios`` and are not used by reward consumers.
+
+        Raises:
+            ValueError: If no supported context is present or waveform lengths
+                are invalid.
         """
         if 'context_audio' in batch_repeated and 'context_audio_lens' in batch_repeated:
             # TODO: Handle text context here support here.
@@ -673,8 +689,15 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
     ) -> List[str]:
         """Transcribe predicted waveforms using either the NeMo ASR model or Whisper.
 
-        Returns a list of processed transcript strings (one per waveform), ready for CER/WER
-        computation.
+        Args:
+            predicted_waveforms: True-length mono tensors at ``self.output_sample_rate``.
+            batch_repeated: Repeated rollout batch, optionally containing per-item
+                ``languages`` for Whisper.
+            reward_asr_model: Backend selector: ``nemo`` or ``whisper``.
+
+        Returns:
+            One normalized transcript per waveform, in input order, for CER/WER
+            calculation.
         """
         if reward_asr_model == 'nemo':
             pred_transcripts = self._eval_asr_model.transcribe(
@@ -715,9 +738,24 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
 
     def _compute_speaker_embeddings_parallel(
         self, predicted_waveforms: List[torch.Tensor], batch: Dict, num_generations_per_item: int
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Extract speaker embeddings for both predicted and reference audio and align their batch
         dimensions so that cosine similarity can be computed element-wise.
+
+        Args:
+            predicted_waveforms: Generated mono tensors at ``self.output_sample_rate``,
+                with one waveform for each repeated rollout item.
+            batch: Original batch containing the reference context audio or codes.
+            num_generations_per_item: Number of generated candidates per original item.
+
+        Returns:
+            Predicted and reference embedding tensors, each with shape ``[B * G, D]``
+            on the model device. Reference embeddings are repeated to align with
+            the ``G`` candidates per original item.
+
+        Raises:
+            RuntimeError: If predicted and reference embedding counts do not match.
+            ValueError: If reference audio or waveform parameters are invalid.
         """
         reference_waveforms, reference_rate = self._get_reference_audio(batch)
         pred_speaker_embeddings = get_speaker_embeddings_from_waveforms(
@@ -737,7 +775,16 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         return pred_speaker_embeddings, gt_speaker_embeddings
 
     def _compute_utmos_scores_batched(self, predicted_waveforms: List[torch.Tensor]) -> List[float]:
-        """Score variable-length waveforms in batches without writing audio files."""
+        """Score variable-length waveforms in batches without writing audio files.
+
+        Args:
+            predicted_waveforms: True-length generated mono tensors at
+                ``self.output_sample_rate``.
+
+        Returns:
+            One MOS score per waveform in input order, zeros when UTMOS is
+            disabled, or an empty list for an empty input sequence.
+        """
         if not self.use_utmos:
             return [0.0] * len(predicted_waveforms)
         if not predicted_waveforms:
