@@ -90,12 +90,12 @@ model:
   cfg_unconditional_prob: 0.05
 
   # Multi-mode training configuration
-  # Greedy text-only validation on every eligible sequence each validation interval.
+  # Teacher-forced validation by default. Enable AR explicitly for post-training diagnostics.
   # null samples = all; 0 disables AR; a positive value caps samples per rank.
   # null steps uses max(256, 8 * text length + 128), so missing EOS cannot hang validation.
-  text_only_val_ar_max_samples: null
+  text_only_val_ar_max_samples: 0
   text_only_val_ar_max_steps: null
-  # Global W&B table row cap; this does not limit decoding or scalar metrics. 0 disables tables.
+  # Global W&B row cap per teacher-forced/AR table; this does not limit decoding or scalar metrics. 0 disables tables.
   text_only_val_wandb_max_examples: 16
 
   training_modes:

@@ -165,7 +165,7 @@ def test_null_budget_evaluates_every_sample_across_every_validation_batch():
         assert result['val_text_only_ar_delay_counts'][0] == 3
         assert result['val_text_only_ar_delay_counts'][2] == 6
     assert model._text_only_val_ar_samples == 6
-    assert len(model.forwards) == 18
+    assert len(model.forwards) == 6  # Two batches, three AR steps each.
 
 
 def test_automatic_step_limit_still_stops_endless_padding():
@@ -197,11 +197,11 @@ def test_invalid_explicit_generation_caps_fail_clearly(cap):
 
 
 @pytest.mark.parametrize('name', ['easy_magpietts_lhotse.yaml', 'easy_magpietts_lhotse_multiturn.yaml'])
-def test_lhotse_configs_default_to_full_evaluation_with_adaptive_caps(name):
+def test_lhotse_configs_default_to_teacher_forcing_with_optional_adaptive_ar_caps(name):
     from omegaconf import OmegaConf
 
     config = OmegaConf.load(Path(__file__).resolve().parents[3] / 'examples/tts/conf/magpietts' / name)
-    assert config.model.text_only_val_ar_max_samples is None
+    assert config.model.text_only_val_ar_max_samples == 0
     assert config.model.text_only_val_ar_max_steps is None
 
 
@@ -275,13 +275,15 @@ def test_epoch_ratios_are_weighted_by_tokens_not_batch_percentages(monkeypatch):
     assert captured['val/text_only_target_first_phoneme_step'] == 2
 
 
-def test_real_validation_step_and_epoch_metrics_reach_lightning_logger(tmp_path):
+@pytest.mark.parametrize('ar_enabled', [False, True])
+def test_real_validation_step_and_epoch_metrics_reach_lightning_logger(tmp_path, ar_enabled):
     import csv
 
     class ValidationHarness(LightningModule):
         validation_step = EasyMagpieTTSModel.validation_step
         on_validation_epoch_start = EasyMagpieTTSModel.on_validation_epoch_start
         on_validation_epoch_end = EasyMagpieTTSModel.on_validation_epoch_end
+        _text_only_teacher_forced_delay_stats = EasyMagpieTTSModel._text_only_teacher_forced_delay_stats
         _text_only_validation_delay_stats = EasyMagpieTTSModel._text_only_validation_delay_stats
         _log_text_only_validation_delay_metrics = EasyMagpieTTSModel._log_text_only_validation_delay_metrics
         _prepare_text_only_validation_examples = EasyMagpieTTSModel._prepare_text_only_validation_examples
@@ -292,7 +294,7 @@ def test_real_validation_step_and_epoch_metrics_reach_lightning_logger(tmp_path)
             super().__init__()
             self.stub = make_decoder([0, 7, 81])
             self.cfg = self.stub.cfg
-            self.cfg.text_only_val_ar_max_samples = None
+            self.cfg.text_only_val_ar_max_samples = None if ar_enabled else 0
             self.cfg.text_only_val_ar_max_steps = None
             for key in (
                 'training_modes',
@@ -350,9 +352,15 @@ def test_real_validation_step_and_epoch_metrics_reach_lightning_logger(tmp_path)
     with open(Path(logger.log_dir) / 'metrics.csv', newline='') as handle:
         row = list(csv.DictReader(handle))[-1]
     assert float(row['val/text_only_target_first_phoneme_step']) == 3
-    assert float(row['val/text_only_ar_first_phoneme_step']) == 2
+    assert float(row['val/text_only_teacher_forced_first_phoneme_step']) == 3
+    if ar_enabled:
+        assert float(row['val/text_only_ar_first_phoneme_step']) == 2
+    else:
+        assert 'val/text_only_ar_first_phoneme_step' not in row and not model.stub.forwards
     assert float(row['val/text_only_target_wait_percent']) == 50
-    assert float(row['val/text_only_ar_wait_percent']) == 50
-    assert float(row['val/text_only_ar_eos_percent']) == 100
+    assert float(row['val/text_only_teacher_forced_wait_percent']) == 50
+    if ar_enabled:
+        assert float(row['val/text_only_ar_wait_percent']) == 50
+        assert float(row['val/text_only_ar_eos_percent']) == 100
     assert float(row['val/text_only_phoneme_token_accuracy']) == 1
     assert not model.validation_step_outputs

@@ -110,6 +110,7 @@ def test_no_wandb_or_disabled_collection_has_no_rows(kind):
     model = SimpleNamespace(
         cfg={'text_only_val_ar_max_samples': None, 'text_only_val_wandb_max_examples': 16},
         device='cpu',
+        global_rank=0,
         loggers=[Mock(spec=WandbLogger)] if kind != 'no_logger' else [],
         trainer=SimpleNamespace(sanity_checking=kind == 'sanity'),
     )

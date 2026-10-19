@@ -100,82 +100,94 @@ the existing TTS model consumes the resulting phonemes.
 
 ### Validation timing and wait coverage
 
-Text-only validation always logs the loader's target schedule under
-`val/text_only_target_*`. This is alignment-derived supervision, not a measure
-of the model's autoregressive waiting behavior. Existing token accuracy remains
-teacher-forced and excludes PAD/wait targets.
+Validation uses the regular batched teacher-forced forward by default. Loss and
+`val/text_only_phoneme_token_accuracy` retain their existing definitions; token
+accuracy excludes ground-truth PAD/wait, BOS and EOS targets. No autoregressive
+decoder loop runs unless explicitly enabled.
 
-The EasyMagpie Lhotse configs now run actual greedy autoregressive validation
-on every eligible text-only sequence, at every validation interval. No sample
-budget overrides are required. Both settings default to `null`:
-
-```yaml
-model:
-  text_only_val_ar_max_samples: null
-  text_only_val_ar_max_steps: null
-```
-
-`text_only_val_ar_max_samples: null` evaluates all eligible sequences across all
-validation batches on each rank. A positive integer retains optional sampling
-(per rank per validation interval), and `0` disables only the AR diagnostic.
-Older restored configs that lack this key retain the previous disabled behavior;
-set `++model.text_only_val_ar_max_samples=null` to opt them into full evaluation.
-
-`text_only_val_ar_max_steps: null` uses the frontend's existing per-sequence cap,
-`max(256, 8 * text_decoder_steps + 128)`, instead of a fixed 2,048-step ceiling.
-A positive integer optionally imposes a smaller ceiling. This cap is still
-required to stop a model that produces PADs forever or never reaches EOS.
-Truncated predictions remain visible through EOS completion and no-phoneme rates.
-
-Autoregressive validation performs an additional cached forward for each
-generated step, so full evaluation costs more than teacher-forced validation.
-Generation skips Lightning sanity checks, loads no extra model or ASR, and never
-calls the audio decoder or consumes reference IPA. It reuses the loader's
-selected text/context token IDs, the same cached decoder as the standalone
-frontend, and validation precision. Streaming mode and phoneme stacking factor
-one are required only when actually evaluating a text-only batch; audio-only
-runs are unaffected. Positive explicit sample budgets retain early architecture
-validation.
-
-Both `val/text_only_target_*` and `val/text_only_ar_*` expose:
+The same teacher-forced argmax predictions also produce
+`val/text_only_teacher_forced_*` metrics, alongside the loader's target schedule
+under `val/text_only_target_*`. These add no decoder forward. Both expose:
 
 | Suffix | Meaning |
 | --- | --- |
-| `first_phoneme_step` | Mean one-based decoder step of the first real phoneme. Excludes context/prefix prefill, includes fixed delay and earlier generated PAD/BOS predictions. An immediate phoneme is step 1; steps before it equal this value minus 1. |
+| `first_phoneme_step` | Mean one-based step of the first non-PAD/BOS/EOS phoneme, excluding the conditioning prefix and including fixed delay. An immediate phoneme is step 1. |
 | `first_phoneme_step_max` | Maximum first-phoneme step across all ranks. |
-| `wait_percent` | 100 × PAD / (PAD + real phonemes), within each sequence's valid length. BOS/EOS and batch padding are excluded. |
-| `wait_percent_mean` | Mean of individual sequences' wait percentages, so long sequences do not dominate. |
-| `no_phoneme_percent` | Percentage of sequences producing no real phoneme. These never contribute artificial zero latency to the mean/max; latency metrics are omitted if none produced a phoneme. |
-| `eos_percent` | Percentage reaching EOS. For AR decoding, 100 minus this value is the truncation percentage. Truncated predictions remain in wait coverage and first-phoneme statistics if a phoneme was produced. |
+| `wait_percent` | 100 × predicted/target PADs divided by PADs plus real phonemes within valid sequence lengths. BOS/EOS and batch padding are excluded. |
+| `wait_percent_mean` | Mean of individual sequences' PAD percentages, so long sequences do not dominate. |
+| `no_phoneme_percent` | Percentage with no real phoneme. These never contribute artificial zero latency; latency metrics are omitted if every sequence lacks phonemes. |
+| `eos_percent` | Percentage containing an EOS prediction/target inside the valid reference horizon. |
 | `samples` | Number of sequences represented. |
 
-Sums/counts and maxima are reduced across all ranks, including ranks receiving
-only speech, before ratios are computed. First-phoneme latency and macro coverage
-are sequence-weighted; `wait_percent` is token-weighted. Fixed startup delay is
-counted in latency but is not an emitted PAD token in coverage.
+Teacher-forced predictions use ground-truth phoneme history, including the
+alignment-derived waits. All valid reference steps are scored, including wait
+positions; predicted EOS does not stop this forward or truncate these metrics.
+Consequently, first-phoneme step is a teacher-forced diagnostic, not free-running
+inference latency. EOS coverage is not an autoregressive completion rate.
 
-Target statistics cover every text-only validation sequence, including packed
-turns. AR diagnostics currently require single-turn examples; multi-turn cuts
-are counted under `val/text_only_ar_skipped_multiturn_samples` rather than
-silently treating the first generated EOS as the end of an entire packed cut.
-No speech validation, training targets, losses, or sampling behavior are changed.
+Counts/sums and maxima are reduced across all ranks before computing ratios,
+including ranks receiving only speech. Target and teacher-forced metrics cover
+every text-only validation sequence, including packed turns, while excluding
+conditioning prefixes and batch padding.
 
-### W&B decoding examples
+### Optional autoregressive evaluation
 
-When a `WandbLogger` is configured, each validation interval also logs
-`val/text_only_decoding_examples`, a table built from the AR decodes already
-computed for metrics. It includes the loader's actual selected input text (raw
-or normalized), original raw text, tokenizer name, reference and generated IPA,
-exact phoneme-token match, target/generated first-phoneme steps, per-sequence
-wait percentages, generated steps/waits, EOS/truncation status, and identifiers.
-Reference and generated IPA exclude PAD/BOS/EOS. Missing-phoneme delays are null.
+Autoregressive validation remains available for explicit post-training
+diagnostics. It is disabled in both EasyMagpie Lhotse configs:
 
-`model.text_only_val_wandb_max_examples` defaults to **16 rows globally per
-validation interval**. It limits only displayed examples; all eligible samples
-still contribute to full validation metrics. Set it to `0` to disable tables.
-Rows come from a bounded number of first eligible examples on each rank, then
-are interleaved and uploaded once by rank zero at the current trainer global
-step. Empty/speech-only ranks participate in gathering, so a table can still be
-logged when rank zero saw no text. Each interval creates a new table and clears
-the previous buffered rows. W&B-free runs and sanity checks do not collect rows;
-no extra generation, checkpoint loading, or audio inference is performed.
+```yaml
+model:
+  text_only_val_ar_max_samples: 0
+  text_only_val_ar_max_steps: null
+```
+
+Set `++model.text_only_val_ar_max_samples=null` to decode every eligible
+single-turn validation sequence, or a positive integer to cap samples per rank
+per interval. `0` disables the AR path and its example table. Older checkpoints
+without the setting also keep AR disabled. The target and teacher-forced metrics
+remain available independently.
+
+With AR enabled, `val/text_only_ar_*` reports the corresponding actual greedy
+generation statistics. Its EOS percentage measures completion, and 100 minus
+this value is the truncation percentage. Initial delay excludes the context
+prefix and includes fixed delay and predicted PAD/BOS steps. No reference IPA is
+fed to AR decoding. Streaming mode and phoneme stacking factor one are required.
+Packed multi-turn cuts are explicitly counted under
+`val/text_only_ar_skipped_multiturn_samples` instead of decoding only turn one.
+
+Eligible examples in each loader batch decode together. Each sample stops at
+its own phoneme EOS or safety cap; the batch ends when all samples finish.
+Finished cache slots remain allocated until the batch completes. Equal-length
+conditioning prefixes share one cache; different prefix lengths use separate
+cohorts so artificial padding never changes Mamba states or source timing.
+Right-padded source embeddings are zeroed after their valid lengths.
+
+`model.validation_ds.dataset.batch_size` controls the available AR batch size.
+`text_only_val_ar_max_steps: null` uses `max(256, 8 * text_decoder_steps + 128)`
+separately per sample; a positive integer can impose a smaller cap. This prevents
+endless PAD/no-EOS generation. AR decoding skips Lightning sanity checks and
+loads no extra model, ASR or audio decoder. Batched mixed-precision generation
+can differ from single-sample generation because rounding can change argmax
+decisions; use FP32 for stricter comparisons.
+
+### W&B prediction examples
+
+When a `WandbLogger` is configured, regular validation logs
+`val/text_only_teacher_forced_examples` from the same existing predictions.
+Rows include actual selected input text (raw or normalized), original raw text,
+tokenizer, reference/predicted IPA, exact phoneme-token match, first-phoneme
+steps, PAD percentages, reference-horizon step count and identifiers. The
+`prediction_mode` column explicitly says `teacher_forced`. The `truncated`
+column is null because no autoregressive decoding was attempted. Predicted EOS
+does not shorten the teacher-forced example's reference horizon.
+
+When AR is explicitly enabled, `val/text_only_decoding_examples` additionally
+shows the actual autoregressive outputs and stopping status. Its prediction
+mode is `autoregressive`.
+
+`model.text_only_val_wandb_max_examples` defaults to 16 rows globally per table
+per validation interval; `0` disables tables. It does not limit scalar metrics.
+Rows are gathered from a bounded number of examples per rank, interleaved, and
+uploaded once by rank zero at the current trainer step. Speech-only ranks still
+participate. Buffers reset each interval. W&B-free runs and sanity checks do not
+collect rows. Neither table adds model generation beyond its selected mode.

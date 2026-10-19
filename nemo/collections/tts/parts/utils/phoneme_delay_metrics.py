@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Sequence-weighted first-phoneme timing and token-weighted wait coverage."""
 
+from types import SimpleNamespace
+
 import torch
 
 
@@ -27,6 +29,7 @@ TEXT_ONLY_EXAMPLE_COLUMNS = [
     'reached_eos',
     'truncated',
     'no_phoneme',
+    'prediction_mode',
 ]
 
 
@@ -42,6 +45,7 @@ def phoneme_decoding_example(reference_tokens, generated, tokenizer, *, fixed_de
     row = dict(metadata or {})
     row.update(
         {
+            'prediction_mode': 'autoregressive',
             'reference_ipa': tokenizer.decode(reference_content).strip(),
             'generated_ipa': tokenizer.decode(predicted_content).strip(),
             'exact_phoneme_match': reference_content == predicted_content,
@@ -59,6 +63,43 @@ def phoneme_decoding_example(reference_tokens, generated, tokenizer, *, fixed_de
         }
     )
     return row
+
+
+def teacher_forced_phoneme_tokens(predictions, lengths, tokenizer):
+    """Unstack B,S,T argmax IDs and prepend the input BOS for timing statistics.
+
+    The horizon comes from ground-truth lengths. A predicted EOS never shortens
+    this horizon: later predictions still use ground-truth history.
+    """
+    batch, stacking_factor, _ = predictions.shape
+    ids = predictions.transpose(1, 2).reshape(batch, -1)
+    bos = ids.new_full((batch, 1), tokenizer.bos_token_id)
+    return torch.cat([bos, ids], dim=1), lengths * stacking_factor + 1
+
+
+def teacher_forced_phoneme_example(
+    reference_tokens, predicted_tokens, tokenizer, *, fixed_delay=0, stacking_factor=1, metadata=None
+):
+    """Describe existing predictions without claiming free-running generation."""
+    row = tuple(predicted_tokens.detach().cpu().tolist())
+    special = {tokenizer.pad, tokenizer.bos_token_id, tokenizer.eos_token_id}
+    first = next((fixed_delay + i // stacking_factor + 1 for i, token in enumerate(row) if token not in special), None)
+    generated = SimpleNamespace(
+        predicted_tokens=row,
+        first_phoneme_step=first,
+        decoder_steps=len(row) // stacking_factor,
+        reached_eos=tokenizer.eos_token_id in row,
+    )
+    example = phoneme_decoding_example(
+        reference_tokens, generated, tokenizer, fixed_delay=fixed_delay, metadata=metadata
+    )
+    reference = reference_tokens.detach().cpu().tolist()
+    first_reference = next((i for i, token in enumerate(reference) if token not in special), None)
+    example['target_first_phoneme_step'] = (
+        None if first_reference is None else fixed_delay + max(0, first_reference - 1) // stacking_factor + 1
+    )
+    example.update(prediction_mode='teacher_forced', truncated=None)
+    return example
 
 
 def phoneme_delay_counts(tokens, lengths, tokenizer, fixed_delay=0, stacking_factor=1):
