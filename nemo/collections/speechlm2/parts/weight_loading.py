@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Canonical checkpoint names and complete parameter coverage for SpeechLM."""
+"""SpeechLM checkpoint and perception weight loading with strict name and shape checks."""
 
 from itertools import chain
 from typing import Mapping
@@ -112,3 +112,41 @@ def load_nemo_rl_checkpoint(model: torch.nn.Module, checkpoint_path: str) -> Non
     ctc_timestamp = model._modules.get("ctc_timestamp")
     if ctc_timestamp is not None:
         ctc_timestamp.validate_tokenizer()
+
+
+def load_perception_state(
+    perception: torch.nn.Module,
+    weights: Mapping[str, torch.Tensor],
+    *,
+    require_complete: bool,
+) -> set[str]:
+    """Load perception weights, checking every name and shape before anything is copied.
+
+    Args:
+        perception: The vLLM model's perception module.
+        weights: Perception tensors keyed by names relative to ``perception``.
+        require_complete: Also require every perception tensor. The first load must be
+            complete; later RL weight updates may send only some tensors.
+
+    Returns:
+        The loaded names, prefixed with ``perception.``.
+    """
+    expected = perception.state_dict()
+    missing = (
+        sorted(key for key in expected if key not in weights and not key.endswith("._extra_state"))
+        if require_complete
+        else []
+    )
+    unexpected = sorted(key for key in weights if key not in expected)
+    wrong_shapes = [
+        key
+        for key, tensor in weights.items()
+        if key in expected and isinstance(expected[key], torch.Tensor) and expected[key].shape != tensor.shape
+    ]
+    if missing or unexpected or wrong_shapes:
+        raise RuntimeError(
+            "Speech encoder checkpoint does not exactly match its exported architecture: "
+            f"missing={missing}, unexpected={unexpected}, shape_mismatches={wrong_shapes}."
+        )
+    perception.load_state_dict(weights, strict=False)
+    return {"perception." + key for key in weights}

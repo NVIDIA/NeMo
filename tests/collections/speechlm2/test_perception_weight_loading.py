@@ -15,7 +15,7 @@
 import pytest
 import torch
 
-from nemo.collections.speechlm2.parts.perception_weight_loading import load_perception_state
+from nemo.collections.speechlm2.parts.weight_loading import load_perception_state
 
 
 def test_initial_complete_load_then_partial_update_preserves_frozen_state():

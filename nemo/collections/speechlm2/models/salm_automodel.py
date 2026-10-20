@@ -1249,8 +1249,7 @@ class SALMAutomodel(LightningModule, HFHubMixin):
             for module in self.llm.modules():
                 if isinstance(module, Gate):
                     module.train_gate = True
-                    # Explicit pre-sharding selection owns the update surface;
-                    # the legacy flag must not unfreeze excluded routers/MTP.
+                    # parameter_config already fixed the trainable parameters; don't unfreeze routers.
                     if self.parameter_config is None:
                         module.weight.requires_grad_(True)
                         if module.bias is not None:

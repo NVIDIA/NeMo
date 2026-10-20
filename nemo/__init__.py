@@ -14,7 +14,8 @@
 # limitations under the License.
 from pkgutil import extend_path
 
-# Speech and telemetry distributions install distinct modules under nemo.*.
+# Let other packages that install nemo.* modules (e.g. nemo-lens, used by NeMo RL)
+# import alongside an editable Speech install.
 __path__ = extend_path(__path__, __name__)
 
 from nemo.package_info import (

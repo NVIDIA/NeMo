@@ -55,7 +55,7 @@ from vllm.multimodal import MULTIMODAL_REGISTRY
 from vllm.sequence import IntermediateTensors
 
 from nemo.collections.speechlm2.parts.encoder_chunking import encode_audio_with_optional_chunking
-from nemo.collections.speechlm2.parts.perception_weight_loading import load_perception_state
+from nemo.collections.speechlm2.parts.weight_loading import load_perception_state
 from nemo.collections.speechlm2.vllm.salm.audio import (
     _SAMPLING_RATE,
     NeMoSpeechLMAudioInputs,

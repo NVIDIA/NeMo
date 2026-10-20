@@ -1,12 +1,24 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Opt-in, bounded verification of received refit weights after normal loading.
+"""Optional check that RL weight updates ("refits") arrive intact in the vLLM model.
 
-Samples retain HF loader input names and resolve the receiver's own name mapper.
-This verifies destination versus received transport, not policy-versus-rollout
-correspondence or every element. Only replicated weights and the unfused Mamba
-D/dt_bias and RowParallelLinear out_proj layouts are supported.
+In NeMo RL, a refit copies the trainer's updated weights into the vLLM generation
+engine after each training step. Enable the check with ``speechlm_refit_verification``
+in the model's HF config (or vLLM ``hf_overrides``)::
+
+    {"speechlm_refit_verification": {
+        "output_dir": "/path/to/refit",
+        "samples": {"language_model.backbone.layers.0.mixer.D": 0, "perception.proj.weight": null}}}
+
+``samples`` maps received weight names to their tensor-parallel shard axis, or ``null``
+for replicated weights. On every load after the first full one, up to four values of each
+sampled weight are recorded as received and compared exactly with the loaded vLLM
+parameter; a mismatch fails the load and each process appends a JSONL receipt.
+
+This checks received against loaded values only, not that the trainer sent the right
+weights. Only replicated weights and the unfused Mamba ``D``/``dt_bias`` and row-parallel
+``out_proj`` layouts are supported.
 """
 
 import json

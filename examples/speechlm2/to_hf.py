@@ -51,7 +51,8 @@ class HfExportConfig:
     # Dtype used for stored parameters
     dtype: str = "bfloat16"
 
-    # Native NeMo-RL uses flat DCP tensors under weights/model.
+    # Format of ckpt_path: "lightning" for a Lightning checkpoint, or "nemo_rl" for the
+    # flat DCP directory NeMo-RL saves under weights/model. The output is always HF safetensors.
     checkpoint_format: str = "lightning"
 
 
@@ -651,8 +652,6 @@ def main(cfg: HfExportConfig) -> None:
         model = cls(model_cfg)
         load_checkpoint(model, cfg.ckpt_path, cfg.checkpoint_format)
         if cfg.checkpoint_format == "nemo_rl":
-            # The canonical saver preserves intrinsically-FP32 Mamba/router
-            # tensors. A blanket model.to(BF16) would round them before saving.
             save_hf_checkpoint(model, consolidate_state_dict(model), cfg)
         else:
             model = model.to(str_to_dtype(cfg.dtype))
