@@ -67,6 +67,10 @@ def test_dflash_entrypoint_wraps_target_and_routes_training(monkeypatch, tmp_pat
     monkeypatch.setattr(_DFLASH_TRAIN, "DataModule", datamodule_factory)
     monkeypatch.setattr(_DFLASH_TRAIN, "exp_manager", lambda *args: tmp_path)
     monkeypatch.setattr(_DFLASH_TRAIN, "resolve_trainer_cfg", lambda cfg: {})
+    seed_everything = Mock()
+    monkeypatch.setattr(_DFLASH_TRAIN, "seed_everything", seed_everything)
+    set_precision = Mock()
+    monkeypatch.setattr(_DFLASH_TRAIN.torch, "set_float32_matmul_precision", set_precision)
     monkeypatch.setattr(_DFLASH_TRAIN.torch.cuda, "is_available", lambda: False)
     monkeypatch.setattr(_DFLASH_TRAIN.torch.distributed, "is_initialized", lambda: False)
     cfg = OmegaConf.create(
@@ -81,6 +85,8 @@ def test_dflash_entrypoint_wraps_target_and_routes_training(monkeypatch, tmp_pat
 
     _DFLASH_TRAIN.train.__wrapped__(cfg)
 
+    seed_everything.assert_called_once_with(7)
+    set_precision.assert_called_once_with("medium")
     target_factory.assert_called_once_with(OmegaConf.to_container(cfg.model))
     draft_factory.assert_called_once_with(target, OmegaConf.to_container(cfg))
     dataset_factory.assert_called_once_with(

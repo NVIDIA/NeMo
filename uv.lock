@@ -7270,6 +7270,8 @@ test = [
     { name = "pytest-mock" },
     { name = "pytest-runner" },
     { name = "pytest-shard" },
+    { name = "starlette", version = "1.0.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' or (extra == 'extra-12-nemo-toolkit-all' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-compiled' and extra == 'extra-12-nemo-toolkit-compiled-a100') or (extra == 'extra-12-nemo-toolkit-compiled' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-compiled-a100' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-cu12' and extra == 'extra-12-nemo-toolkit-cu13') or (extra == 'extra-12-nemo-toolkit-cu12' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-cu13' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-speechlm2' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-speechlm2-only' and extra == 'extra-12-nemo-toolkit-vllm')" },
+    { name = "starlette", version = "1.6.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'linux' or (extra == 'extra-12-nemo-toolkit-all' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-compiled' and extra == 'extra-12-nemo-toolkit-compiled-a100') or (extra == 'extra-12-nemo-toolkit-compiled' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-compiled-a100' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-cu12' and extra == 'extra-12-nemo-toolkit-cu13') or (extra == 'extra-12-nemo-toolkit-cu12' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-cu13' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-speechlm2' and extra == 'extra-12-nemo-toolkit-vllm') or (extra == 'extra-12-nemo-toolkit-speechlm2-only' and extra == 'extra-12-nemo-toolkit-vllm')" },
     { name = "wandb" },
     { name = "wrapt" },
 ]
@@ -7551,6 +7553,7 @@ test = [
     { name = "pytest-mock" },
     { name = "pytest-runner" },
     { name = "pytest-shard" },
+    { name = "starlette" },
     { name = "wandb" },
     { name = "wrapt" },
 ]

@@ -158,18 +158,18 @@ def test_iterator_training_runs_with_lightning_logging(monkeypatch, tmp_path, sk
     def run_batch(batch):
         if skip_batch:
             raise salm_dflash.NoValidAnchorsError("skip")
-        loss = module.draft_model(torch.ones(1, 1)).sum()
+        loss = module.draft_model(module.draft_model.weight.new_ones(1, 1)).sum()
         return SimpleNamespace(
             loss=loss,
-            loss_weight=torch.tensor(1.0),
-            accuracy=torch.tensor(0.5),
-            accept_len=torch.tensor(1.5),
+            loss_weight=loss.new_tensor(1.0),
+            accuracy=loss.new_tensor(0.5),
+            accept_len=loss.new_tensor(1.5),
             base_loss=loss,
             selector_loss=loss * 0.1,
-            selector_loss_denominator=torch.tensor(1.0),
-            base_accuracy=torch.tensor(0.5),
-            base_accept_len=torch.tensor(1.5),
-            candidate_recall=torch.tensor(0.75),
+            selector_loss_denominator=loss.new_tensor(1.0),
+            base_accuracy=loss.new_tensor(0.5),
+            base_accept_len=loss.new_tensor(1.5),
+            candidate_recall=loss.new_tensor(0.75),
         )
 
     monkeypatch.setattr(module, "_run_batch", run_batch)

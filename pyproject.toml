@@ -563,6 +563,7 @@ test = [
     "pytest-shard",
     "pytest-mock",
     "pytest-runner",
+    "starlette",
     "wandb",
     "wrapt",
 ]

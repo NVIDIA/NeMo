@@ -28,6 +28,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from huggingface_hub.errors import StrictDataclassClassValidationError
 
 try:
     import nemo.collections.speechlm2.vllm.salm as _salm_module
@@ -490,13 +491,43 @@ class TestNeMoSpeechLMConfig:
                 "vocab_size": 100,
             },
         )
+        assert cfg.layer_types == ["attention"] * cfg.num_hidden_layers
+        assert cfg.get_text_config().layer_types == ["attention"] * cfg.num_hidden_layers
         cfg.save_pretrained(tmp_path)
+        assert cfg.layer_types == ["attention"] * cfg.num_hidden_layers
         restored = NeMoSpeechLMConfig.from_pretrained(tmp_path)
         assert restored.audio_token_id == restored.get_text_config().audio_token_id == 4
         assert restored.speechlm_runtime_added_token_ids == [4, 5]
         assert restored.get_text_config().speechlm_runtime_added_token_ids == [4, 5]
         assert restored.speechlm_output_vocab_size == 100
         assert restored.image_token_index == 100
+        assert restored.layer_types == cfg.layer_types
+        assert restored.get_text_config().layer_types == cfg.get_text_config().layer_types
+
+    @pytest.mark.parametrize(
+        "field, layers, error",
+        [
+            ("layer_types", ["invalid"] * 2, "entries must be in"),
+            ("layer_types", ["attention"], "num_hidden_layers"),
+            ("mlp_layer_types", ["invalid"] * 2, "entries must be in"),
+            ("layer_types", 2, "not iterable"),
+        ],
+    )
+    def test_config_serialization_rejects_invalid_layer_metadata(self, tmp_path, field, layers, error):
+        cfg = NeMoSpeechLMConfig(
+            **_DEFAULT_CONFIG_KWARGS,
+            llm_config={
+                "model_type": "qwen2",
+                "architectures": ["Qwen2ForCausalLM"],
+                "num_hidden_layers": 2,
+            },
+        )
+        # Inject malformed metadata to exercise save-time validation directly.
+        vars(cfg.text_config)[field] = layers
+        with pytest.raises(StrictDataclassClassValidationError, match=error):
+            cfg.save_pretrained(tmp_path)
+        assert getattr(cfg, field) == layers
+        assert getattr(cfg.text_config, field) == layers
 
     @pytest.mark.parametrize("audio_token_id", [True, -1, 151946, "1"])
     def test_invalid_audio_token_id_rejected(self, audio_token_id):
