@@ -760,7 +760,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         if trcfg.timestamps:
             hypotheses = process_timestamp_outputs(
-                hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+                hypotheses,
+                self.encoder.subsampling_factor,
+                self.cfg['preprocessor']['window_stride'] / getattr(self.decoder, 'upsampling_factor', 1),
             )
 
         return hypotheses
