@@ -115,6 +115,20 @@ def test_native_mtp_retention_without_head_fails_export():
         _hf_export_config(model, "bfloat16")
 
 
+def test_native_mtp_retention_accepts_null_mtp_block():
+    model = model_fixture()
+    model.cfg.mtp = None
+    metadata = _hf_export_config(model, "bfloat16")
+    assert metadata["mtp"]["enabled"] is True
+    assert metadata["mtp"]["num_nextn_predict_layers"] == 2
+
+
+def test_native_export_config_accepts_null_optional_blocks():
+    prepared = prepare_native_export_model_config({"mtp": None, "automodel_backend": None})
+    assert prepared["mtp"] == {"enabled": False}
+    assert prepared["automodel_backend"] == {"enable_hf_state_dict_adapter": True}
+
+
 def test_entrypoint_native_export_config_preserves_backend_and_mtp_options():
     original = {
         "automodel_backend": {"attn": "sdpa", "enable_hf_state_dict_adapter": False},

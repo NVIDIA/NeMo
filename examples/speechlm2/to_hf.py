@@ -61,8 +61,11 @@ def prepare_native_export_model_config(model_cfg: dict) -> dict:
     model_cfg = deepcopy(model_cfg)
     model_cfg["retain_native_mtp"] = True
     model_cfg["preserve_parameter_dtypes"] = True
-    model_cfg["mtp"] = {**model_cfg.get("mtp", {}), "enabled": False}
-    model_cfg["automodel_backend"] = {**model_cfg.get("automodel_backend", {}), "enable_hf_state_dict_adapter": True}
+    model_cfg["mtp"] = {**(model_cfg.get("mtp") or {}), "enabled": False}
+    model_cfg["automodel_backend"] = {
+        **(model_cfg.get("automodel_backend") or {}),
+        "enable_hf_state_dict_adapter": True,
+    }
     return model_cfg
 
 
@@ -218,7 +221,7 @@ def _hf_export_config(model: torch.nn.Module, dtype: str | torch.dtype) -> dict[
     if config.pop("retain_native_mtp", False):
         if getattr(llm, "mtp", None) is None:
             raise ValueError("Native MTP retention requested but no MTP head exists for export")
-        config["mtp"] = {**config.get("mtp", {}), "enabled": True}
+        config["mtp"] = {**(config.get("mtp") or {}), "enabled": True}
     explicit_mtp = config.get("mtp")
     mtp_enabled = (
         bool(explicit_mtp.get("enabled", True))
@@ -317,6 +320,16 @@ def save_hf_checkpoint(model: torch.nn.Module, state_dict: dict, cfg: HfExportCo
     with open(output_dir / "config.json", "w") as f:
         json.dump(config, f, indent=2)
     save_llm_backbone_config(model, output_dir)
+
+
+def cast_model_for_export(model: torch.nn.Module, dtype: str | torch.dtype) -> torch.nn.Module:
+    """Cast the model to the export dtype; the CTC timestamp artifact keeps its loaded storage."""
+    ctc_timestamp = getattr(model, "ctc_timestamp", None)
+    ctc_state = None if ctc_timestamp is None else ctc_timestamp.state_dict()
+    model = model.to(str_to_dtype(dtype))
+    if ctc_state is not None:
+        ctc_timestamp.load_state_dict(ctc_state, assign=True)
+    return model
 
 
 def save_llm_backbone_config(model: torch.nn.Module, output_dir: str | Path) -> None:
@@ -654,7 +667,7 @@ def main(cfg: HfExportConfig) -> None:
         if cfg.checkpoint_format == "nemo_rl":
             save_hf_checkpoint(model, consolidate_state_dict(model), cfg)
         else:
-            model = model.to(str_to_dtype(cfg.dtype))
+            model = cast_model_for_export(model, cfg.dtype)
             model.save_pretrained(cfg.output_dir, config=_hf_export_config(model, cfg.dtype))
             save_llm_backbone_config(model, cfg.output_dir)
         _try_prepare_for_vllm(cfg.output_dir, model_cfg)

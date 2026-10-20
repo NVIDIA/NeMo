@@ -139,6 +139,21 @@ def test_hub_mixin_roundtrip_keeps_ctc_metadata_and_uint8_bytes(bundle, tmp_path
         assert torch.equal(tensor, state[name])
 
 
+def test_lightning_export_cast_keeps_ctc_storage(bundle):
+    from examples.speechlm2.to_hf import cast_model_for_export
+
+    path, state, _ = bundle
+    model = make_model(read_ctc_timestamp_config(path))
+    model.load_state_dict(state)
+    model = cast_model_for_export(model, 'float16')
+    assert model.core.weight.dtype == torch.float16
+    assert all(not p.requires_grad for p in model.ctc_timestamp.parameters())
+    for name, tensor in model.state_dict().items():
+        if name.startswith('ctc_timestamp.'):
+            assert tensor.dtype == state[name].dtype
+            assert torch.equal(tensor, state[name])
+
+
 def test_public_export_config_reconstructs_seed_artifact(bundle, tmp_path):
     from examples.speechlm2.prepare_rl_export_config import prepare_config
 

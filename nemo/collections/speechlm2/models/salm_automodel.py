@@ -1620,10 +1620,10 @@ class SALMAutomodel(LightningModule, HFHubMixin):
         # Cast perception to training dtype BEFORE FSDP2 wrapping.
         # The LLM is already in the target dtype (loaded via torch_dtype=dtype).
         # FSDP2 requires uniform parameter dtype, so we cast all parameters.
-        if dtype != torch.float32 and (device_mesh is not None or self.parameter_config is not None):
-            self.perception.to(dtype=dtype)
-
-        if self.parameter_config is not None:
+        if self.parameter_config is None:
+            if dtype != torch.float32 and device_mesh is not None:
+                self.perception.to(dtype=dtype)
+        else:
             from nemo_automodel.components.utils.parameter_config import ParameterConfig, apply_parameter_config
 
             perception_names = tuple(
@@ -1631,12 +1631,19 @@ class SALMAutomodel(LightningModule, HFHubMixin):
                 for n in self.parameter_config.trainable_names
                 if n.startswith("perception.")
             )
+            # Cast each parameter once from its loaded value so FP32 selections never round through BF16.
+            frozen_dtype = self.parameter_config.frozen_dtype
+            if frozen_dtype is None and dtype != torch.float32:
+                frozen_dtype = dtype
             apply_parameter_config(
                 self.perception,
-                ParameterConfig(
-                    perception_names, self.parameter_config.trainable_dtype, self.parameter_config.frozen_dtype
-                ),
+                ParameterConfig(perception_names, self.parameter_config.trainable_dtype, frozen_dtype),
             )
+            if dtype != torch.float32:
+                for module in self.perception.modules():
+                    for name, buffer in module._buffers.items():
+                        if buffer is not None and buffer.is_floating_point():
+                            module._buffers[name] = buffer.to(dtype=dtype)
             perception_fsdp_wrap_asr_layers = True
 
         # Select/cast pristine parameter names before checkpoint wrappers add
