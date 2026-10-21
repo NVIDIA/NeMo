@@ -23,6 +23,8 @@ vs standard transformer backends are auto-detected from the backbone's
 own ``architectures`` field.
 """
 
+from copy import copy
+
 from transformers import AutoConfig, PretrainedConfig
 
 _HYBRID_ARCHITECTURES = frozenset(
@@ -429,6 +431,17 @@ class NeMoSpeechLMConfig(PretrainedConfig):
         """
         mtp_cfg = self.__dict__.get("mtp") or {}
         return mtp_cfg.get("hybrid_override_pattern", "*") if isinstance(mtp_cfg, dict) else "*"
+
+    def validate(self):
+        # Transformers 5.18 rejects "attention", but vLLM 0.28 requires it on
+        # hf_config.layer_types. Normalize only a copy for upstream validation.
+        validation_config = copy(self)
+        layer_types = getattr(self, "layer_types", None)
+        if not self.is_hybrid and isinstance(layer_types, (list, tuple)):
+            validation_config.layer_types = [
+                "full_attention" if layer == "attention" else layer for layer in layer_types
+            ]
+        PretrainedConfig.validate(validation_config)
 
     _ATTR_ALIASES = {
         "rms_norm_eps": "layer_norm_epsilon",
