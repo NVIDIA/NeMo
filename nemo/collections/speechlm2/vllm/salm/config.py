@@ -23,7 +23,7 @@ vs standard transformer backends are auto-detected from the backbone's
 own ``architectures`` field.
 """
 
-from copy import deepcopy
+from copy import copy
 
 from transformers import AutoConfig, PretrainedConfig
 
@@ -388,23 +388,6 @@ class NeMoSpeechLMConfig(PretrainedConfig):
         """Return the LLM backbone architectures list."""
         return getattr(self.text_config, "architectures", None) or []
 
-    def validate(self) -> None:
-        """Run HF validation with the HF spelling of the derived vLLM layout.
-
-        vLLM 0.23 requires ``attention`` for its non-hybrid escape hatch, while
-        HF 5.18 validates that same layout as ``full_attention``. All standard
-        validators run on a copy; the serving config and other layouts are
-        unchanged. Older HF versions do not expose this validation entrypoint.
-        """
-        config = deepcopy(self)
-        text_config = config.text_config
-        num_layers = getattr(text_config, "num_hidden_layers", 0)
-        if not config.is_hybrid and getattr(text_config, "layer_types", None) == ["attention"] * num_layers:
-            text_config.layer_types = ["full_attention"] * num_layers
-        validator = getattr(super(NeMoSpeechLMConfig, config), "validate", None)
-        if validator is not None:
-            validator()
-
     def get_text_config(self, decoder=False) -> PretrainedConfig:
         return self.text_config
 
@@ -448,6 +431,17 @@ class NeMoSpeechLMConfig(PretrainedConfig):
         """
         mtp_cfg = self.__dict__.get("mtp") or {}
         return mtp_cfg.get("hybrid_override_pattern", "*") if isinstance(mtp_cfg, dict) else "*"
+
+    def validate(self):
+        # Transformers 5.18 rejects "attention", but vLLM 0.28 requires it on
+        # hf_config.layer_types. Normalize only a copy for upstream validation.
+        validation_config = copy(self)
+        layer_types = getattr(self, "layer_types", None)
+        if not self.is_hybrid and isinstance(layer_types, (list, tuple)):
+            validation_config.layer_types = [
+                "full_attention" if layer == "attention" else layer for layer in layer_types
+            ]
+        PretrainedConfig.validate(validation_config)
 
     _ATTR_ALIASES = {
         "rms_norm_eps": "layer_norm_epsilon",
