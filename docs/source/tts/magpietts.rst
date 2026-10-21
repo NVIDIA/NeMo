@@ -106,7 +106,8 @@ top-level values are propagated to every sub-config:
 ``shard_seed`` must be a fixed integer: indexed sources partition their examples across
 ``(rank, dataloader worker)`` and the multiplexer must pick the same source sequence on every
 partition. ``shar_lazy_payloads`` makes Shar field payloads (``target_codes``, ``context_audio``,
-...) load on demand instead of being read for every sampled cut. ``concurrent_bucketing`` must be
+...) load on demand instead of being read for every sampled cut; the mode is saved with the dataloader
+state, so changing it only affects a fresh run. ``concurrent_bucketing`` must be
 disabled so that only the checkpointed iterator advances the sources. Keep the number of nodes,
 devices and ``num_workers`` identical for every chunk of a run; the saved dataloader state refuses
 a different topology. The non-Lhotse validation dataset (``MagpieTTSDataset``) is unaffected.

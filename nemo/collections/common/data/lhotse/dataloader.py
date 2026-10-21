@@ -303,8 +303,11 @@ class LhotseDataLoadingConfig:
     # byte-range pointers (AudioSource type ``shar_ptr``, array storage type
     # ``shar_ptr_array``) and reads the payload only when ``load_audio()`` /
     # ``load()`` is called, so filtered cuts and never-loaded fields cost no I/O.
-    # Needs a Lhotse whose ``LazyIndexedSharIterator`` accepts ``lazy=``
-    # (lhotse-speech/lhotse#1598 or newer). Incompatible with ``slice_length``.
+    # Needs Lhotse 2.0.0a6 or newer (``LazyIndexedSharIterator(lazy=)``); gzip cuts
+    # additionally need gzip-indexed Shar support (lhotse-speech/lhotse#1598).
+    # Incompatible with ``slice_length``. The mode is stored in the dataloader
+    # checkpoint, so a resumed run keeps the mode it was saved with; the flag only
+    # changes fresh runs (or restarts without dataloader state).
     shar_lazy_payloads: bool = False
     # Root containing dataset-level .idxpack files. Individual outer input_cfg
     # entries declare ``index_pack`` relative to this directory and propagate

@@ -2137,7 +2137,8 @@ def _open_shar_cutset(
     if "lazy" not in inspect.signature(LazyIndexedSharIterator).parameters:
         raise ImportError(
             "shar_lazy_payloads=True requires a Lhotse whose LazyIndexedSharIterator accepts 'lazy=' "
-            "(lhotse-speech/lhotse#1598 or newer). Upgrade Lhotse or set shar_lazy_payloads: false."
+            "(Lhotse 2.0.0a6 or newer; gzip-compressed cuts additionally need gzip-indexed Shar support from "
+            "lhotse-speech/lhotse#1598). Upgrade Lhotse or set shar_lazy_payloads: false."
         )
     return CutSet(
         cuts=LazyIndexedSharIterator(
