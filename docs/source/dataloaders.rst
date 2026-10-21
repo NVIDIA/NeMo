@@ -1276,6 +1276,20 @@ resume:
 * ``num_workers`` and ``world_size`` must match between save and restore (a
   hard requirement of ``StatefulDataLoader``).
 
+.. note::
+
+   With ``multi_config: true`` and ``sampler_fusion: randomized_round_robin``, a resumed
+   ``StatefulDataLoader`` reproduces every sub-sampler's batch sequence exactly (per DataLoader
+   worker), but the order in which the sub-samplers are interleaved after the resume can differ
+   from an uninterrupted run: Lhotse's ``RoundRobinSampler`` re-seeds its selection RNG on every
+   ``iter()`` and does not checkpoint it, so only the first batch after the resume is guaranteed
+   to come from the same sub-sampler as in the uninterrupted run.
+
+   When ``bucket_batch_size`` is set, the last entry of ``bucket_duration_bins`` is the longest
+   duration the sampler accepts; longer cuts are dropped by ``BucketingFilter`` even when
+   ``max_duration`` is larger. Extend ``bucket_duration_bins`` (and ``bucket_batch_size``) up to
+   the longest cut you want to keep.
+
 Non-indexed pipelines fall back to Lhotse's ``_fast_forward()`` replay (O(N)
 in batches consumed before the checkpoint) and require ``num_workers`` only to
 be consistent for replay-based restore — not exact restore.
