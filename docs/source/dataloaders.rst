@@ -967,7 +967,14 @@ The following ``input_cfg`` types accept ``indexed: true`` today and require an
   every audio tar in ``tarred_audio_filepaths`` gets ``shard.tar.idx``.
 * ``lhotse`` (plain) — ``cuts.jsonl`` gets ``cuts.jsonl.idx``.
 * ``lhotse_shar`` — every plain or gzip cuts shard, custom JSONL field shard,
-  and uncompressed field tar inside the Shar dir.
+  and uncompressed field tar inside the Shar dir. Add
+  ``shar_lazy_payloads: true`` (default ``false``; requires ``indexed: true``)
+  to keep tar payloads out of the sampler: cuts then carry byte-range pointers
+  (``shar_ptr`` audio sources, ``shar_ptr_array`` arrays) and each field is
+  read only when ``load_audio()`` / ``load()`` is called, so filtered cuts and
+  never-loaded fields cost no I/O. Needs a Lhotse whose
+  ``LazyIndexedSharIterator`` accepts ``lazy=`` (lhotse-speech/lhotse#1598 or
+  newer); incompatible with ``slice_length``.
 * ``parquet`` — no sidecar required, but the file must expose row-group
   statistics (the default for files written by pyarrow / pandas).
 * ``txt_jsonl`` — every file in ``paths``.
@@ -1795,8 +1802,8 @@ audio payload, configure:
 
 **Indexed / resumable.** ``indexed``, ``use_stateful_dataloader``,
 ``indexes_root``, ``index_pack_root``, ``index_pack``,
-``index_pack_max_open_files``. See :ref:`indexed-resumable-dataloading` and
-:ref:`lhotse-indexes-root`.
+``index_pack_max_open_files``, ``shar_lazy_payloads``. See
+:ref:`indexed-resumable-dataloading` and :ref:`lhotse-indexes-root`.
 
 **Mixing & weighting.** ``reweight_temperature``, ``max_open_streams``.
 

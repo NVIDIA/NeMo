@@ -296,6 +296,16 @@ class LhotseDataLoadingConfig:
     # disk while the data lives on shared / object storage. Cascades through
     # ``read_dataset_config`` to every nested ``input_cfg`` entry.
     indexes_root: Optional[str] = None
+    # Opt-in Lhotse Shar lazy-payload mode. Requires ``indexed: true`` and
+    # applies to ``lhotse_shar`` inputs only (ignored by every other adapter).
+    # By default the indexed Shar reader inlines every field's tar member
+    # into the cut when it is sampled; with this flag it instead attaches
+    # byte-range pointers (AudioSource type ``shar_ptr``, array storage type
+    # ``shar_ptr_array``) and reads the payload only when ``load_audio()`` /
+    # ``load()`` is called, so filtered cuts and never-loaded fields cost no I/O.
+    # Needs a Lhotse whose ``LazyIndexedSharIterator`` accepts ``lazy=``
+    # (lhotse-speech/lhotse#1598 or newer). Incompatible with ``slice_length``.
+    shar_lazy_payloads: bool = False
     # Root containing dataset-level .idxpack files. Individual outer input_cfg
     # entries declare ``index_pack`` relative to this directory and propagate
     # that pack to every nested leaf.
@@ -714,6 +724,7 @@ def get_lhotse_dataloader_from_multi_config(
             # underlying readers fall back to streaming.
             "indexed",
             "indexes_root",
+            "shar_lazy_payloads",
             "index_pack_root",
             "index_pack_max_open_files",
         ]

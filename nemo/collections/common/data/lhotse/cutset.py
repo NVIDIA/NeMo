@@ -14,6 +14,7 @@
 # limitations under the License.
 """Lhotse CutSet utilities and Parquet manifest support for NeMo."""
 
+import inspect
 import io
 import logging
 import random
@@ -296,6 +297,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "slice_length": config.get("slice_length", None),
         "indexed": config.get("indexed", False),
         "indexes_root": config.get("indexes_root", None),
+        "shar_lazy_payloads": config.get("shar_lazy_payloads", False),
         "index_pack_root": config.get("index_pack_root", None),
         "index_pack_max_open_files": config.get("index_pack_max_open_files", 32),
         "index_pack": config.get("index_pack", None),
@@ -779,17 +781,18 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
         force_finite = config.get("force_finite", False)
         indexed = config.get("indexed", False)
         indexes_root = config.get("indexes_root", None)
+        open_shar = partial(
+            _open_shar_cutset,
+            shard_seed=shard_seed,
+            slice_length=config.get("slice_length", None),
+            indexed=indexed,
+            indexes_root=indexes_root,
+            shar_lazy_payloads=config.get("shar_lazy_payloads", False),
+        )
         if config.get("cuts_path") is not None:
             warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
         if isinstance(config.shar_path, (str, Path)):
-            cuts = CutSet.from_shar(
-                **_resolve_shar_inputs(config.shar_path, metadata_only),
-                shuffle_shards=True,
-                seed=shard_seed,
-                slice_length=config.get("slice_length", None),
-                indexed=indexed,
-                indexes_root=indexes_root,
-            )
+            cuts = open_shar(_resolve_shar_inputs(config.shar_path, metadata_only))
             if not metadata_only and not force_finite:
                 cuts = cuts.repeat(preserve_id=True)
         elif isinstance(config.shar_path, Sequence):
@@ -800,14 +803,7 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
             for item in config.shar_path:
                 if isinstance(item, (str, Path)):
                     path = item
-                    cs = CutSet.from_shar(
-                        **_resolve_shar_inputs(path, metadata_only),
-                        shuffle_shards=True,
-                        seed=shard_seed,
-                        slice_length=config.get("slice_length", None),
-                        indexed=indexed,
-                        indexes_root=indexes_root,
-                    )
+                    cs = open_shar(_resolve_shar_inputs(path, metadata_only))
                     weight = len(cs)
                 else:
                     assert isinstance(item, Sequence) and len(item) == 2 and isinstance(item[1], (int, float)), (
@@ -817,14 +813,7 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
                         f"We got: '{item}'"
                     )
                     path, weight = item
-                    cs = CutSet.from_shar(
-                        **_resolve_shar_inputs(path, metadata_only),
-                        shuffle_shards=True,
-                        seed=shard_seed,
-                        slice_length=config.get("slice_length", None),
-                        indexed=indexed,
-                        indexes_root=indexes_root,
-                    )
+                    cs = open_shar(_resolve_shar_inputs(path, metadata_only))
                 cutsets.append(cs)
                 weights.append(weight)
 
@@ -843,14 +832,7 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
             )
             if metadata_only:
                 fields = {"cuts": fields["cuts"]}
-            cuts = CutSet.from_shar(
-                fields=fields,
-                shuffle_shards=True,
-                seed=shard_seed,
-                slice_length=config.get("slice_length", None),
-                indexed=indexed,
-                indexes_root=indexes_root,
-            )
+            cuts = open_shar(dict(fields=fields))
             if not metadata_only and not force_finite:
                 cuts = cuts.repeat(preserve_id=True)
         else:
@@ -2111,3 +2093,58 @@ def read_nemo_tarred_to_duplex(config) -> tuple[CutSet, bool]:
     cuts = cuts.map(convert_fn)
 
     return cuts, is_tarred
+
+
+def _open_shar_cutset(
+    shar_inputs: dict,
+    *,
+    shard_seed: Union[int, str],
+    slice_length: Union[int, None],
+    indexed: Union[bool, None],
+    indexes_root: Union[str, Path, None],
+    shar_lazy_payloads: bool,
+) -> CutSet:
+    """
+    Open a single Lhotse Shar source given as ``{"in_dir": ...}`` or ``{"fields": {...}}``.
+
+    By default this is ``CutSet.from_shar`` with shard shuffling; both the streaming and the indexed Shar
+    readers then inline every field's tar member into the cut at the moment it is produced. With
+    ``shar_lazy_payloads=True`` (which requires ``indexed=True``) the indexed reader is built in lazy mode
+    instead: cuts carry byte-range pointers (``shar_ptr`` audio sources, ``shar_ptr_array`` arrays) and a
+    field's payload is read only when ``load_audio()`` / ``load()`` is called on it.
+    """
+    if not shar_lazy_payloads:
+        return CutSet.from_shar(
+            **shar_inputs,
+            shuffle_shards=True,
+            seed=shard_seed,
+            slice_length=slice_length,
+            indexed=indexed,
+            indexes_root=indexes_root,
+        )
+    if not indexed:
+        raise ValueError(
+            "shar_lazy_payloads requires indexed: true, because lazy Shar payloads are byte-range reads "
+            f"served by the indexed Shar reader (got indexed={indexed!r})."
+        )
+    if slice_length is not None:
+        raise ValueError(
+            "'slice_length' is not supported with shar_lazy_payloads=True (indexed mode). "
+            "Use indexed=False for streaming mode."
+        )
+    from lhotse.shar.readers.indexed import LazyIndexedSharIterator
+
+    if "lazy" not in inspect.signature(LazyIndexedSharIterator).parameters:
+        raise ImportError(
+            "shar_lazy_payloads=True requires a Lhotse whose LazyIndexedSharIterator accepts 'lazy=' "
+            "(lhotse-speech/lhotse#1598 or newer). Upgrade Lhotse or set shar_lazy_payloads: false."
+        )
+    return CutSet(
+        cuts=LazyIndexedSharIterator(
+            **shar_inputs,
+            shuffle=True,
+            seed=shard_seed,
+            indexes_root=indexes_root,
+            lazy=True,
+        )
+    )
