@@ -396,6 +396,11 @@ def load_easy_magpie_model(config: ModelLoadConfig, device: str = "cuda") -> Tup
         ValueError: If configuration is invalid.
     """
     config.validate()
+    # NeMo restore defaults to cuda:0. Pin all restore/move operations to this
+    # process's selected device before loading weights under torchrun.
+    load_device = torch.device(device)
+    if load_device.type == 'cuda' and load_device.index is None:
+        load_device = torch.device('cuda', torch.cuda.current_device())
 
     if config.hparams_file is not None and config.checkpoint_file is not None:
         model_cfg = OmegaConf.load(config.hparams_file)
@@ -421,18 +426,20 @@ def load_easy_magpie_model(config: ModelLoadConfig, device: str = "cuda") -> Tup
         model = EasyMagpieTTSInferenceModel(cfg=model_cfg)
 
         logging.info(f"Loading weights from checkpoint: {config.checkpoint_file}")
-        ckpt = torch.load(config.checkpoint_file)
+        ckpt = torch.load(config.checkpoint_file, map_location=load_device)
         state_dict = ckpt['state_dict']
         model.load_state_dict(state_dict)
 
         checkpoint_name = os.path.basename(config.checkpoint_file).replace(".ckpt", "")
     else:
         if config.nemo_file.startswith("nvidia/"):
-            model = EasyMagpieTTSInferenceModel.from_pretrained(config.nemo_file)
+            model = EasyMagpieTTSInferenceModel.from_pretrained(config.nemo_file, map_location=load_device)
             checkpoint_name = config.nemo_file.split("/")[-1]
         else:
             logging.info(f"Loading model from NeMo archive: {config.nemo_file}")
-            model_cfg = EasyMagpieTTSInferenceModel.restore_from(config.nemo_file, return_config=True)
+            model_cfg = EasyMagpieTTSInferenceModel.restore_from(
+                config.nemo_file, return_config=True, map_location=load_device
+            )
 
             with open_dict(model_cfg):
                 model_cfg.codecmodel_path = config.codecmodel_path
@@ -447,10 +454,12 @@ def load_easy_magpie_model(config: ModelLoadConfig, device: str = "cuda") -> Tup
                 # not the training subclass stored in the .nemo config.
                 model_cfg.target = 'nemo.collections.tts.models.easy_magpietts_inference.EasyMagpieTTSInferenceModel'
 
-            model = EasyMagpieTTSInferenceModel.restore_from(config.nemo_file, override_config_path=model_cfg)
+            model = EasyMagpieTTSInferenceModel.restore_from(
+                config.nemo_file, override_config_path=model_cfg, map_location=load_device
+            )
             checkpoint_name = os.path.basename(config.nemo_file).replace(".nemo", "")
 
-    model.to(device)
+    model.to(load_device)
     model.eval().float()
     logging.info("EasyMagpieTTS model loaded and ready for inference.")
 
@@ -1380,15 +1389,27 @@ def _add_easy_magpie_args(parser: argparse.ArgumentParser) -> None:
         choices=['single_turn', 'multiturn_user_audio'],
     )
     group.add_argument('--max_eval_turns', type=int, default=6)
+    group.add_argument(
+        '--codec_decode_batch_size',
+        type=int,
+        default=None,
+        help='EasyMagpie codec decode sub-batch size; None preserves the checkpoint setting, 0 decodes the full batch',
+    )
     group.add_argument('--no_save_debug_multiturn_audio', action='store_true')
     group.add_argument(
         '--phoneme_frontend_nemo_file',
         type=str,
         default=None,
-        help='Optional text-only .nemo frontend for multiturn_user_audio with --phoneme_input_type gt',
+        help='Optional text-only .nemo frontend for EasyMagpie with --phoneme_input_type gt',
     )
     group.add_argument('--phoneme_frontend_expected_delay', type=int, default=8)
     group.add_argument('--phoneme_frontend_max_steps', type=int, default=4096)
+    group.add_argument(
+        '--phoneme_frontend_on_max_steps',
+        choices=['error', 'use_partial'],
+        default='error',
+        help='Fail on missing frontend EOS, or score partial predictions with explicit truncation metadata',
+    )
     group.add_argument(
         '--phoneme_input_type',
         type=str,
@@ -1453,8 +1474,8 @@ def _build_magpie_config(args) -> MagpieInferenceConfig:
 
 def _build_easy_magpie_config(args) -> EasyMagpieInferenceConfig:
     frontend = getattr(args, 'phoneme_frontend_nemo_file', None)
-    if frontend and (args.easy_magpie_inference_mode != 'multiturn_user_audio' or args.phoneme_input_type != 'gt'):
-        raise ValueError('The phoneme frontend requires multiturn_user_audio and --phoneme_input_type gt')
+    if frontend and args.phoneme_input_type != 'gt':
+        raise ValueError('The phoneme frontend requires --phoneme_input_type gt')
     cfg_cls = (
         EasyMagpieMultiturnUserAudioInferenceConfig
         if args.easy_magpie_inference_mode == 'multiturn_user_audio'
@@ -1468,16 +1489,18 @@ def _build_easy_magpie_config(args) -> EasyMagpieInferenceConfig:
         phoneme_input_type=args.phoneme_input_type,
         phoneme_sampling_method=args.phoneme_sampling_method,
         dropout_text_input=args.dropout_text_input,
+        codec_decode_batch_size=getattr(args, 'codec_decode_batch_size', None),
         precomputed_context_audio_embeddings_path=args.precomputed_context_audio_embeddings_path,
         default_tokenizer_name=args.tokenizer_name,
+        phoneme_frontend_nemo_file=frontend,
+        phoneme_frontend_expected_delay=getattr(args, 'phoneme_frontend_expected_delay', 8),
+        phoneme_frontend_max_steps=getattr(args, 'phoneme_frontend_max_steps', 4096),
+        phoneme_frontend_on_max_steps=getattr(args, 'phoneme_frontend_on_max_steps', 'error'),
     )
     if cfg_cls is EasyMagpieMultiturnUserAudioInferenceConfig:
         kwargs.update(
             max_eval_turns=args.max_eval_turns,
             save_debug_multiturn_audio=not args.no_save_debug_multiturn_audio,
-            phoneme_frontend_nemo_file=frontend,
-            phoneme_frontend_expected_delay=getattr(args, 'phoneme_frontend_expected_delay', 8),
-            phoneme_frontend_max_steps=getattr(args, 'phoneme_frontend_max_steps', 4096),
         )
     return cfg_cls(**kwargs)
 

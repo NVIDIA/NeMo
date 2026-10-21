@@ -37,6 +37,7 @@ EVALSET_ENTRY_KEYS = frozenset(
         "language",
         "asr_model",
         "strip_text_annotations_for_metrics",
+        "load_normalized_text_percent",
     }
 )
 
@@ -98,6 +99,7 @@ def validate_evalset_entry(info: dict, dataset_name: Optional[str] = None) -> No
     - ``language``: non-empty string without surrounding whitespace (remove the key to use the CLI-level language).
     - ``asr_model``: ``{"name": <model name or .nemo path>, "type": <one of ASR_MODEL_TYPES>}``.
     - ``strip_text_annotations_for_metrics``: JSON boolean.
+    - ``load_normalized_text_percent``: number in ``[0.0, 1.0]`` for single-turn EasyMagpie input selection.
 
     Absent keys are fine. A JSON ``null`` is rejected like any other wrong type, so that a broken override cannot
     silently fall back to the default or CLI-level value. Used by ``load_evalset_config``
@@ -111,6 +113,12 @@ def validate_evalset_entry(info: dict, dataset_name: Optional[str] = None) -> No
         ValueError: If a recognized key has a malformed value.
     """
     prefix = f"Dataset {dataset_name}: " if dataset_name is not None else "Evalset entry: "
+    if "load_normalized_text_percent" in info:
+        value = info["load_normalized_text_percent"]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.0 <= value <= 1.0:
+            raise ValueError(
+                f"{prefix}'load_normalized_text_percent' must be a JSON number in [0.0, 1.0], got {value!r}."
+            )
     if "strip_text_annotations_for_metrics" in info:
         value = info["strip_text_annotations_for_metrics"]
         if not isinstance(value, bool):

@@ -12,6 +12,7 @@ from omegaconf import open_dict
 
 from nemo.collections.tts.data.text_to_speech_dataset_lhotse_multiturn import _strip_timestamps
 from nemo.collections.tts.models.easy_magpietts_inference import EasyMagpieTTSInferenceModel
+from nemo.utils import logging
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,8 @@ class PhonemeFrontendOutput:
     decoder_steps: int
     wait_tokens: int = 0
     first_phoneme_step: int | None = None
+    reached_eos: bool = True
+    stop_reason: str = 'eos'
 
 
 @dataclass(frozen=True)
@@ -108,9 +111,20 @@ class TextOnlyPhonemeFrontend:
     normalized reference text and reference IPA are never frontend inputs.
     """
 
-    def __init__(self, checkpoint: str, device, codecmodel_path=None, expected_delay: int = 8, max_steps: int = 4096):
+    def __init__(
+        self,
+        checkpoint: str,
+        device,
+        codecmodel_path=None,
+        expected_delay: int = 8,
+        max_steps: int = 4096,
+        on_max_steps: str = 'error',
+    ):
         if max_steps <= 0:
             raise ValueError("phoneme_frontend_max_steps must be positive")
+        if on_max_steps not in ('error', 'use_partial'):
+            raise ValueError('on_max_steps must be error or use_partial')
+        self.on_max_steps = on_max_steps
         self.checkpoint = os.path.abspath(checkpoint)
         self.max_steps = max_steps
         target_device = torch.device(device)
@@ -137,6 +151,7 @@ class TextOnlyPhonemeFrontend:
             checkpoint_sha256=_file_sha256(self.checkpoint),
             phoneme_delay=self.phoneme_delay,
             max_steps=self.max_steps,
+            on_max_steps=self.on_max_steps,
             decoding='greedy FP32, TF32 disabled, independent raw-text turns',
         )
         self._cache: Dict[Tuple[str, str], PhonemeFrontendOutput] = {}
@@ -179,7 +194,7 @@ class TextOnlyPhonemeFrontend:
             self.mode,
             self.max_steps,
         )
-        if not result.reached_eos:
+        if not result.reached_eos and self.on_max_steps == 'error':
             raise RuntimeError(
                 f"The phoneme frontend did not reach EOS within {result.decoder_steps} steps; "
                 "no reference fallback is allowed"
@@ -187,8 +202,20 @@ class TextOnlyPhonemeFrontend:
         ipa = model.phoneme_tokenizer.decode(list(result.token_ids)).strip()
         if not ipa:
             raise RuntimeError("The phoneme frontend generated empty IPA; no reference fallback is allowed")
+        if not result.reached_eos:
+            logging.warning(
+                f'Phoneme frontend reached its {result.decoder_steps}-step limit without EOS; '
+                f'scoring partial predictions (language={language}, source_tokens={len(text_ids)}). '
+                'The output manifest marks frontend_reached_eos=false; no reference phonemes are substituted.'
+            )
         return PhonemeFrontendOutput(
-            ipa, result.token_ids, result.decoder_steps, result.wait_tokens, result.first_phoneme_step
+            ipa,
+            result.token_ids,
+            result.decoder_steps,
+            result.wait_tokens,
+            result.first_phoneme_step,
+            reached_eos=result.reached_eos,
+            stop_reason='eos' if result.reached_eos else 'max_steps',
         )
 
     def _load_model(self, codecmodel_path, device):

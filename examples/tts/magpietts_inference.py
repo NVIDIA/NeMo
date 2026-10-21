@@ -74,6 +74,7 @@ from nemo.collections.tts.modules.magpietts_inference.evaluation import (
     resolve_evaluation_config_for_dataset,
 )
 from nemo.collections.tts.modules.magpietts_inference.inference import BaseInferenceConfig, BaseInferenceRunner
+from nemo.collections.tts.modules.magpietts_inference.singleturn_distributed import merge_singleturn_rank_outputs
 from nemo.collections.tts.modules.magpietts_inference.utils import (
     EXPERIMENT_METRICS_CSV_HEADER,
     ModelLoadConfig,
@@ -155,6 +156,7 @@ def run_inference_and_evaluation(
     rank, world_size, _ = _get_torchrun_rank_info()
     is_distributed = world_size > 1
     is_multiturn_user_audio = getattr(runner, "produces_turn_level_evaluation", False)
+    is_singleturn_sharded = getattr(runner, "supports_distributed_singleturn", False) and not is_multiturn_user_audio
 
     if hasattr(runner, "set_distributed_context"):
         runner.set_distributed_context(rank=rank, world_size=world_size)
@@ -198,6 +200,8 @@ def run_inference_and_evaluation(
             "tokenizer_names": tokenizer_names,
             "ignore_manifest_language": ignore_manifest_language,
         }
+        if "load_normalized_text_percent" in meta:
+            dataset_meta_for_dl["load_normalized_text_percent"] = meta["load_normalized_text_percent"]
         if "precomputed_context_audio_embedding_key" in meta:
             dataset_meta_for_dl["precomputed_context_audio_embedding_key"] = meta[
                 "precomputed_context_audio_embedding_key"
@@ -233,16 +237,11 @@ def run_inference_and_evaluation(
                     f"Dataset length mismatch: {len(test_dataset)} vs {len(manifest_records)} manifest records"
                 )
 
-            if is_distributed and not is_multiturn_user_audio:
-                raise RuntimeError(
-                    "torchrun multi-GPU sharding is currently implemented for "
-                    "--easy_magpie_inference_mode multiturn_user_audio only. "
-                    "Use the existing single-process path for single_turn/magpie, or add a "
-                    "rank-safe merge path for those runners."
-                )
+            if is_distributed and not (is_multiturn_user_audio or is_singleturn_sharded):
+                raise RuntimeError("This runner does not support distributed inference.")
 
             inference_output_dir = repeat_audio_dir
-            if is_distributed and is_multiturn_user_audio:
+            if is_distributed and (is_multiturn_user_audio or is_singleturn_sharded):
                 inference_output_dir = os.path.join(repeat_audio_dir, f"rank_{rank:04d}")
 
             rtf_metrics_list, _, codec_file_paths = runner.run_inference_on_dataset(
@@ -269,6 +268,14 @@ def run_inference_and_evaluation(
                 rtf_metrics_filename = f"{dataset}_rtf_metrics_{repeat_idx}_rank{rank:04d}.json"
             with open(os.path.join(eval_dir, rtf_metrics_filename), "w") as f:
                 json.dump(mean_rtf, f, indent=4)
+
+            if is_distributed and is_singleturn_sharded:
+                if rank != 0:
+                    continue
+                merged = merge_singleturn_rank_outputs(
+                    repeat_audio_dir, world_size, len(manifest_records), eval_config.with_fcd
+                )
+                logging.info(f"Merged {merged['total_samples']} single-turn outputs from {world_size} GPUs")
 
             if skip_evaluation:
                 logging.info("Skipping evaluation as requested.")
@@ -332,7 +339,7 @@ def run_inference_and_evaluation(
             create_violin_plot(filewise_metrics, violin_plot_metrics, violin_path)
 
             # Delete temporary predicted codes files
-            if is_distributed and is_multiturn_user_audio:
+            if is_distributed and (is_multiturn_user_audio or is_singleturn_sharded):
                 for codec_file_path in Path(repeat_audio_dir).glob("predicted_codes_*.pt"):
                     if os.path.exists(codec_file_path):
                         os.remove(codec_file_path)
@@ -401,8 +408,9 @@ def main(argv=None):
     """Entry point for TTS inference and evaluation."""
     parser = create_argument_parser()
     args = parser.parse_args(argv)
-    if args.model_type == 'easy_magpie' and args.easy_magpie_inference_mode == 'multiturn_user_audio':
+    if args.model_type == 'easy_magpie':
         _configure_cuda_for_rank()
+    if args.model_type == 'easy_magpie' and args.easy_magpie_inference_mode == 'multiturn_user_audio':
         if args.batch_size > 1:
             parser.error("--easy_magpie_inference_mode multiturn_user_audio requires --batch_size 1.")
 

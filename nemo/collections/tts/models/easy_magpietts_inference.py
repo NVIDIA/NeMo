@@ -2552,10 +2552,18 @@ class EasyMagpieTTSInferenceModel(ModelPT):
                 audio_len_chunks = []
                 for chunk_start in range(0, batch_size, decode_batch_size):
                     chunk_end = min(chunk_start + decode_batch_size, batch_size)
-                    chunk_audio, chunk_audio_len, _ = self._codec_helper.codes_to_audio(
-                        predicted_codes[chunk_start:chunk_end],
-                        predicted_codes_lens[chunk_start:chunk_end],
-                    )
+                    chunk_lens = predicted_codes_lens[chunk_start:chunk_end]
+                    chunk_max_len = int(chunk_lens.max().item())
+                    if chunk_max_len == 0:
+                        chunk_audio = torch.zeros(chunk_end - chunk_start, 0, device=device)
+                        chunk_audio_len = torch.zeros_like(chunk_lens)
+                    else:
+                        # An unfinished item can make the rollout much longer than
+                        # its neighbors. Do not decode that padding in every sub-batch.
+                        chunk_audio, chunk_audio_len, _ = self._codec_helper.codes_to_audio(
+                            predicted_codes[chunk_start:chunk_end, :, :chunk_max_len],
+                            chunk_lens,
+                        )
                     audio_chunks.append(chunk_audio)
                     audio_len_chunks.append(chunk_audio_len)
 
@@ -2773,6 +2781,12 @@ class EasyMagpieTTSInferenceModel(ModelPT):
                     time_to_first_prediction = time.time() - start_time
 
             tts_generation_time = time.time() - generation_start_time
+            unfinished_items = (~state.finished).nonzero(as_tuple=True)[0].tolist()
+            if unfinished_items:
+                logging.warning(
+                    f"Reached max_decoder_steps={max_decoder_steps} with no audio EOS for "
+                    f"batch items {unfinished_items}; keeping their partial generated audio."
+                )
 
             # Finalize and decode audio
             finalize_output = self.streaming_finalize(state, use_inference_mode=use_inference_mode)
@@ -2790,6 +2804,8 @@ class EasyMagpieTTSInferenceModel(ModelPT):
                 'rtf': total_audio_duration / total_time if total_time > 0 else 0.0,
                 'time_to_first_prediction': time_to_first_prediction,
                 'tts_generation_time': tts_generation_time,
+                'generation_steps': gen_step,
+                'samples_without_audio_eos': len(unfinished_items),
                 'total_time': total_time,
                 'total_audio_duration': total_audio_duration,
                 'total_audio_samples': total_audio_samples,
