@@ -231,3 +231,17 @@ def _dry_run(config: Path, caplog, *extra_args: str) -> list[str]:
 def _job_lines(messages: list[str]) -> list[str]:
     """The ``  [kind] source -> sidecar`` lines that a dry run prints for every job it would build."""
     return [message for message in messages if message.startswith("  [")]
+
+
+def test_select_shard_defers_sharegpt_routes(caplog):
+    jobs = [build_indexes.IndexJob(f"/data/{i}.jsonl", build_indexes.JSONL) for i in range(6)]
+    jobs.insert(2, build_indexes.IndexJob("routes/a.sgroute", build_indexes.SHAREGPT_ROUTE, "/idx"))
+    jobs.append(build_indexes.IndexJob("routes/b.sgroute", build_indexes.SHAREGPT_ROUTE, "/idx"))
+    with caplog.at_level(logging.INFO):
+        first = build_indexes._select_shard(jobs, 0, 2)
+        second = build_indexes._select_shard(jobs, 1, 2)
+    assert all(job.kind == build_indexes.JSONL for job in first + second)
+    assert [job.path for job in first] == ["/data/0.jsonl", "/data/2.jsonl", "/data/4.jsonl"]
+    assert [job.path for job in second] == ["/data/1.jsonl", "/data/3.jsonl", "/data/5.jsonl"]
+    assert "Deferred 2 sharegpt_route job(s)" in caplog.text
+    assert "Shard 1/2 selected 3 of 6 jobs." in caplog.text

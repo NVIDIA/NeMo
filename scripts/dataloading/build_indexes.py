@@ -567,6 +567,27 @@ def _is_indexed(job: IndexJob) -> bool:
         return False
 
 
+def _select_shard(jobs: list[IndexJob], shard_index: int, shard_count: int) -> list[IndexJob]:
+    """
+    Return every ``shard_count``-th job starting at ``shard_index`` (interleaved, order-preserving).
+
+    ``sharegpt_route`` jobs are deferred rather than sharded: a route needs the sidecars of every
+    manifest and tar it covers, which other shards may still be building. They are logged and
+    left for a final unsharded ``--kind sharegpt_route`` pass.
+    """
+    routes = [job for job in jobs if job.kind == SHAREGPT_ROUTE]
+    if routes:
+        logging.info(
+            "Deferred %d sharegpt_route job(s): build routes with --kind sharegpt_route and no --shard "
+            "once every shard has finished.",
+            len(routes),
+        )
+        jobs = [job for job in jobs if job.kind != SHAREGPT_ROUTE]
+    selected = jobs[shard_index::shard_count]
+    logging.info("Shard %d/%d selected %d of %d jobs.", shard_index, shard_count, len(selected), len(jobs))
+    return selected
+
+
 def _find_unindexed(jobs: list[IndexJob], *, workers: int) -> list[IndexJob]:
     """
     Return the jobs whose sidecars are missing or stale, preserving the order of *jobs*.
@@ -680,7 +701,8 @@ def _parse_shard(ctx, param, value) -> Optional[tuple[int, int]]:
         "Process only one interleaved slice of the discovered jobs, given as INDEX/COUNT "
         "(e.g. 3/16 for the fourth of sixteen SLURM array tasks). Applied after de-duplication "
         "and the --kind filter and before the already-indexed check, so every shard gets a "
-        "similar mix of large and small files."
+        "similar mix of large and small files. sharegpt_route jobs are deferred to a final "
+        "unsharded --kind sharegpt_route pass."
     ),
 )
 @click.option(
@@ -743,10 +765,7 @@ def main(
         unique = [job for job in unique if job.kind in selected]
 
     if shard is not None:
-        shard_index, shard_count = shard
-        shard_jobs = unique[shard_index::shard_count]
-        logging.info("Shard %d/%d selected %d of %d jobs.", shard_index, shard_count, len(shard_jobs), len(unique))
-        unique = shard_jobs
+        unique = _select_shard(unique, *shard)
 
     if force:
         all_todo = unique
