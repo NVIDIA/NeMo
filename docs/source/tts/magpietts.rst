@@ -72,6 +72,46 @@ The training script uses Hydra for configuration management, making it easy to c
         exp_manager.exp_dir=/path/to/experiments
 
 
+Indexed and resumable Lhotse Shar dataloading
+#############################################
+
+The EasyMagpie Lhotse recipes (``easy_magpietts_lhotse*.yaml``) read Lhotse Shar shards, typically
+from object storage through AIStore. By default every Shar source is streamed, which keeps one
+open stream per shard and field for the whole run and restores a checkpoint by replaying batches.
+The indexed and resumable path described in :ref:`indexed-resumable-dataloading` replaces this
+with byte-range reads through ``.idx``/``.gzidx`` sidecars and a ``torchdata`` ``StatefulDataLoader``
+whose per-rank state is saved in the Lightning checkpoint, so a resumed run continues from the
+next batch.
+
+Prerequisites: build the sidecar mirror once per data release with
+``scripts/dataloading/build_indexes.py --indexes-root <mirror> <blend>.yaml`` (gzip cuts need
+``indexed_gzip`` and a Lhotse with gzip-indexed Shar support), and make the mirror visible to
+every training process (node-local staging is recommended for mixtures with hundreds of
+thousands of shards). The multi-config training section then only needs these overrides; the
+top-level values are propagated to every sub-config:
+
+.. code-block:: bash
+
+    python examples/tts/easy_magpietts.py --config-name=easy_magpietts_lhotse_multiturn \
+        model.train_ds.dataset.seed=42 \
+        model.train_ds.dataset.shard_seed=42 \
+        ++model.train_ds.dataset.indexed=true \
+        ++model.train_ds.dataset.indexes_root=/path/to/mirror \
+        ++model.train_ds.dataset.use_stateful_dataloader=true \
+        ++model.train_ds.dataset.shar_lazy_payloads=true \
+        ++model.train_ds.dataset.tts_data.concurrent_bucketing=false \
+        ++model.train_ds.dataset.duplex_data.concurrent_bucketing=false \
+        ...
+
+``shard_seed`` must be a fixed integer: indexed sources partition their examples across
+``(rank, dataloader worker)`` and the multiplexer must pick the same source sequence on every
+partition. ``shar_lazy_payloads`` makes Shar field payloads (``target_codes``, ``context_audio``,
+...) load on demand instead of being read for every sampled cut. ``concurrent_bucketing`` must be
+disabled so that only the checkpointed iterator advances the sources. Keep the number of nodes,
+devices and ``num_workers`` identical for every chunk of a run; the saved dataloader state refuses
+a different topology. The non-Lhotse validation dataset (``MagpieTTSDataset``) is unaffected.
+
+
 Preference Optimization
 -----------------------
 
