@@ -114,3 +114,13 @@ Outputs:
   summary and reusable with `format: canonical`.
 
 No training or inference defaults are changed by this standalone scorer.
+
+## Frontend IPA input records
+
+For `--phoneme_frontend_as_text_input` runs, supply the generated evaluation
+manifest through `turn_manifest`. The scorer checks `original_text` against
+the source raw sentence and accepts the logged IPA `text` as the actual model
+input only when the manifest explicitly labels it as frontend IPA input.
+Groups and scoring references still come from the original raw and normalized
+sentences. Single-turn manifests use `item_idx`; multiturn manifests use
+`source_sample_idx` and `turn_id`.

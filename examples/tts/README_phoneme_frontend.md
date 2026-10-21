@@ -50,6 +50,30 @@ predictions**, not the dataset's ground-truth IPA. TTS still generates its audio
 autoregressively, retaining the regular user-audio prefill, speaker context,
 conversation cache, CFG, and its own saved phoneme/speech delays.
 
+## Use frontend IPA instead of text BPE in the TTS input channel
+
+Add `--phoneme_frontend_as_text_input` to the inference command above. This
+boolean flag defaults to **false**. It requires a TTS checkpoint already trained
+with `enable_phoneme_text_input=True`; it does not resize or initialize new model
+embeddings. Both single-turn and multiturn user-audio inference support it.
+
+The frontend still receives raw text. Its predicted phoneme content IDs replace
+the TTS text-channel BPE IDs using the checkpoint's `text_phoneme_token_offset`,
+then one TTS text EOS is appended. This is equivalent to a full
+`<bop>predicted IPA<eop>` text input, using the checkpoint's configured markers.
+No raw BPE tokens remain in the target text channel. PAD/wait and phoneme
+BOS/EOS tokens are removed before this mapping; matching tokenizer vocabularies
+reuse the predicted IDs directly. The existing externally supplied phoneme
+channel also continues to use the same frontend predictions, with the TTS
+checkpoint's regular phoneme and speech delays. Reference IPA is never used.
+
+Outputs gain an `_IPATextInput` suffix so they cannot reuse the ordinary frontend
+mode's results. Manifests record `tts_text_input` as the marked IPA string and
+`tts_text_input_token_ids` as the actual offset IDs including text EOS. The
+evaluation manifest's `text` follows this IPA input; `original_text` preserves
+the raw sentence, and `normalized_text` remains the ASR scoring reference.
+The flag cannot be combined with `--dropout_text_input`.
+
 This is an evaluation cascade with a complete frontend turn generated before
 TTS starts that turn. It does not implement simultaneous streaming between two
 models. Dynamic waits are supported inside the frontend; the TTS model retains

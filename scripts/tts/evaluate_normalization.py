@@ -80,7 +80,7 @@ def load_model_records(spec, base_path, source_records):
             sidecar = manifests[manifest].get(os.path.normpath(str(audio)))
             if sidecar is None:
                 raise ValueError(f'{audio} not found in sidecar {manifest}')
-            source_index = sidecar['source_sample_idx']
+            source_index = sidecar.get('source_sample_idx', sidecar.get('item_idx'))
             if type(source_index) is not int or not 0 <= source_index < len(source_records):
                 raise ValueError(f'{manifest}: invalid source_sample_idx {source_index!r}')
             source = source_records[source_index]
@@ -96,7 +96,12 @@ def load_model_records(spec, base_path, source_records):
                 raw, reference = source['text'], source['normalized_text']
                 conversation_id = source.get('id', source.get('cut_id', str(source_index)))
                 identifier = conversation_id
-            if _identity_text(sidecar['text']) != _identity_text(raw):
+            sidecar_raw = (
+                sidecar.get('original_text')
+                if sidecar.get('phoneme_frontend_as_text_input') is True
+                else sidecar['text']
+            )
+            if not isinstance(sidecar_raw, str) or _identity_text(sidecar_raw) != _identity_text(raw):
                 raise ValueError(f'{path} source index {source_index}, turn {turn}: raw reference mismatch')
         else:
             # Single-turn adapter: explicit stable IDs, not an assumed row-order mapping.
@@ -114,6 +119,10 @@ def load_model_records(spec, base_path, source_records):
             raise ValueError(f'Duplicate source turn {identifier} in {path}; choose one repeat per model')
         text_input = row.get('tts_text_input')
         expected_inputs = {_identity_text(raw), _identity_text(reference)}
+        if sidecar and sidecar.get('phoneme_frontend_as_text_input') is True:
+            if sidecar.get('phoneme_source') != 'text_frontend' or not sidecar.get('frontend_phoneme_text'):
+                raise ValueError(f'{identifier}: missing frontend IPA input provenance')
+            expected_inputs.add(_identity_text(sidecar['text']))
         if text_input is not None and _identity_text(text_input) not in expected_inputs:
             raise ValueError(f'{identifier}: saved TTS input differs from source raw/normalized text')
         records[identifier] = dict(

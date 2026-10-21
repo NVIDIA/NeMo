@@ -172,6 +172,7 @@ class EasyMagpieInferenceConfig(BaseInferenceConfig):
     phoneme_frontend_expected_delay: int = 8
     phoneme_frontend_max_steps: int = 4096
     phoneme_frontend_on_max_steps: str = 'error'
+    phoneme_frontend_as_text_input: bool = False
 
     def build_identifier(self) -> str:
         parts = [
@@ -1105,6 +1106,12 @@ class EasyMagpieInferenceRunner(BaseInferenceRunner):
                         item_idx=source_idx,
                     )
                 )
+                if self.config.phoneme_frontend_as_text_input:
+                    evaluation_records[-1].update(
+                        _frontend_text_input_metadata(frontend_records[idx]),
+                        text=frontend_records[idx]['tts_text_input'],
+                        phoneme_source='text_frontend',
+                    )
                 audio_len = predicted_audio_lens[idx].item()
                 audio_np = predicted_audio[idx].float().detach().cpu().numpy()[:audio_len]
                 audio_path = os.path.join(output_dir, f"predicted_audio_{source_idx}.wav")
@@ -1152,7 +1159,7 @@ class EasyMagpieInferenceRunner(BaseInferenceRunner):
 
     def _set_frontend_phoneme_inputs(self, batch: dict) -> List[dict]:
         """Replace reference IPA with independently generated, TTS-tokenized inputs."""
-        records, token_sequences = [], []
+        records, token_sequences, text_sequences = [], [], []
         tokenizer = self.model.phoneme_tokenizer
         for text, language in zip(batch['raw_texts'], batch['languages']):
             output = self.phoneme_frontend.generate(text, language)
@@ -1172,6 +1179,17 @@ class EasyMagpieInferenceRunner(BaseInferenceRunner):
                     forced_phoneme_tokens=tokens,
                     phoneme_token_transfer=transfer,
                 )
+            )
+            if self.config.phoneme_frontend_as_text_input:
+                metadata = _frontend_text_input(self.model, output, tokens)
+                records[-1].update(metadata)
+                text_sequences.append(batch['text'].new_tensor(metadata['tts_text_input_token_ids']))
+        if self.config.phoneme_frontend_as_text_input:
+            batch['text'] = torch.nn.utils.rnn.pad_sequence(
+                text_sequences, batch_first=True, padding_value=self.model.pad_id
+            )
+            batch['text_lens'] = torch.tensor(
+                [len(tokens) for tokens in text_sequences], dtype=torch.long, device=batch['text'].device
             )
         batch['phoneme_tokens'] = torch.nn.utils.rnn.pad_sequence(
             token_sequences, batch_first=True, padding_value=tokenizer.pad
@@ -1447,6 +1465,7 @@ class EasyMagpieMultiturnUserAudioInferenceRunner(BaseInferenceRunner):
                 state.last_phoneme_tokens = None
 
                 frontend_output = None
+                frontend_text_input = None
                 forced_phoneme_ids = None
                 if self.phoneme_frontend is not None:
                     # Pass raw text only. Reference IPA/normalized text are deliberately not arguments.
@@ -1457,6 +1476,10 @@ class EasyMagpieMultiturnUserAudioInferenceRunner(BaseInferenceRunner):
                     forced_phoneme_ids = self._set_turn_phoneme_inputs(
                         state, frontend_output.ipa, token_ids=frontend_ids
                     )
+                    if self.config.phoneme_frontend_as_text_input:
+                        frontend_text_input = _frontend_text_input(model, frontend_output, frontend_ids)
+                        turn_text = turn_text.new_tensor([frontend_text_input['tts_text_input_token_ids']])
+                        turn_lens = turn_lens.new_tensor([turn_text.size(1)])
 
                 delay_tokens = int(state.config.training_mode.streaming_speech_delay)
                 samples_per_streaming_step = int(model.codec_model_samples_per_frame * model.frame_stacking_factor)
@@ -1634,6 +1657,9 @@ class EasyMagpieMultiturnUserAudioInferenceRunner(BaseInferenceRunner):
                         forced_phoneme_steps_consumed=int(state.phoneme_steps[0].item()),
                         forced_phoneme_steps_total=int(state.gt_phoneme_lens[0].item()),
                     )
+
+                if frontend_text_input is not None:
+                    turn_phoneme_outputs[-1].update(frontend_text_input)
 
             codec_sil_codes = self._ensure_codec_silence_codes()
             bos_id = getattr(model, "audio_bos_id", -1)
@@ -2234,6 +2260,10 @@ class EasyMagpieMultiturnUserAudioInferenceRunner(BaseInferenceRunner):
                         'forced_phoneme_steps_total',
                     ):
                         record[key] = phoneme_output[key]
+                    if self.config.phoneme_frontend_as_text_input:
+                        record['original_text'] = record['text']
+                        record['text'] = phoneme_output['tts_text_input']
+                        record.update(_frontend_text_input_metadata(phoneme_output))
                     # Keep evaluation references separate from frontend/model inputs.
                     for source_key, destination_key in (
                         ('normalized_text', 'normalized_text'),
@@ -2428,10 +2458,20 @@ def _phoneme_frontend_identifier(config: EasyMagpieInferenceConfig) -> str:
     if not config.phoneme_frontend_nemo_file:
         return ""
     frontend_id = hashlib.sha256(os.path.abspath(config.phoneme_frontend_nemo_file).encode()).hexdigest()[:10]
-    return f"_FrontendD{config.phoneme_frontend_expected_delay}_{frontend_id}"
+    suffix = '_IPATextInput' if config.phoneme_frontend_as_text_input else ''
+    return f"_FrontendD{config.phoneme_frontend_expected_delay}_{frontend_id}{suffix}"
 
 
 def _build_phoneme_frontend(model, config: EasyMagpieInferenceConfig):
+    if config.phoneme_frontend_as_text_input:
+        if not config.phoneme_frontend_nemo_file:
+            raise ValueError('phoneme_frontend_as_text_input requires a phoneme frontend checkpoint')
+        if not getattr(model, 'enable_phoneme_text_input', False):
+            raise ValueError('The TTS checkpoint must support enable_phoneme_text_input=True')
+        if getattr(model, 'text_phoneme_token_offset', None) is None:
+            raise ValueError('The TTS checkpoint has no text_phoneme_token_offset')
+        if config.dropout_text_input:
+            raise ValueError('phoneme_frontend_as_text_input cannot be combined with dropout_text_input')
     if not config.phoneme_frontend_nemo_file:
         return None
     if config.phoneme_input_type != 'gt':
@@ -2474,3 +2514,38 @@ def _frontend_phoneme_tokens(frontend, tokenizer, output) -> Tuple[List[int], st
     if not content:
         raise ValueError('The frontend supplied no phoneme content after removing special tokens')
     return [tokenizer.bos_token_id] + content + [tokenizer.eos_token_id], transfer
+
+
+def _frontend_text_input(model, output, phoneme_ids: List[int]) -> dict:
+    """Map frontend content IDs into the existing IPA range of the TTS text vocabulary.
+
+    This matches a complete ``<bop>IPA<eop>`` input: no phoneme BOS/EOS in the
+    text channel, followed by one regular text EOS. Shared tokenizer IDs are
+    reused without decoding and encoding the prediction again.
+    """
+    content = phoneme_ids[1:-1]
+    offset = model.text_phoneme_token_offset
+    if not content or offset is None:
+        raise ValueError('Frontend text input requires phoneme content and a text phoneme token offset')
+    if any(token < 0 or token >= model.text_phoneme_vocab_size for token in content):
+        raise ValueError('Frontend phoneme ID is outside the TTS text phoneme vocabulary')
+    text_ids = [offset + token for token in content] + [model.eos_id]
+    return dict(
+        phoneme_frontend_as_text_input=True,
+        tts_text_input=f'{model.phoneme_text_bop_marker}{output.ipa}{model.phoneme_text_eop_marker}',
+        tts_text_input_token_ids=text_ids,
+        frontend_phoneme_text=output.ipa,
+    )
+
+
+def _frontend_text_input_metadata(record: dict) -> dict:
+    """Keep actual IPA model inputs separate from raw and normalized references."""
+    return {
+        key: record[key]
+        for key in (
+            'phoneme_frontend_as_text_input',
+            'tts_text_input',
+            'tts_text_input_token_ids',
+            'frontend_phoneme_text',
+        )
+    }

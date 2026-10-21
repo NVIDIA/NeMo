@@ -229,6 +229,46 @@ def test_recorded_model_input_from_a_different_sample_is_rejected(tmp_path):
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize('multiturn', [False, True])
+@pytest.mark.parametrize('bad_field', [None, 'original_text', 'tts_text_input', 'phoneme_source'])
+def test_frontend_ipa_text_input_keeps_raw_and_normalized_metric_references(tmp_path, multiturn, bad_field):
+    ipa = '<bop>wʌn<eop>'
+    sidecar = dict(
+        audio_filepath='target.wav',
+        text=ipa,
+        original_text='$1',
+        normalized_text='one dollar',
+        phoneme_frontend_as_text_input=True,
+        phoneme_source='text_frontend',
+        frontend_phoneme_text='wʌn',
+    )
+    sidecar.update(dict(source_sample_idx=0, turn_id=0) if multiturn else dict(item_idx=0))
+    metrics = dict(gt_audio_filepath=str(tmp_path / 'target.wav'), pred_text='one dollar', tts_text_input=ipa)
+    if bad_field == 'tts_text_input':
+        metrics[bad_field] = '<bop>tu<eop>'
+    elif bad_field is not None:
+        sidecar[bad_field] = 'incorrect'
+    manifest = tmp_path / 'turn_manifest.jsonl'
+    manifest.write_text(json.dumps(sidecar) + '\n')
+    path = tmp_path / 'metrics.json'
+    path.write_text(json.dumps([metrics]))
+    source = [
+        dict(
+            id='one', text=['$1'] if multiturn else '$1', normalized_text=['one dollar'] if multiturn else 'one dollar'
+        )
+    ]
+    spec = dict(metrics=str(path), turn_manifest=str(manifest))
+    if bad_field:
+        with pytest.raises(ValueError, match='mismatch|differs|provenance'):
+            load_model_records(spec, tmp_path, source)
+    else:
+        records, _ = load_model_records(spec, tmp_path, source)
+        entry = next(iter(records.values()))
+        assert entry['model_input_text'] == ipa
+        assert entry['raw_text'] == '$1' and entry['reference_text'] == 'one dollar'
+
+
+@pytest.mark.unit
 def test_different_cohorts_require_explicit_intersection(lexicon):
     record = dict(id='c', raw_text='$1', reference_text='one', hypothesis_text='one')
     models = {'a': {'c': record, 'd': dict(record, id='d')}, 'b': {'c': record}}

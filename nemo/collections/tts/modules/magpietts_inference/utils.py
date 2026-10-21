@@ -1402,6 +1402,14 @@ def _add_easy_magpie_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help='Optional text-only .nemo frontend for EasyMagpie with --phoneme_input_type gt',
     )
+    group.add_argument(
+        '--phoneme_frontend_as_text_input',
+        action='store_true',
+        help=(
+            'Replace TTS text-channel BPE with frontend IPA IDs; '
+            'requires a TTS checkpoint trained with phoneme text input'
+        ),
+    )
     group.add_argument('--phoneme_frontend_expected_delay', type=int, default=8)
     group.add_argument('--phoneme_frontend_max_steps', type=int, default=4096)
     group.add_argument(
@@ -1474,6 +1482,11 @@ def _build_magpie_config(args) -> MagpieInferenceConfig:
 
 def _build_easy_magpie_config(args) -> EasyMagpieInferenceConfig:
     frontend = getattr(args, 'phoneme_frontend_nemo_file', None)
+    as_text_input = getattr(args, 'phoneme_frontend_as_text_input', False)
+    if as_text_input and not frontend:
+        raise ValueError('--phoneme_frontend_as_text_input requires --phoneme_frontend_nemo_file')
+    if as_text_input and args.dropout_text_input:
+        raise ValueError('--phoneme_frontend_as_text_input cannot be combined with --dropout_text_input')
     if frontend and args.phoneme_input_type != 'gt':
         raise ValueError('The phoneme frontend requires --phoneme_input_type gt')
     cfg_cls = (
@@ -1493,6 +1506,7 @@ def _build_easy_magpie_config(args) -> EasyMagpieInferenceConfig:
         precomputed_context_audio_embeddings_path=args.precomputed_context_audio_embeddings_path,
         default_tokenizer_name=args.tokenizer_name,
         phoneme_frontend_nemo_file=frontend,
+        phoneme_frontend_as_text_input=as_text_input,
         phoneme_frontend_expected_delay=getattr(args, 'phoneme_frontend_expected_delay', 8),
         phoneme_frontend_max_steps=getattr(args, 'phoneme_frontend_max_steps', 4096),
         phoneme_frontend_on_max_steps=getattr(args, 'phoneme_frontend_on_max_steps', 'error'),
@@ -1507,7 +1521,7 @@ def _build_easy_magpie_config(args) -> EasyMagpieInferenceConfig:
 
 def _select_runner_cls(args):
     if args.model_type == 'magpie':
-        if getattr(args, 'phoneme_frontend_nemo_file', None):
+        if getattr(args, 'phoneme_frontend_nemo_file', None) or getattr(args, 'phoneme_frontend_as_text_input', False):
             raise ValueError('--phoneme_frontend_nemo_file requires --model_type easy_magpie')
         if args.easy_magpie_inference_mode != 'single_turn':
             raise ValueError('--easy_magpie_inference_mode is only supported with --model_type easy_magpie')

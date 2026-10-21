@@ -207,6 +207,7 @@ def test_cli_accepts_single_turn_frontend():
 @pytest.mark.unit
 def test_single_turn_frontend_overwrites_reference_ipa_with_tts_tokenizer():
     runner = object.__new__(EasyMagpieInferenceRunner)
+    runner.config = EasyMagpieInferenceConfig()
     runner.model = SimpleNamespace(
         phoneme_tokenizer=SimpleNamespace(
             bos_token_id=100, eos_token_id=101, pad=0, encode=Mock(side_effect=[[4, 5], [6]])
