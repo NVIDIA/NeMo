@@ -302,6 +302,17 @@ class TestExpManager:
         assert Path(tmp_path / "test_no_name" / "default" / "version_1").exists()
 
     @pytest.mark.unit
+    def test_restore_dataloader_state_option(self, tmp_path):
+        """restore_dataloader_state=False installs the loader-state skip on the fit loop; the default does not."""
+        default_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
+        exp_manager(default_trainer, {"explicit_log_dir": str(tmp_path / "default")})
+        assert not getattr(default_trainer.fit_loop, "_nemo_skip_dataloader_state_installed", False)
+
+        skipping_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
+        exp_manager(skipping_trainer, {"explicit_log_dir": str(tmp_path / "skip"), "restore_dataloader_state": False})
+        assert skipping_trainer.fit_loop._nemo_skip_dataloader_state_installed is True
+
+    @pytest.mark.unit
     def test_resume(self, tmp_path):
         """Tests the resume capabilities of exp_manager"""
         test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)

@@ -68,6 +68,16 @@ shut down before the procedure has completed. To auto-resume training, set the f
         # we can set our own version with
         exp_manager.version: my_experiment_version
 
+A resumed run also restores the dataloader state when the training dataloader can save it (for
+example ``torchdata``'s ``StatefulDataLoader`` with NeMo's Lhotse dataloader). That state belongs to
+the exact data blend it was saved with. To resume model, optimizer, schedulers and the global step
+but let data loading start afresh, for example after changing the data blend, set:
+
+.. code-block:: yaml
+
+    exp_manager:
+        restore_dataloader_state: False
+
 
 Wall-clock Time Limits
 ----------------------

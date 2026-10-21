@@ -31,7 +31,11 @@ from lightning.pytorch.utilities.exceptions import _TunerExitException
 from torchdata.stateful_dataloader import StatefulDataLoader
 
 from nemo.core.utils.lightning_utils import read_batch
-from nemo.utils.exp_manager import StatelessTimer, configure_no_restart_validation_training_loop
+from nemo.utils.exp_manager import (
+    StatelessTimer,
+    configure_no_restart_validation_training_loop,
+    configure_skip_dataloader_state_restore,
+)
 
 
 class _RangeDataset(torch.utils.data.Dataset):
@@ -132,7 +136,9 @@ def _make_checkpoint_callback(root: Path) -> ModelCheckpoint:
     )
 
 
-def _make_trainer(root: Path, max_steps: int, callbacks: list | None = None) -> pl.Trainer:
+def _make_trainer(
+    root: Path, max_steps: int, callbacks: list | None = None, skip_dataloader_state: bool = False
+) -> pl.Trainer:
     trainer = pl.Trainer(
         accelerator="cpu",
         devices=1,
@@ -149,6 +155,8 @@ def _make_trainer(root: Path, max_steps: int, callbacks: list | None = None) -> 
         enable_progress_bar=False,
     )
     configure_no_restart_validation_training_loop(trainer)
+    if skip_dataloader_state:
+        configure_skip_dataloader_state_restore(trainer)
     return trainer
 
 
@@ -159,10 +167,13 @@ def _fit(
     ckpt_path: str | None = None,
     callbacks: list | None = None,
     sleep_sec: float = 0.0,
+    skip_dataloader_state: bool = False,
 ) -> tuple[list[dict[str, int]], pl.Trainer, _BaseParityModel]:
     seen: list[dict[str, int]] = []
     model = model_cls(seen=seen, sleep_sec=sleep_sec)
-    trainer = _make_trainer(root, max_steps=max_steps, callbacks=callbacks)
+    trainer = _make_trainer(
+        root, max_steps=max_steps, callbacks=callbacks, skip_dataloader_state=skip_dataloader_state
+    )
     trainer.fit(model, ckpt_path=ckpt_path)
     return seen, trainer, model
 
@@ -302,3 +313,38 @@ def test_timer_checkpoint_resume_has_consistent_progress_and_no_sample_drift(tmp
 
     assert _project(first, "sample_id") == [idx % 5 for idx in range(saved_step)]
     assert _project(resumed, "sample_id") == [(saved_step + idx) % 5 for idx in range(3)]
+
+
+@pytest.mark.unit
+def test_skip_dataloader_state_restore_restarts_data_but_keeps_progress(tmp_path):
+    first_callback = _make_checkpoint_callback(tmp_path / "first")
+    first, _, _ = _fit(tmp_path / "first", _BatchStepModel, max_steps=5, callbacks=[first_callback])
+    assert _project(first, "sample_id") == list(range(5))
+    ckpt = torch.load(first_callback.last_model_path, map_location="cpu", weights_only=False)
+    assert ckpt["loops"]["fit_loop"]["state_dict"]["combined_loader"], "the checkpoint must carry dataloader state"
+
+    second_callback = _make_checkpoint_callback(tmp_path / "second")
+    second, trainer, _ = _fit(
+        tmp_path / "second",
+        _BatchStepModel,
+        max_steps=10,
+        ckpt_path=first_callback.last_model_path,
+        callbacks=[second_callback],
+        skip_dataloader_state=True,
+    )
+
+    # Data loading starts over (a normal resume continues with samples 5..9), training progress continues.
+    assert _project(second, "sample_id") == list(range(5))
+    assert _project(second, "global_step") == list(range(5, 10))
+    assert _project(second, "epoch") == [1] * 5
+    assert trainer.fit_loop._combined_loader_states_to_load == []
+
+
+@pytest.mark.unit
+def test_skip_dataloader_state_restore_is_a_noop_for_fresh_runs_and_idempotent(tmp_path):
+    seen, trainer, _ = _fit(tmp_path / "fresh", _BatchStepModel, max_steps=5, skip_dataloader_state=True)
+    assert _project(seen, "sample_id") == list(range(5))
+
+    installed = trainer.fit_loop._load_combined_loader_states
+    configure_skip_dataloader_state_restore(trainer)
+    assert trainer.fit_loop._load_combined_loader_states is installed

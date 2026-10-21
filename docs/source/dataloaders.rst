@@ -1277,6 +1277,10 @@ resume:
   continues the same epoch instead of starting a new one;
 * ``num_workers`` and ``world_size`` must match between save and restore (a
   hard requirement of ``StatefulDataLoader``).
+* The saved state belongs to the exact data blend it was written with; it is
+  restored by position, so a blend with datasets added or removed must not
+  reuse it. To resume model, optimizer and step while data loading starts
+  afresh, set ``exp_manager.restore_dataloader_state: false``.
 
 .. note::
 

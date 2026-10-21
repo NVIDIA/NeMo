@@ -280,6 +280,10 @@ class ExpManagerConfig:
     step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
     # disable initial validation when resuming from a checkpoint saved during validation
     disable_validation_on_resume: Optional[bool] = True
+    # restore the dataloader state stored in the checkpoint (StatefulDataLoader / Lhotse iterator
+    # graph) when resuming. Set False to resume model, optimizer, schedulers and global step but
+    # start data loading afresh, for example when the data blend changed since the checkpoint.
+    restore_dataloader_state: Optional[bool] = True
     ema: Optional[EMAParams] = field(default_factory=lambda: EMAParams())
     # Wall clock time limit
     max_time_per_run: Optional[str] = None
@@ -528,6 +532,11 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
             - resume_from_checkpoint (str): Can be used to specify a path to a specific checkpoint
                 file to load from. This will override any checkpoint found when resume_if_exists
                 is True. Defaults to None.
+            - restore_dataloader_state (bool): Whether to restore the dataloader state stored in the
+                checkpoint (``StatefulDataLoader`` and Lhotse iterator graph state) when resuming. Set
+                it to False to resume model, optimizer, schedulers and the global step while data
+                loading starts afresh, for example when the data blend changed since the checkpoint
+                was written and the saved state no longer matches the loader. Defaults to True.
             - resume_select_latest_last_checkpoint (bool): When multiple ``*last.ckpt`` checkpoints
                 exist, select the unique checkpoint with the greatest integer ``step=...`` in its
                 basename. Defaults to False, preserving the fail-closed ambiguity check.
@@ -732,6 +741,9 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     if cfg.disable_validation_on_resume:
         # extend training loop to skip initial validation when resuming from checkpoint
         configure_no_restart_validation_training_loop(trainer)
+    if cfg.restore_dataloader_state is False:
+        # resume model/optimizer/step but let data loading start afresh
+        configure_skip_dataloader_state_restore(trainer)
     # Setup a stateless timer for use on clusters.
     if cfg.max_time_per_run is not None:
         found_ptl_timer = False
@@ -1664,6 +1676,38 @@ def configure_no_restart_validation_training_loop(trainer: lightning.pytorch.Tra
     # Pass trainer object to avoid trainer getting overwritten as None
     loop = SkipResumeTrainingValidationLoop(trainer, trainer.min_steps, trainer.max_steps)
     trainer.fit_loop.epoch_loop = loop
+
+
+def configure_skip_dataloader_state_restore(trainer: lightning.pytorch.Trainer) -> None:
+    """Make a resumed run ignore the dataloader state stored in the checkpoint.
+
+    Lightning restores ``StatefulDataLoader`` state (and with it Lhotse's iterator graph) through
+    ``_FitLoop._load_combined_loader_states``. That state is tied to the exact data blend it was
+    saved with: Lhotse restores per-dataset cursors by position, so after the blend changed the
+    cursors land on the wrong datasets or fail a size check. This wrapper drops the saved loader
+    state before Lightning applies it, so data loading starts afresh while model, optimizer,
+    schedulers and the global step are still restored. Installed by :func:`exp_manager` when
+    ``restore_dataloader_state`` is False; safe to call more than once.
+    """
+    fit_loop = trainer.fit_loop
+    if getattr(fit_loop, "_nemo_skip_dataloader_state_installed", False):
+        return
+
+    original_load_combined_loader_states = fit_loop._load_combined_loader_states
+
+    def _drop_combined_loader_states() -> None:
+        states = getattr(fit_loop, "_combined_loader_states_to_load", None)
+        if states:
+            logging.info(
+                "exp_manager.restore_dataloader_state=False: ignoring the dataloader state of %d loader(s) stored "
+                "in the checkpoint; data loading starts afresh while model, optimizer and step are restored.",
+                len(states),
+            )
+            fit_loop._combined_loader_states_to_load = []
+        original_load_combined_loader_states()
+
+    fit_loop._load_combined_loader_states = _drop_combined_loader_states
+    fit_loop._nemo_skip_dataloader_state_installed = True
 
 
 class SkipResumeTrainingValidationLoop(_TrainingEpochLoop):
