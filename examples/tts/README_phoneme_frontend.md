@@ -124,3 +124,13 @@ Workers write separate rank directories and completion manifests. Rank zero
 validates the shards, merges outputs using original manifest indices, and runs the
 existing evaluator against the original references. ASR scoring remains on rank
 zero. A single-process run keeps the existing output layout and naming.
+
+
+Single-turn generation writes `singleturn_evaluation_manifest.jsonl` for each
+repeat. Its `text` is the exact selected string passed to tokenization, after
+`load_normalized_text_percent` has chosen raw or normalized text. `original_text`
+preserves the source raw text and `normalized_text` preserves the scoring
+reference. The evaluator uses this generated manifest, so filewise
+`tts_text_input` records the selected model input rather than copying the raw
+source manifest field. Distributed evaluation merges these records in original
+sample order before scoring. Existing audio and metric files are not rewritten.

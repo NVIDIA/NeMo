@@ -184,6 +184,51 @@ def test_common_reference_replaces_inconsistent_stored_references(lexicon):
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize('selected', ['$1', 'one dollar'])
+def test_recorded_model_input_may_be_raw_or_normalized(tmp_path, selected):
+    metrics = tmp_path / 'metrics.json'
+    metrics.write_text(
+        json.dumps(
+            [
+                dict(
+                    id='one',
+                    gt_audio_filepath=str(tmp_path / 'target.wav'),
+                    pred_text='one dollar',
+                    tts_text_input=selected,
+                )
+            ]
+        )
+    )
+    records, _ = load_model_records(
+        {'metrics': str(metrics)}, tmp_path, [dict(id='one', text='$1', normalized_text='one dollar')]
+    )
+    assert records['one']['model_input_text'] == selected
+    assert records['one']['raw_text'] == '$1'
+    assert records['one']['reference_text'] == 'one dollar'
+
+
+@pytest.mark.unit
+def test_recorded_model_input_from_a_different_sample_is_rejected(tmp_path):
+    metrics = tmp_path / 'metrics.json'
+    metrics.write_text(
+        json.dumps(
+            [
+                dict(
+                    id='one',
+                    gt_audio_filepath=str(tmp_path / 'target.wav'),
+                    pred_text='one dollar',
+                    tts_text_input='two dollars',
+                )
+            ]
+        )
+    )
+    with pytest.raises(ValueError, match='saved TTS input differs'):
+        load_model_records(
+            {'metrics': str(metrics)}, tmp_path, [dict(id='one', text='$1', normalized_text='one dollar')]
+        )
+
+
+@pytest.mark.unit
 def test_different_cohorts_require_explicit_intersection(lexicon):
     record = dict(id='c', raw_text='$1', reference_text='one', hypothesis_text='one')
     models = {'a': {'c': record, 'd': dict(record, id='d')}, 'b': {'c': record}}

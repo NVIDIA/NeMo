@@ -113,8 +113,9 @@ def load_model_records(spec, base_path, source_records):
         if identifier in records:
             raise ValueError(f'Duplicate source turn {identifier} in {path}; choose one repeat per model')
         text_input = row.get('tts_text_input')
-        if text_input is not None and _identity_text(text_input) != _identity_text(raw):
-            raise ValueError(f'{identifier}: saved TTS input differs from source raw text')
+        expected_inputs = {_identity_text(raw), _identity_text(reference)}
+        if text_input is not None and _identity_text(text_input) not in expected_inputs:
+            raise ValueError(f'{identifier}: saved TTS input differs from source raw/normalized text')
         records[identifier] = dict(
             id=identifier,
             conversation_id=conversation_id,
@@ -122,6 +123,7 @@ def load_model_records(spec, base_path, source_records):
             raw_text=raw,
             reference_text=reference,
             hypothesis_text=row['pred_text'],
+            model_input_text=text_input,
             reference_audio_asr=row.get('gt_audio_text'),
             stored_reference=row.get('gt_text'),
             stored_cer=row.get('cer'),

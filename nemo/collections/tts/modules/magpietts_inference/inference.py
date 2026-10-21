@@ -36,6 +36,7 @@ import os
 import shutil
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import soundfile as sf
@@ -48,6 +49,7 @@ from nemo.collections.tts.data.text_to_speech_dataset import ChunkedTTSInference
 from nemo.collections.tts.models.easy_magpietts_inference import EasyModelInferenceParameters
 from nemo.collections.tts.models.magpietts import ModelInferenceParameters
 from nemo.collections.tts.modules.magpietts_inference.singleturn_distributed import (
+    SINGLE_TURN_EVAL_MANIFEST,
     singleturn_rank_indices,
     write_singleturn_rank_manifest,
 )
@@ -1025,6 +1027,7 @@ class EasyMagpieInferenceRunner(BaseInferenceRunner):
         rank = getattr(self, 'distributed_rank', 0)
         world_size = getattr(self, 'distributed_world_size', 1)
         rank_indices = singleturn_rank_indices(len(dataset), rank, world_size)
+        evaluation_records = []
         dataset_for_rank = _InferenceSubset(dataset, rank_indices) if world_size > 1 else dataset
         if world_size > 1:
             marker = os.path.join(output_dir, 'singleturn_rank_manifest.json')
@@ -1092,9 +1095,20 @@ class EasyMagpieInferenceRunner(BaseInferenceRunner):
 
             for idx in range(predicted_audio.size(0)):
                 source_idx = rank_indices[item_idx]
+                selected_text = dataset.data_samples[source_idx].text
+                source_record = manifest_records[source_idx]
+                evaluation_records.append(
+                    dict(
+                        source_record,
+                        text=selected_text,
+                        original_text=source_record.get('original_text') or source_record['text'],
+                        item_idx=source_idx,
+                    )
+                )
                 audio_len = predicted_audio_lens[idx].item()
                 audio_np = predicted_audio[idx].float().detach().cpu().numpy()[:audio_len]
                 audio_path = os.path.join(output_dir, f"predicted_audio_{source_idx}.wav")
+                evaluation_records[-1]['predicted_audio_filepath'] = audio_path
                 sample_rate = getattr(self.model, "output_sample_rate", self.model.sample_rate)
                 sf.write(audio_path, audio_np, sample_rate)
                 generated_audio_paths.append(audio_path)
@@ -1120,6 +1134,15 @@ class EasyMagpieInferenceRunner(BaseInferenceRunner):
                     with open(os.path.join(output_dir, "phoneme_frontend_manifest.jsonl"), "a", encoding="utf-8") as f:
                         f.write(json.dumps(record, ensure_ascii=False) + "\n")
                 item_idx += 1
+
+        self.evaluation_manifest_path = os.path.join(output_dir, SINGLE_TURN_EVAL_MANIFEST)
+        self.evaluation_audio_dir = audio_base_dir
+        evaluation_manifest = Path(self.evaluation_manifest_path)
+        temporary = evaluation_manifest.with_suffix('.jsonl.tmp')
+        temporary.write_text(
+            ''.join(json.dumps(row, ensure_ascii=False) + '\n' for row in evaluation_records), encoding='utf-8'
+        )
+        temporary.replace(evaluation_manifest)
 
         if world_size > 1:
             write_singleturn_rank_manifest(

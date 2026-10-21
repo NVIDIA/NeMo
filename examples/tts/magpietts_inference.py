@@ -276,6 +276,9 @@ def run_inference_and_evaluation(
                     repeat_audio_dir, world_size, len(manifest_records), eval_config.with_fcd
                 )
                 logging.info(f"Merged {merged['total_samples']} single-turn outputs from {world_size} GPUs")
+                if 'evaluation_manifest_path' in merged:
+                    runner.evaluation_manifest_path = merged['evaluation_manifest_path']
+                    runner.evaluation_audio_dir = meta['audio_dir']
 
             if skip_evaluation:
                 logging.info("Skipping evaluation as requested.")

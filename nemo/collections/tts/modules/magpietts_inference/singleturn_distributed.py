@@ -8,6 +8,8 @@ import shutil
 import time
 from pathlib import Path
 
+SINGLE_TURN_EVAL_MANIFEST = 'singleturn_evaluation_manifest.jsonl'
+
 
 def singleturn_rank_indices(total_samples, rank, world_size):
     if total_samples < 0 or world_size < 1 or not 0 <= rank < world_size:
@@ -27,6 +29,7 @@ def write_singleturn_rank_manifest(output_dir, rank, world_size, total_samples, 
         total_samples=total_samples,
         source_indices=expected,
         frontend_used=bool(frontend_used),
+        has_evaluation_manifest=(Path(output_dir) / SINGLE_TURN_EVAL_MANIFEST).is_file(),
     )
     temporary = path.with_suffix('.json.tmp')
     temporary.write_text(json.dumps(record), encoding='utf-8')
@@ -78,6 +81,10 @@ def merge_singleturn_rank_outputs(repeat_audio_dir, world_size, total_samples, s
     frontend_flags = {document['frontend_used'] for document in documents}
     if len(frontend_flags) != 1:
         raise ValueError('Single-turn ranks disagree on phoneme frontend use')
+    evaluation_flags = {document.get('has_evaluation_manifest', False) for document in documents}
+    if len(evaluation_flags) != 1:
+        raise ValueError('Single-turn ranks disagree on actual-input manifest use')
+    evaluation_records = []
     frontend_records = []
     for pattern in ['predicted_audio_*.wav', 'predicted_codes_*.pt', 'context_audio_*.wav', 'target_audio_*.wav']:
         for previous in root.glob(pattern):
@@ -92,6 +99,16 @@ def merge_singleturn_rank_outputs(repeat_audio_dir, world_size, total_samples, s
                 source = rank_dir / name
                 if source.is_file():
                     shutil.copyfile(source, root / name)
+        if document.get('has_evaluation_manifest', False):
+            with (rank_dir / SINGLE_TURN_EVAL_MANIFEST).open(encoding='utf-8') as handle:
+                rows = [json.loads(line) for line in handle if line.strip()]
+            if [row['item_idx'] for row in rows] != document['source_indices']:
+                raise ValueError(f'Invalid actual-input source indices for rank {rank}')
+            if any(not isinstance(row.get('text'), str) for row in rows):
+                raise ValueError(f'Missing actual input text for rank {rank}')
+            for row in rows:
+                row['predicted_audio_filepath'] = str(root / f'predicted_audio_{row["item_idx"]}.wav')
+            evaluation_records.extend(rows)
         if document['frontend_used']:
             with (rank_dir / 'phoneme_frontend_manifest.jsonl').open(encoding='utf-8') as handle:
                 rows = [json.loads(line) for line in handle if line.strip()]
@@ -111,5 +128,14 @@ def merge_singleturn_rank_outputs(repeat_audio_dir, world_size, total_samples, s
     summary = dict(
         world_size=world_size, total_samples=total_samples, source_indices=list(range(total_samples)), run_id=run_id
     )
+    if evaluation_flags == {True}:
+        evaluation_records.sort(key=lambda row: row['item_idx'])
+        destination = root / SINGLE_TURN_EVAL_MANIFEST
+        temporary = destination.with_suffix('.jsonl.tmp')
+        temporary.write_text(
+            ''.join(json.dumps(row, ensure_ascii=False) + '\n' for row in evaluation_records), encoding='utf-8'
+        )
+        temporary.replace(destination)
+        summary['evaluation_manifest_path'] = str(destination)
     (root / 'singleturn_merged.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')
     return summary

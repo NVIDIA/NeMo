@@ -78,7 +78,9 @@ use parallel lists and a stable `cut_id` (or `id`). The loader discovers
 the metric to the sidecar **by audio path**, then uses `source_sample_idx` and
 `turn_id` to look up the original dataset turn. An explicit `turn_manifest` path
 can be supplied per model. Error-sorted metric row order is never a source ID.
-The sidecar and saved `tts_text_input` must match the dataset's raw text.
+The multiturn sidecar must match the dataset's raw text. Saved `tts_text_input` may
+match either the dataset raw text or its normalized text, according to the single-turn
+loader setting; it is retained as `model_input_text` in the canonical audit records.
 
 Every model is scored against the same dataset `normalized_text`. Existing
 `gt_text` is audited because older evaluation versions may have regenerated it
