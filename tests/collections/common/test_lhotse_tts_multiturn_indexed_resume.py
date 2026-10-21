@@ -46,7 +46,7 @@ from lhotse import AudioSource, CutSet, MonoCut, Recording, SupervisionSegment
 from lhotse.array import TemporalArray
 from lhotse.dataset.dataloading import LHOTSE_USE_WORKER_PARTITION
 from lhotse.features.io import MemoryRawWriter
-from lhotse.indexing import gzip_index_file_path, index_file_path
+from lhotse.indexing import index_file_path
 from lhotse.lazy import get_graph_origin
 from lhotse.shar.writers import SharWriter
 from omegaconf import DictConfig, OmegaConf
@@ -58,6 +58,9 @@ from nemo.collections.common.data.lhotse.dataloader import make_structured_with_
 
 pytest.importorskip("indexed_gzip")
 pytest.importorskip("torchdata.stateful_dataloader")
+if not hasattr(__import__("lhotse.indexing", fromlist=["gzip_index_file_path"]), "gzip_index_file_path"):
+    pytest.skip("Lhotse without gzip-indexed Shar support (lhotse-speech/lhotse#1598)", allow_module_level=True)
+from lhotse.indexing import gzip_index_file_path  # noqa: E402
 
 SAMPLE_RATE = 16000
 SHARD_SIZE = 4
@@ -377,9 +380,9 @@ def test_tts_data_partitions_disjointly_across_two_ranks(blend, monkeypatch, laz
         _assert_payload_digests(blend, items, min_items=len(items))
 
 
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # Synthetic data
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 
 
 def _wav_recording(recording_id: str, duration: float, rng: np.random.Generator) -> Recording:
@@ -577,9 +580,9 @@ def _write_blend_yamls(blends: Path, shar_roots: dict[str, Path]) -> dict[str, P
     return outer_yamls
 
 
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # Dataloader configs (mirroring easy_magpietts_lhotse_multiturn.yaml + the production SLURM overrides)
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 
 
 def _multi_config(blend: _Blend, *, num_workers: int, lazy: bool) -> DictConfig:
@@ -671,9 +674,9 @@ def _finite_sub_config(blend: _Blend, name: str, *, lazy: bool) -> DictConfig:
     return sub
 
 
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # Loader helpers
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 
 
 @contextmanager
@@ -764,9 +767,9 @@ def _sampler_states(state) -> list[dict]:
     return found
 
 
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # Batch identity, payload digests and assertions
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 
 
 def _source_of(item: dict) -> str:
