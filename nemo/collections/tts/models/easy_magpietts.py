@@ -2528,6 +2528,8 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 raise ValueError("Phoneme lexicon loss weighting requires an IPA BPE tokenizer with offsets")
 
     def get_dataset(self, dataset_cfg, dataset_type):
+        if self.cfg.get('dynamic_phoneme_delay_recompute_alignment', False):
+            raise ValueError('dynamic_phoneme_delay_recompute_alignment requires dynamic_phoneme_delay and Lhotse')
         if self.cfg.get('dynamic_phoneme_delay', False):
             raise ValueError('dynamic_phoneme_delay requires the Lhotse multiturn dataloader')
         self._initialize_phoneme_loss_lexicon()
@@ -2574,6 +2576,9 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         self._initialize_phoneme_loss_lexicon()
         load_normalized_text_percent = dataset_cfg.get("load_normalized_text_percent", 1.0)
         dynamic_delay = self.cfg.get('dynamic_phoneme_delay', False)
+        recompute_alignment = self.cfg.get('dynamic_phoneme_delay_recompute_alignment', False)
+        if recompute_alignment and not dynamic_delay:
+            raise ValueError('dynamic_phoneme_delay_recompute_alignment requires dynamic_phoneme_delay=true')
         if dynamic_delay:
             if not self.cfg.get('use_multiturn_dataset', False) or self.phoneme_stacking_factor != 1:
                 raise ValueError(
@@ -2665,6 +2670,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             data_config = OmegaConf.create(OmegaConf.to_container(data_config, resolve=True))
             with open_dict(data_config):
                 data_config.dynamic_phoneme_delay = True
+                data_config.dynamic_phoneme_delay_recompute_alignment = recompute_alignment
         data_loader = get_lhotse_dataloader_from_config(
             config=data_config,
             global_rank=self.global_rank,

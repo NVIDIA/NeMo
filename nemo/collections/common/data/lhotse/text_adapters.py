@@ -279,9 +279,12 @@ class LhotseTextNormJsonlAdapter:
     duration_padding_tokens: int = 0
     duration_text_tokenizer_path: str | None = None
     dynamic_phoneme_delay: bool = False
+    dynamic_phoneme_delay_recompute_alignment: bool = False
 
     def __post_init__(self):
         self.paths = list(expand_sharded_filepaths(self.paths))
+        if self.dynamic_phoneme_delay_recompute_alignment and not self.dynamic_phoneme_delay:
+            raise ValueError('dynamic_phoneme_delay_recompute_alignment requires dynamic_phoneme_delay=true')
         if type(self.duration_padding_tokens) is not int or self.duration_padding_tokens < 0:
             raise ValueError("duration_padding_tokens must be a nonnegative integer")
         self._duration_phoneme_tokenizer = None
@@ -329,11 +332,19 @@ class LhotseTextNormJsonlAdapter:
                 if type(num_tokens) is not int or num_tokens <= 0:
                     raise ValueError(f"{path}: record {index}: num_tokens must be a positive integer")
                 resolved_alignment = None
+                word_alignment = row.get('word_alignment')
                 if self.dynamic_phoneme_delay:
-                    from nemo.collections.common.data.lhotse.text_alignment import resolve_word_alignment
+                    from nemo.collections.common.data.lhotse.text_alignment import (
+                        rebuild_text_word_alignment,
+                        resolve_word_alignment,
+                    )
 
+                    if self.dynamic_phoneme_delay_recompute_alignment:
+                        word_alignment = rebuild_text_word_alignment(
+                            word_alignment, row['text'], row['text_normalized'], row['ipa']
+                        )
                     resolved_alignment = resolve_word_alignment(
-                        row.get('word_alignment'), row['text'], row['text_normalized'], row['ipa']
+                        word_alignment, row['text'], row['text_normalized'], row['ipa']
                     )
                     if row.get('dynamic_delay_usable') is False or resolved_alignment is None:
                         skipped += 1
@@ -400,6 +411,8 @@ class LhotseTextNormJsonlAdapter:
                     # Reuse exact canonical groups in workers; no second graph
                     # construction or retokenization is needed for scheduling.
                     supervision_custom['_dynamic_phoneme_alignment'] = resolved_alignment
+                    if self.dynamic_phoneme_delay_recompute_alignment:
+                        supervision_custom['word_alignment'] = word_alignment
                 supervision = SupervisionSegment(
                     id=f"{cut_id}-sup",
                     recording_id=cut_id,
@@ -412,6 +425,8 @@ class LhotseTextNormJsonlAdapter:
                     custom=supervision_custom,
                 )
                 cut_custom = deepcopy(row)
+                if self.dynamic_phoneme_delay_recompute_alignment:
+                    cut_custom['word_alignment'] = word_alignment
                 # The supplied phoneme collator's language lookup uses cut.lang.
                 cut_custom["lang"] = language
                 cut_custom["task"] = "text_only"

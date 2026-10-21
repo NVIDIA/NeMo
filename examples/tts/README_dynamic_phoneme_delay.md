@@ -10,6 +10,47 @@ The default is `false`. Disabled runs use the existing fixed-delay collation and
 model path. When enabled, only `task: text_only` batches change; speech batches
 retain their original audio/text/phoneme timing.
 
+### Optional loader-side raw-to-normalized alignment
+
+```bash
+model.dynamic_phoneme_delay=true \
+model.dynamic_phoneme_delay_recompute_alignment=true
+```
+
+`dynamic_phoneme_delay_recompute_alignment` defaults to `false` and requires
+dynamic mode. The model propagates it to training and validation `txt_norm_jsonl`
+inputs, including nested/multi-config inputs. No manifest rewrite is needed.
+
+When enabled, the CPU loader recomputes raw-to-normalized word dependencies
+using monotonic unchanged-word anchors. Changed words between anchors form one
+atomic normalization span. For example, `Pay 12 then 34 now` maps `12` to
+`twelve` and `34` to `thirty four`, instead of inheriting a single unresolved
+region covering the sentence. Matching ignores case and surrounding punctuation
+without modifying the original strings or offsets. Attached en/em dashes can
+separate anchors; dates, decimals and ordinary hyphenated expressions stay intact.
+
+Internal repeated anchors must be unique within the remaining word intervals.
+For example, the two possible `and` matches in `101 and 2` / `one hundred and
+one and two` remain one shared span. Adjacent changed expressions without a
+reliable unchanged anchor also remain atomic. Pure insertions and deletions use
+the adjacent words as conservative context, so moved/absorbed values such as
+`May 1` / `first May` cannot lose their source dependency. This is deterministic text
+matching, not a semantic parser or proof of minimal possible latency.
+
+Only the raw-to-normalized mapping is rebuilt. The existing `normalized_words`,
+`normalized_to_ipa`, exact shared IPA spans, original-string hashes and offset
+conventions remain required and validated. Missing IPA boundaries are never
+guessed. Unusable records are still excluded before batching; explicit
+`dynamic_delay_usable: false` remains respected. The rebuilt metadata is cached
+on the supervision as `word_alignment`, with
+`text_alignment_method: loader_word_anchors_v1`; duration bounds are unchanged.
+
+The same actual BPE/IPA tokenizer offsets then determine when a span and its
+boundary become visible. Matching an anchor during loading does not require
+waiting for that complete anchor at runtime. No fixed phoneme delay is added.
+This setting changes training targets only; dynamic frontend inference already
+predicts its own PAD waits and needs no additional decoding option.
+
 Dynamic text-only mode ignores `streaming_phonemes_delay`: its fixed phoneme
 offset is **zero** in both training and the text frontend. The conditioning
 prefix is retained. All additional lookahead comes from alignment-derived or

@@ -3,6 +3,9 @@
 """Tokenizer-independent, exact word/phrase dependencies for text-to-IPA data."""
 
 import hashlib
+import re
+import unicodedata
+from difflib import SequenceMatcher
 
 
 def resolve_word_alignment(alignment, text, normalized_text, ipa):
@@ -209,6 +212,138 @@ def resolve_word_alignment(alignment, text, normalized_text, ipa):
         }
     except (KeyError, TypeError, IndexError, ValueError):
         return None
+
+
+def rebuild_text_word_alignment(alignment, text, normalized_text, ipa):
+    """Rebuild raw-to-normalized dependencies using monotonic unchanged-word anchors.
+
+    Only text mappings are recomputed. Existing normalized-to-IPA offsets and
+    shared pronunciation spans remain authoritative. Ambiguous matches and
+    consecutive changed words stay atomic; no internal IPA boundary is inferred.
+    Returns fresh validated metadata, or None when the IPA mapping is unusable.
+    """
+    try:
+        if not isinstance(alignment, dict) or alignment.get('dynamic_delay_usable') is False:
+            return None
+        strings = {'text': text, 'text_normalized': normalized_text, 'ipa': ipa}
+        if not all(isinstance(value, str) for value in strings.values()):
+            return None
+        if any(
+            alignment.get('string_sha256', {}).get(key) != hashlib.sha256(value.encode()).hexdigest()
+            for key, value in strings.items()
+        ):
+            return None
+        # Split attached sentence dashes, but keep dates, decimals, URLs and
+        # hyphenated expressions intact. Offsets still address the original text.
+        source = [[m.start(), m.end()] for m in re.finditer(r'[^\s\u2013\u2014]+', text)]
+        normalized = alignment['normalized_words']
+        _validate_words(normalized, normalized_text)
+        if not source or not normalized:
+            return None
+        source_keys = [_alignment_word_key(text[slice(*span)]) for span in source]
+        normalized_keys = [_alignment_word_key(normalized_text[slice(*span)]) for span in normalized]
+        anchors = _monotonic_word_anchors(source_keys, normalized_keys)
+        mappings, groups = [None] * len(source), []
+
+        def add_gap(s0, s1, n0, n1):
+            if s0 == s1 and n0 == n1:
+                return
+            if n0 == n1:
+                # A deletion may be a moved/absorbed entity (May 1 -> first
+                # May), not an unspoken filler. Preserve both local neighbors
+                # so a source value is never silently dropped as a dependency.
+                n0, n1 = max(0, n0 - 1), min(len(normalized), n1 + 1)
+            for index in range(s0, s1):
+                mappings[index] = [n0, n1]
+            if s0 == s1:
+                # A true normalized insertion has no unique source owner. Keep
+                # both local neighbors instead of guessing a dependency.
+                s0, s1 = max(0, s0 - 1), min(len(source), s1 + 1)
+            groups.append(dict(source_words=[s0, s1], normalized_words=[n0, n1], changed=True))
+
+        si, ni = 0, 0
+        for source_index, normalized_index in anchors:
+            add_gap(si, source_index, ni, normalized_index)
+            mappings[source_index] = [normalized_index, normalized_index + 1]
+            si, ni = source_index + 1, normalized_index + 1
+        add_gap(si, len(source), ni, len(normalized))
+        rebuilt = dict(alignment)
+        rebuilt.update(
+            source_words=source,
+            source_to_normalized=mappings,
+            source_to_ipa=[None] * len(source),
+            groups=groups,
+            unresolved_regions=[],
+            source_ipa_shared_groups=[],
+            # Source-side shared metadata may carry otherwise missing *IPA*
+            # boundaries. Retain its normalized/IPA coordinates, not stale raw
+            # indices or the old unresolved text-region closure.
+            normalized_ipa_shared_groups=list(alignment.get('normalized_ipa_shared_groups', []))
+            + [
+                dict(normalized_words=g['normalized_words'], ipa_chars=g['ipa_chars'])
+                for g in alignment.get('source_ipa_shared_groups', [])
+            ],
+            text_alignment_method='loader_word_anchors_v1',
+        )
+        if resolve_word_alignment(rebuilt, text, normalized_text, ipa) is None:
+            return None
+        return rebuilt
+    except (KeyError, TypeError, IndexError, ValueError, AttributeError):
+        return None
+
+
+def _alignment_word_key(word):
+    # Comparison-only normalization; never rewrite strings, hashes or IPA spans.
+    word = word.casefold().replace('\u2019', "'").replace('\u2018', "'")
+    while word and unicodedata.category(word[0])[0] in 'PS':
+        word = word[1:]
+    while word and unicodedata.category(word[-1])[0] in 'PS':
+        word = word[:-1]
+    return word
+
+
+def _monotonic_word_anchors(source, normalized):
+    """Match stable words, refusing ambiguous internal repeated-word anchors."""
+    result, pending = [], [(0, len(source), 0, len(normalized))]
+    while pending:
+        s0, s1, n0, n1 = pending.pop()
+        while s0 < s1 and n0 < n1 and source[s0] and source[s0] == normalized[n0]:
+            result.append((s0, n0))
+            s0, n0 = s0 + 1, n0 + 1
+        while s0 < s1 and n0 < n1 and source[s1 - 1] and source[s1 - 1] == normalized[n1 - 1]:
+            s1, n1 = s1 - 1, n1 - 1
+            result.append((s1, n1))
+        if s0 == s1 or n0 == n1:
+            continue
+        # Distinct sentinels prevent punctuation-only units becoming anchors
+        # (e.g. a decimal point accidentally matching a sentence-ending period).
+        left = [key or ('source', i) for i, key in enumerate(source[s0:s1])]
+        right = [key or ('normalized', i) for i, key in enumerate(normalized[n0:n1])]
+        matches = SequenceMatcher(None, left, right, autojunk=False).get_matching_blocks()
+        matches = [
+            match
+            for match in matches
+            if match.size
+            and _unique_word_run(left, left[match.a : match.a + match.size])
+            and _unique_word_run(right, right[match.b : match.b + match.size])
+        ]
+        if not matches:
+            continue
+        best = max(matches, key=lambda match: match.size)
+        sa, na = s0 + best.a, n0 + best.b
+        result.extend((sa + i, na + i) for i in range(best.size))
+        pending.extend(((s0, sa, n0, na), (sa + best.size, s1, na + best.size, n1)))
+    return sorted(result)
+
+
+def _unique_word_run(words, run):
+    count = 0
+    for i in range(len(words) - len(run) + 1):
+        if words[i] == run[0] and words[i : i + len(run)] == run:
+            count += 1
+            if count > 1:
+                return False
+    return count == 1
 
 
 def _validate_range(span, length, nonempty=False):

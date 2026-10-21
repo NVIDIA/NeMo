@@ -145,6 +145,7 @@ class LhotseDataLoadingConfig:
     token_equivalent_duration: float | None = None
     # Text-only TTS: reserve a conservative duration bound for alignment-derived waits.
     dynamic_phoneme_delay: bool = False
+    dynamic_phoneme_delay_recompute_alignment: bool = False
     # Sample-exact audio-to-model-token length arithmetic. When set, this
     # supersedes token_equivalent_duration for constraints and token filters.
     audio_token_estimator: Any = None
@@ -711,6 +712,7 @@ def get_lhotse_dataloader_from_multi_config(
             "use_stateful_dataloader",
             "fault_tolerant_audio_loading",
             "dynamic_phoneme_delay",
+            "dynamic_phoneme_delay_recompute_alignment",
             # Indexed dataloading flags must propagate too — otherwise a
             # top-level ``indexed: true`` / ``indexes_root: /tmp/idx`` on the
             # train_ds namespace silently fails to reach sub-configs, and the
