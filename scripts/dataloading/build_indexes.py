@@ -49,6 +49,11 @@ Examples::
 
     # Rebuild even when an .idx already exists; parallelize across 16 workers.
     python scripts/dataloading/build_indexes.py --force --workers 16 path/to/input_cfg.yaml
+
+    # Spread a huge build over a SLURM array (--array=0-15): task i handles every
+    # 16th job, and the freshness check of existing sidecars runs on 64 threads.
+    python scripts/dataloading/build_indexes.py --shard "${SLURM_ARRAY_TASK_ID}/16" \\
+        --validate-workers 64 --indexes-root /scratch/idx path/to/input_cfg.yaml
 """
 
 import logging
@@ -562,9 +567,68 @@ def _is_indexed(job: IndexJob) -> bool:
         return False
 
 
+def _find_unindexed(jobs: list[IndexJob], *, workers: int) -> list[IndexJob]:
+    """
+    Return the jobs whose sidecars are missing or stale, preserving the order of *jobs*.
+
+    Sidecar validation is I/O bound (a stat or object-store HEAD per job, plus a few
+    byte-range reads for gzip JSONL), so it runs on a thread pool and reports progress
+    every ``_PROGRESS_INTERVAL`` seconds like the build loop. ``_is_indexed`` maps
+    validation failures to ``False``; anything else that escapes it (including an
+    interrupt) cancels the pending validations and is re-raised.
+    """
+    if not jobs:
+        return []
+    indexed = [False] * len(jobs)
+    total = len(jobs)
+    started = time.monotonic()
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
+        futures = {ex.submit(_is_indexed, job): position for position, job in enumerate(jobs)}
+        done = 0
+        try:
+            while futures:
+                try:
+                    for fut in as_completed(futures, timeout=_PROGRESS_INTERVAL):
+                        position = futures.pop(fut)
+                        indexed[position] = fut.result()
+                        done += 1
+                except TimeoutError:
+                    # The reporting interval elapsed; log progress below and keep waiting.
+                    pass
+                logging.info(
+                    "  validated %d/%d  pending=%d  elapsed=%.0fs",
+                    done,
+                    total,
+                    len(futures),
+                    time.monotonic() - started,
+                )
+        except BaseException:
+            # Without this, the pool's shutdown would drain the whole remaining queue
+            # before an interrupt (or an unexpected validation error) surfaces.
+            ex.shutdown(wait=False, cancel_futures=True)
+            raise
+    return [job for job, ok in zip(jobs, indexed) if not ok]
+
+
 # --------------------------------------------------------------------------- #
 # CLI.
 # --------------------------------------------------------------------------- #
+
+
+def _parse_shard(ctx, param, value) -> Optional[tuple[int, int]]:
+    """Click callback: turn ``INDEX/COUNT`` (e.g. ``3/16``) into ``(index, count)``."""
+    if value is None:
+        return None
+    try:
+        index_text, count_text = str(value).split("/")
+        index, count = int(index_text), int(count_text)
+    except ValueError:
+        raise click.BadParameter(f"expected INDEX/COUNT with integer parts such as 3/16, got {value!r}") from None
+    if count < 1:
+        raise click.BadParameter(f"COUNT must be at least 1, got {value!r}")
+    if not 0 <= index < count:
+        raise click.BadParameter(f"INDEX must satisfy 0 <= INDEX < COUNT, got {value!r}")
+    return index, count
 
 
 @click.command(context_settings={"show_default": True})
@@ -607,6 +671,27 @@ def _is_indexed(job: IndexJob) -> bool:
     default=None,
     help="Resolve ${data_blend_dir} in nested input_cfg references.",
 )
+@click.option(
+    "--shard",
+    type=str,
+    default=None,
+    callback=_parse_shard,
+    help=(
+        "Process only one interleaved slice of the discovered jobs, given as INDEX/COUNT "
+        "(e.g. 3/16 for the fourth of sixteen SLURM array tasks). Applied after de-duplication "
+        "and the --kind filter and before the already-indexed check, so every shard gets a "
+        "similar mix of large and small files."
+    ),
+)
+@click.option(
+    "--validate-workers",
+    type=int,
+    default=None,
+    help=(
+        "Number of threads that check existing sidecars for freshness before building "
+        "(one stat or object-store HEAD per file). Defaults to --workers."
+    ),
+)
 def main(
     input_cfgs: tuple[str, ...],
     force: bool,
@@ -616,12 +701,21 @@ def main(
     executor: str,
     indexes_root: Optional[str],
     data_blend_dir: Optional[str],
+    shard: Optional[tuple[int, int]],
+    validate_workers: Optional[int],
 ):
     """
     Build .idx sidecars for every JSONL/tar referenced by INPUT_CFGS.
 
     INPUT_CFGS are NeMo Lhotse dataloading configs (``input_cfg`` YAML).
     During parallel builds, progress is logged every minute even when no file completes.
+
+    Very large builds can be spread over many nodes with ``--shard INDEX/COUNT``: each
+    invocation handles every COUNT-th discovered job starting at INDEX, so a SLURM array
+    of COUNT tasks covers every file exactly once. Unless ``--force`` is given, existing
+    sidecars are checked for freshness on ``--validate-workers`` threads first. A
+    ``sharegpt_route`` needs the sidecars of every manifest and tar it covers, so build
+    those across the shards first and run ``--kind sharegpt_route`` once without ``--shard``.
     """
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -648,7 +742,16 @@ def main(
         selected = frozenset(kinds)
         unique = [job for job in unique if job.kind in selected]
 
-    all_todo = unique if force else [job for job in unique if not _is_indexed(job)]
+    if shard is not None:
+        shard_index, shard_count = shard
+        shard_jobs = unique[shard_index::shard_count]
+        logging.info("Shard %d/%d selected %d of %d jobs.", shard_index, shard_count, len(shard_jobs), len(unique))
+        unique = shard_jobs
+
+    if force:
+        all_todo = unique
+    else:
+        all_todo = _find_unindexed(unique, workers=workers if validate_workers is None else validate_workers)
     route_todo = [job for job in all_todo if job.kind == SHAREGPT_ROUTE]
     todo = [job for job in all_todo if job.kind != SHAREGPT_ROUTE]
     skipped = len(unique) - len(all_todo)

@@ -1035,6 +1035,17 @@ Two equivalent ways:
    Gzip JSONL requires Lhotse's optional ``indexed_gzip`` dependency and
    creates both ``<source>.idx`` and ``<source>.gzidx`` in that location.
 
+   Spread a very large build (hundreds of thousands of shards on an object store)
+   over a SLURM array with ``--shard INDEX/COUNT``: task ``i`` of ``N`` passes
+   ``--shard i/N`` and handles every ``N``-th discovered file, so the array covers
+   each file exactly once and every task gets a similar mix of large and small
+   shards. Unless ``--force`` is given, existing sidecars are checked for freshness
+   (one ``stat`` or object-store ``HEAD`` per file) on ``--validate-workers``
+   threads, which default to ``--workers``; raise it for remote data. Build
+   ``sharegpt_route`` files in a final pass without ``--shard`` (``--kind
+   sharegpt_route``), since a route needs the sidecars of every manifest and tar
+   it covers.
+
 Lhotse Shar writers create indexes for finalized shards automatically with
 ``create_index=True``. Gzip indexing requires ``lhotse[gzip]``; failures emit
 warnings while preserving the written shards. For existing Shar data, the
