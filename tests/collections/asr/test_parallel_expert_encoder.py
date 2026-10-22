@@ -27,7 +27,8 @@ from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
 from nemo.collections.asr.models import SortformerEncLabelModel
-from nemo.collections.asr.modules import parallel_expert_encoder as pee_module
+from nemo.collections.asr.modules import online_encoder_graphs as online_graphs_module
+from nemo.collections.asr.modules.online_encoder_graphs import OnlineGraphs
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.modules.parallel_expert_encoder import (
     CTCTimestampInputs,
@@ -1985,8 +1986,7 @@ def test_native_packed_path_normalizes_diar_and_asr_independently_without_unpack
 
     monkeypatch.setattr(encoder, "_forward_packed_branch", tracked_forward)
     monkeypatch.setattr(
-        pee_module,
-        "unpack_encoder_output",
+        "nemo.collections.asr.modules.parallel_expert_encoder.unpack_encoder_output",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("native packed path unpacked")),
     )
     with torch.no_grad():
@@ -2378,11 +2378,11 @@ def test_online_cuda_graphs_replay_streaming_diarization_steps(asr_encoder_type,
 
     with torch.no_grad(), encoder.online_inference():
         expected, expected_lengths = encoder(mels, lengths)
-        encoder.online_cuda_graphs = True
+        encoder.online_graphs = OnlineGraphs()
         out, out_lengths = encoder(mels, lengths)
         replayed, _ = encoder(mels, lengths)
 
-    assert encoder._diar_step_graphs.graphs, "no streaming step was captured"
+    assert encoder.online_graphs._diar_steps.graphs, "no streaming step was captured"
     assert torch.equal(out_lengths, expected_lengths)
     for i, n in enumerate(expected_lengths.tolist()):
         torch.testing.assert_close(out[i, :, :n], expected[i, :, :n])
@@ -2397,15 +2397,15 @@ def test_streaming_step_graphs_fall_back_to_eager_when_capture_fails(monkeypatch
     def failing_capture(fn, pool=None):
         raise RuntimeError("synthetic capture failure")
 
-    monkeypatch.setattr(pee_module, "capture_cuda_graph", failing_capture)
-    monkeypatch.setattr(pee_module.torch.cuda, "graph_pool_handle", lambda: None)
+    monkeypatch.setattr(online_graphs_module, "capture_cuda_graph", failing_capture)
+    monkeypatch.setattr(online_graphs_module.torch.cuda, "graph_pool_handle", lambda: None)
     calls = []
 
     def step(state, chunk, chunk_length):
         calls.append(chunk_length.tolist())
         return state, chunk * 2
 
-    graphs = pee_module._StreamingStepGraphs()
+    graphs = online_graphs_module._StreamingStepGraphs()
     state = SimpleNamespace(spkcache=torch.zeros(1, 4, 2), spkcache_compressed=True)
     chunk, chunk_length = torch.ones(1, 3, 2), torch.tensor([3])
     for _ in range(3):
@@ -2790,16 +2790,12 @@ def _long_audio_runner(ctc_timestamp_inputs=False, long_audio=True):
 
 
 def _eager(perception, encoder, audio, lengths, **kwargs):
-    encoder.online_cuda_graphs = False
-    try:
-        with torch.no_grad(), encoder.online_inference():
-            return perception(input_signal=audio, input_signal_length=lengths, **kwargs)
-    finally:
-        encoder.online_cuda_graphs = True
+    with encoder.online_graphs.paused(), torch.no_grad(), encoder.online_inference():
+        return perception(input_signal=audio, input_signal_length=lengths, **kwargs)
 
 
 def _eager_window_pieces(encoder):
-    caches = (encoder._asr_window_graphs, encoder._diar_step_graphs)
+    caches = (encoder.online_graphs._asr_windows, encoder.online_graphs._diar_steps)
     return sum(len(cache.seen) for cache in caches if cache is not None)
 
 
@@ -2861,7 +2857,7 @@ def test_asr_window_graphs_pad_rows_to_graph_sizes_and_match_eager():
         pytest.skip("CUDA required")
     torch.manual_seed(0)
     asr = ConformerEncoder(**{k: v for k, v in toy_asr_encoder_cfg().items() if k != "_target_"}).cuda().eval()
-    graphs = pee_module._ASRWindowGraphs(max_graphs=8)
+    graphs = online_graphs_module._ASRWindowGraphs(max_graphs=8)
 
     def split(rows, frames):
         return [4] * (rows // 4) + ([2] if rows % 4 else [])
@@ -2907,17 +2903,17 @@ def test_streaming_step_graphs_pad_rows_to_the_bucket_and_match_eager():
 
     with torch.no_grad(), encoder.online_inference():
         expected, expected_lengths = encoder(mels, lengths)
-        encoder.online_cuda_graphs = True
-        encoder.online_graph_bucket = lambda rows: 4
-        with encoder.capturing_online_graphs():
+        encoder.online_graphs = OnlineGraphs(bucket=lambda rows: 4)
+        with encoder.online_graphs.capturing():
             encoder(mels, lengths)
-        seen = len(encoder._diar_step_graphs.seen)
+        seen = len(encoder.online_graphs._diar_steps.seen)
         out, out_lengths = encoder(mels, lengths)
 
-    assert encoder._diar_step_graphs.graphs and all(
-        key[2][0][1][0] == 4 for key in encoder._diar_step_graphs.graphs
+    steps = encoder.online_graphs._diar_steps
+    assert steps.graphs and all(
+        key[2][0][1][0] == 4 for key in steps.graphs
     ), "steps were not graphed at the bucket size"
-    assert len(encoder._diar_step_graphs.seen) == seen
+    assert len(steps.seen) == seen
     assert torch.equal(out_lengths, expected_lengths)
     for i, n in enumerate(expected_lengths.tolist()):
         torch.testing.assert_close(out[i, :, :n], expected[i, :, :n], rtol=1e-5, atol=2e-5)
@@ -2956,11 +2952,11 @@ def test_eager_long_audio_never_captures_window_graphs(monkeypatch, cause):
         monkeypatch.setattr(runner, "_capture_all", fail)
     short = torch.randn(1, 50 * _MEL_FEATURES, device="cuda")
     runner(short, torch.tensor([short.shape[1]], device="cuda"))
-    assert not encoder.online_cuda_graphs
+    assert encoder.online_graphs is None
     long = torch.randn(2, 4 * encoder.chunk_feat_len * _MEL_FEATURES, device="cuda")
     lengths = torch.tensor([long.shape[1]] * 2, device="cuda")
     for _ in range(3):
         assert runner(long, lengths) is None
         with torch.no_grad(), encoder.online_inference():
             perception(input_signal=long, input_signal_length=lengths)
-    assert encoder.online_graph_count() == 0 and runner.long_graph_count() == 0
+    assert runner.long_graph_count() == 0

@@ -36,6 +36,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from nemo.collections.asr.modules.online_encoder_graphs import OnlineGraphs
 from nemo.collections.common.parts.optional_cuda_graphs import SharedGraphBuffers, capture_cuda_graph, copy_padded_rows
 
 logger = logging.getLogger(__name__)
@@ -104,7 +105,7 @@ class EncoderGraphRunner:
         encoder = perception.encoder
         self.window = int(encoder.chunk_feat_len)
         # Window graphs need a ParallelExpertEncoder's online-inference graph caches.
-        self.long_audio = long_audio and hasattr(encoder, "capturing_online_graphs")
+        self.long_audio = long_audio and hasattr(encoder, "online_graphs")
         # The window before the last one must keep its full right context.
         right_context = int(getattr(encoder, "right_ctx_feat_len", 0))
         self.last_window_bucket = min(max(last_window_bucket, right_context), self.window)
@@ -125,11 +126,10 @@ class EncoderGraphRunner:
         self.ctc_timestamp_inputs = False
         # Audio longer than the whole-forward graphs runs the online path, whose ASR windows and streaming
         # diarization steps replay their own graphs, from the same pool. Without long_audio it stays eager.
-        encoder.online_cuda_graphs = self.long_audio
-        encoder.online_graph_split = self._split
-        encoder.online_graph_bucket = self._bucket
-        encoder.online_graph_buffers = self.buffers
-        encoder.online_max_graphs = _MAX_ONLINE_GRAPHS
+        if self.long_audio:
+            encoder.online_graphs = OnlineGraphs(
+                split=self._split, bucket=self._bucket, buffers=self.buffers, max_graphs=_MAX_ONLINE_GRAPHS
+            )
         if compile_layers:
             for name, module in perception.encoder.named_modules():
                 if isinstance(module, nn.ModuleList) and name.endswith("layers"):
@@ -201,7 +201,7 @@ class EncoderGraphRunner:
         """
         device = next(self.perception.parameters()).device
         encoder = self.perception.encoder
-        encoder.online_graph_pool = self.pool
+        encoder.online_graphs.pool = self.pool
         chunk = int(encoder.online_inference_length)
         filled = math.ceil((int(encoder.diar_spkcache_len) + int(encoder.diar_fifo_len)) / chunk)
         period = math.ceil(max(int(encoder.diar_spkcache_update_period), chunk) / chunk)
@@ -210,19 +210,19 @@ class EncoderGraphRunner:
             min(t, self.window)
             for t in range(self.last_window_bucket, self.window + self.last_window_bucket, self.last_window_bucket)
         }
-        with encoder.capturing_online_graphs():
+        with encoder.online_graphs.capturing():
             for rows in reversed(self.step_batch_sizes):
                 for windows in range(first, max(first, filled + period + 2) + 1):
                     for frames in sorted({self._long_frames((windows - 1) * self.window + t) for t in lasts}):
                         x = torch.zeros(rows, n_feat, frames, device=device, dtype=dtype)
                         self._forward(x, torch.full((rows,), frames, device=device, dtype=torch.long))
-            encoder.complete_online_asr_graphs(self._sizes_for)
+            encoder.online_graphs.complete_asr_windows(encoder.asr_encoder, self._sizes_for)
         logger.info("Captured %d long-audio encoder CUDA graphs", self.long_graph_count())
 
     def _disable_long_audio(self) -> None:
         if self.long_audio:
             self.long_audio = False
-            self.perception.encoder.reset_online_graphs()
+            self.perception.encoder.online_graphs = None
 
     @contextlib.contextmanager
     def _without_window_graphs(self):
@@ -230,16 +230,12 @@ class EncoderGraphRunner:
         if not self.long_audio:
             yield
             return
-        encoder = self.perception.encoder
-        encoder.online_cuda_graphs = False
-        try:
+        with self.perception.encoder.online_graphs.paused():
             yield
-        finally:
-            encoder.online_cuda_graphs = True
 
     def long_graph_count(self) -> int:
         """Number of captured graphs that serve long audio window by window."""
-        return self.perception.encoder.online_graph_count() if self.long_audio else 0
+        return self.perception.encoder.online_graphs.count() if self.long_audio else 0
 
     def _capture(self, rows: int, frames: int, n_feat: int, dtype: torch.dtype) -> None:
         device = next(self.perception.parameters()).device
