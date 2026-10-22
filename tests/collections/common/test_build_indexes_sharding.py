@@ -219,18 +219,19 @@ def test_interrupted_validation_cancels_pending_checks(monkeypatch):
     assert time.monotonic() - started < 2.0
 
 
-def _dry_run(config: Path, caplog, *extra_args: str) -> list[str]:
-    """Run ``build_indexes.py --dry-run`` with *extra_args* and return the logged messages."""
-    caplog.clear()
-    with caplog.at_level(logging.INFO):
-        result = CliRunner().invoke(build_indexes.main, ["--dry-run", *extra_args, str(config)])
-    assert result.exit_code == 0, result.output
-    return list(caplog.messages)
+def test_route_only_kind_with_shard_is_a_usage_error(tmp_path):
+    """``--kind sharegpt_route`` with ``--shard`` can never build anything, so it must not exit 0 silently."""
+    manifest = tmp_path / "manifest.jsonl"
+    manifest.write_text("{}\n")
+    config = tmp_path / "input.yaml"
+    config.write_text(yaml.safe_dump({"type": "nemo", "manifest_filepath": str(manifest)}))
 
+    result = CliRunner().invoke(
+        build_indexes.main, ["--dry-run", "--kind", "sharegpt_route", "--shard", "0/2", str(config)]
+    )
 
-def _job_lines(messages: list[str]) -> list[str]:
-    """The ``  [kind] source -> sidecar`` lines that a dry run prints for every job it would build."""
-    return [message for message in messages if message.startswith("  [")]
+    assert result.exit_code == 2, result.output
+    assert "--kind sharegpt_route cannot be combined with --shard" in result.output
 
 
 def test_select_shard_defers_sharegpt_routes(caplog):
@@ -245,3 +246,17 @@ def test_select_shard_defers_sharegpt_routes(caplog):
     assert [job.path for job in second] == ["/data/1.jsonl", "/data/3.jsonl", "/data/5.jsonl"]
     assert "Deferred 2 sharegpt_route job(s)" in caplog.text
     assert "Shard 1/2 selected 3 of 6 jobs." in caplog.text
+
+
+def _dry_run(config: Path, caplog, *extra_args: str) -> list[str]:
+    """Run ``build_indexes.py --dry-run`` with *extra_args* and return the logged messages."""
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        result = CliRunner().invoke(build_indexes.main, ["--dry-run", *extra_args, str(config)])
+    assert result.exit_code == 0, result.output
+    return list(caplog.messages)
+
+
+def _job_lines(messages: list[str]) -> list[str]:
+    """The ``  [kind] source -> sidecar`` lines that a dry run prints for every job it would build."""
+    return [message for message in messages if message.startswith("  [")]

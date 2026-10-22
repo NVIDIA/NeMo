@@ -1044,7 +1044,9 @@ Two equivalent ways:
    over a SLURM array with ``--shard INDEX/COUNT``: task ``i`` of ``N`` passes
    ``--shard i/N`` and handles every ``N``-th discovered file, so the array covers
    each file exactly once and every task gets a similar mix of large and small
-   shards. Unless ``--force`` is given, existing sidecars are checked for freshness
+   shards. ``i`` starts at 0, not 1 (``0 <= INDEX < COUNT``; ``N/N`` is rejected):
+   submit ``--array=0-$((N-1))`` and pass ``--shard $SLURM_ARRAY_TASK_ID/N``.
+   Unless ``--force`` is given, existing sidecars are checked for freshness
    (one ``stat`` or object-store ``HEAD`` per file) on ``--validate-workers``
    threads, which default to ``--workers``; raise it for remote data. Build
    ``sharegpt_route`` files in a final pass without ``--shard`` (``--kind

@@ -739,6 +739,11 @@ def main(
     ``sharegpt_route`` needs the sidecars of every manifest and tar it covers, so build
     those across the shards first and run ``--kind sharegpt_route`` once without ``--shard``.
     """
+    if shard is not None and kinds and set(kinds) == {SHAREGPT_ROUTE}:
+        raise click.UsageError(
+            "--kind sharegpt_route cannot be combined with --shard: a route needs the sidecars of every "
+            "shard, so build routes in a final pass without --shard."
+        )
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     jobs: list[IndexJob] = []
