@@ -1058,7 +1058,11 @@ Lhotse Shar writers create indexes for finalized shards automatically with
 warnings while preserving the written shards. For existing Shar data, the
 batch helper discovers both gzip cuts and custom JSONL fields. AIStore sources
 can retain their object URLs with sidecars stored under ``--indexes-root``.
-Configured local source mirrors also apply when validating gzip manifests.
+When Lhotse's ``LHOTSE_S3_LOCAL_MIRROR_ROOTS`` (colon-separated directories, each
+laid out ``<root>/<bucket>/<key>``) holds a local copy of an ``s3://`` source, the
+sidecar freshness check reads that copy instead of the object store; the recorded
+``s3://`` path is unchanged. This covers plain and gzip manifests and tar shards,
+and it is separate from the ``--indexes-root`` tree that holds the sidecars.
 
 Packing sidecars into dataset-level ``.idxpack`` files
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

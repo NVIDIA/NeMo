@@ -10,6 +10,7 @@ from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 
+import lhotse.indexing
 import numpy as np
 import pytest
 import torch
@@ -25,6 +26,13 @@ from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_confi
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
 
 
+def _require_gzip_indexed_lhotse() -> None:
+    """Skip unless the installed Lhotse can index gzip-compressed Shar cuts (lhotse-speech/lhotse#1598)."""
+    pytest.importorskip("indexed_gzip")
+    if not hasattr(lhotse.indexing, "gzip_index_file_path"):
+        pytest.skip("Lhotse without gzip-indexed Shar support (lhotse-speech/lhotse#1598)")
+
+
 class _Identity(torch.utils.data.Dataset):
     def __getitem__(self, cuts: CutSet) -> CutSet:
         return cuts
@@ -32,7 +40,7 @@ class _Identity(torch.utils.data.Dataset):
 
 @pytest.fixture
 def gzip_shar(tmp_path):
-    pytest.importorskip("indexed_gzip")
+    _require_gzip_indexed_lhotse()
     root = tmp_path / "shar"
     return root, _write_shar(root, create_index=False)
 
@@ -148,7 +156,7 @@ def test_gzip_shar_exact_restore_through_nemo_config(gzip_shar):
 @pytest.mark.parametrize("num_workers", [0, 2])
 def test_automatically_indexed_gzip_shar_stateful_dataloader_resume(tmp_path, num_workers):
     pytest.importorskip("torchdata.stateful_dataloader")
-    pytest.importorskip("indexed_gzip")
+    _require_gzip_indexed_lhotse()
     indexed_root = tmp_path / "auto-indexed"
     expected_ids = _write_shar(indexed_root, create_index=True)
     assert all(index_exists(path) for path in indexed_root.glob("cuts.*.jsonl.gz"))
@@ -244,7 +252,7 @@ def _write_field_shar(root, *, compress, audio_format, array_format, include_cut
 
 @pytest.mark.parametrize("compress", [False, True])
 def test_indexed_shar_long_unicode_cut_ids(tmp_path, compress):
-    pytest.importorskip("indexed_gzip")
+    _require_gzip_indexed_lhotse()
     root = tmp_path / "shar"
     _write_field_shar(root, compress=compress, audio_format="flac", array_format="lilcom", long_ids=True)
     create_shar_index(root)
@@ -260,7 +268,7 @@ def test_indexed_shar_long_unicode_cut_ids(tmp_path, compress):
 
 @pytest.mark.parametrize("compress", [False, True])
 def test_indexed_shar_fields_added_without_rewriting_cuts(tmp_path, compress):
-    pytest.importorskip("indexed_gzip")
+    _require_gzip_indexed_lhotse()
     root = tmp_path / "shar"
     root.mkdir()
     with SharWriter(root, fields={}, shard_size=3, compress_jsonl=compress) as writer:
@@ -281,7 +289,7 @@ def test_indexed_shar_fields_added_without_rewriting_cuts(tmp_path, compress):
 @pytest.mark.parametrize("array_format", ["numpy", "lilcom"])
 @pytest.mark.parametrize("audio_format", ["wav", "flac", "mp3", "opus", "original"])
 def test_shar_all_field_formats_through_nemo(tmp_path, compress, array_format, audio_format):
-    pytest.importorskip("indexed_gzip")
+    _require_gzip_indexed_lhotse()
     if array_format == "lilcom":
         pytest.importorskip("lilcom")
     root = tmp_path / "shar"
@@ -353,7 +361,7 @@ def _assert_shar_payloads(actual, expected):
 @pytest.mark.parametrize("seekable", [False, True])
 def test_shar_ais_index_builder_and_loading(tmp_path, monkeypatch, compress, seekable):
     """Exercise real AISRangeReader and AIStoreIOBackend with fake SDK transport."""
-    pytest.importorskip("indexed_gzip")
+    _require_gzip_indexed_lhotse()
     from lhotse.serialization import AIStoreIOBackend, BuiltinIOBackend, CompositeIOBackend, GzipIOBackend
 
     root = tmp_path / "shar"
