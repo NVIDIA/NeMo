@@ -61,6 +61,8 @@ _MIN_SPLIT_ROWS = 8
 _MAX_ONLINE_GRAPHS = 1024
 # Diarization step graphs are small, so long audio pads their rows less than the ASR graphs': every count up to 16,
 # then sizes at most 1.5x apart.
+# Long rows share a windowed pass only within this length ratio, so a 90 s clip is not padded to an hour.
+_LONG_GROUP_RATIO = 1.5
 _STEP_BATCH_SIZES = (*range(1, 17), 24, 32, 48, 64, 96, 128, 192, 256)
 
 
@@ -263,15 +265,20 @@ class EncoderGraphRunner:
         """Encode a batch of waveforms.
 
         Returns per-row embeddings, and with ``return_ctc_timestamp_inputs`` also the batch's
-        ``CTCTimestampInputs``, like the perception forward. Returns None (encode eagerly) when the audio is longer
-        than the whole-forward graphs without ``long_audio``, capture failed, or the inputs are requested from graphs
-        captured without them.
+        ``CTCTimestampInputs``, like the perception forward. Each row takes the path its own length needs: rows up
+        to ``max_frames`` replay whole-forward graphs together, and longer rows go through the windowed path in
+        groups of similar length, so a long clip does not pad the short ones. Returns None (encode eagerly) when a row
+        is longer than the whole-forward graphs without ``long_audio``, capture failed, or the inputs are requested
+        from graphs captured without them.
         """
         if not self.enabled or (return_ctc_timestamp_inputs and not self.ctc_timestamp_inputs):
             return None
         processed, processed_len = self.perception.maybe_preprocess_audio(audio_signal, audio_lengths, None, None)
-        n_feat, frames = processed.shape[1], processed.shape[2]
-        if frames > self.max_frames and not self.long_audio:
+        n_feat = processed.shape[1]
+        # Each row takes the path its own length needs; one long clip must not drag the short ones through it.
+        lengths = processed_len.tolist()
+        short = [i for i, n in enumerate(lengths) if n <= self.max_frames]
+        if len(short) < len(lengths) and not self.long_audio:
             return None
         if not self.graphs:
             try:
@@ -287,8 +294,48 @@ class EncoderGraphRunner:
                 self._disable_long_audio()
                 torch.cuda.empty_cache()
                 return None
-        if frames > self.max_frames:
-            return self._call_long(processed, processed_len, return_ctc_timestamp_inputs)
+        long = [i for i, n in enumerate(lengths) if n > self.max_frames]
+        groups = [(short, self._call_short)] if short else []
+        groups += [(group, self._call_long) for group in self._long_groups(long, lengths)]
+        embeddings, pieces, order = [None] * len(lengths), [], []
+        for rows, encode in groups:
+            if rows == list(range(len(lengths))):
+                x, x_len = processed, processed_len
+            else:
+                index = torch.tensor(rows, device=processed.device)
+                x, x_len = processed.index_select(0, index), processed_len.index_select(0, index)
+            out, states = encode(x[:, :, : max(lengths[i] for i in rows)], x_len, return_ctc_timestamp_inputs)
+            for i, emb in zip(rows, out):
+                embeddings[i] = emb
+            order.extend(rows)
+            pieces.append(states)
+        if not return_ctc_timestamp_inputs:
+            return embeddings
+        states = _cat_states(pieces)
+        if order != sorted(order):
+            restore = torch.empty(len(order), dtype=torch.long)
+            restore[torch.tensor(order)] = torch.arange(len(order))
+            states = _take_rows(states, restore)
+        return embeddings, states
+
+    def _long_groups(self, rows: list[int], lengths: list[int]) -> list[list[int]]:
+        """Split the long rows into groups of similar length, longest first, each at most the largest batch size.
+
+        A group runs together, padded to its longest row, so a row joins a group only if it is at least
+        ``1 / _LONG_GROUP_RATIO`` as long as the group's longest.
+        """
+        groups: list[list[int]] = []
+        for i in sorted(rows, key=lengths.__getitem__, reverse=True):
+            open_group = groups and len(groups[-1]) < self.batch_sizes[-1]
+            if open_group and lengths[i] * _LONG_GROUP_RATIO >= lengths[groups[-1][0]]:
+                groups[-1].append(i)
+            else:
+                groups.append([i])
+        return groups
+
+    def _call_short(self, processed: torch.Tensor, processed_len: torch.Tensor, return_ctc_timestamp_inputs: bool):
+        """Replay the whole-forward graphs for rows up to ``max_frames``; returns embeddings and CTC inputs."""
+        frames = processed.shape[2]
         bucket = self._frame_bucket(frames)
         out, pieces, start = [], [], 0
         for size in self._split(processed.shape[0], bucket):
@@ -304,23 +351,18 @@ class EncoderGraphRunner:
             out.extend(emb[i, :length].clone() for i, length in enumerate(emb_len[:n].tolist()))
             if return_ctc_timestamp_inputs:
                 pieces.append(_rows(states, n))
-        return (out, _cat_states(pieces)) if return_ctc_timestamp_inputs else out
+        return out, (_cat_states(pieces) if return_ctc_timestamp_inputs else None)
 
     def _call_long(self, processed: torch.Tensor, processed_len: torch.Tensor, return_ctc_timestamp_inputs: bool):
         """Encode audio longer than the whole-forward graphs through the online path and its window graphs.
 
-        All rows run together (up to the largest batch size per pass): the ASR windows of every row are split over the
-        graph batch sizes, and only the diarization steps pad the rows to one.
+        The rows run together (at most the largest batch size, as ``_long_groups`` ensures): the ASR windows of every
+        row are split over the graph batch sizes, and only the diarization steps pad the rows to one. Returns
+        embeddings and CTC inputs.
         """
         frames, padded = processed.shape[2], self._long_frames(processed.shape[2])
-        out, pieces = [], []
-        for start in range(0, processed.shape[0], self.batch_sizes[-1]):
-            x = F.pad(processed[start : start + self.batch_sizes[-1]], (0, padded - frames))
-            emb, emb_len, states = self._forward(x, processed_len[start : start + self.batch_sizes[-1]])
-            out.extend(emb[i, :length] for i, length in enumerate(emb_len.tolist()))
-            if return_ctc_timestamp_inputs:
-                pieces.append(states)
-        return (out, _cat_states(pieces)) if return_ctc_timestamp_inputs else out
+        emb, emb_len, states = self._forward(F.pad(processed, (0, padded - frames)), processed_len)
+        return [emb[i, :length] for i, length in enumerate(emb_len.tolist())], states
 
 
 def _tensor_fields(states) -> list[str]:
@@ -328,11 +370,26 @@ def _tensor_fields(states) -> list[str]:
 
 
 def _cat_states(pieces: list):
-    """Concatenate the rows of several ``CTCTimestampInputs``."""
+    """Concatenate the rows of several ``CTCTimestampInputs``, padding their longer dimensions with zeros to match."""
     if len(pieces) == 1:
         return pieces[0]
-    tensors = {name: torch.cat([getattr(p, name) for p in pieces]) for name in _tensor_fields(pieces[0])}
+    tensors = {}
+    for name in _tensor_fields(pieces[0]):
+        parts = [getattr(p, name) for p in pieces]
+        shape = [max(sizes) for sizes in zip(*(part.shape for part in parts))]
+        tensors[name] = torch.cat([F.pad(part, _pad_to(part.shape, shape)) for part in parts])
     return dataclasses.replace(pieces[0], **tensors)
+
+
+def _pad_to(shape, target) -> list[int]:
+    """``F.pad`` arguments that grow the trailing dimensions (all but the first) of ``shape`` to ``target``."""
+    return [amount for size, to in zip(reversed(shape[1:]), reversed(target[1:])) for amount in (0, to - size)]
+
+
+def _take_rows(states, index: torch.Tensor):
+    """``CTCTimestampInputs`` with the rows of every tensor picked (and ordered) by ``index``."""
+    picked = {name: getattr(states, name)[index.to(getattr(states, name).device)] for name in _tensor_fields(states)}
+    return dataclasses.replace(states, **picked)
 
 
 def _rows(states, n: int):

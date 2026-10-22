@@ -74,7 +74,7 @@ class OnlineGraphs:
     _diar_steps: Optional[_StreamingStepGraphs] = field(default=None, init=False, repr=False)
 
     def asr_windows(self, encoder, rows: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-        """Encode equal-width ASR windows with ``encoder``, replaying graphs where available (see :class:`_ASRWindowGraphs`)."""
+        """Encode equal-width ASR windows with ``encoder``, replaying graphs where available."""
         if self._asr_windows is None:
             self._asr_windows = _ASRWindowGraphs(self.max_graphs, self.pool, self.buffers)
         return self._asr_windows(encoder, rows, lengths, self.split, capture_now=self.capture_now)

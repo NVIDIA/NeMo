@@ -2823,6 +2823,81 @@ def test_encoder_graphs_serve_audio_of_any_length_window_by_window():
     assert _eager_window_pieces(encoder) == eager_pieces
 
 
+def _assert_states_match(states, ref_states):
+    """Every row of ``CTCTimestampInputs`` equals the reference over its valid frames (padding may differ)."""
+    for name, time_axis, lengths_name in (
+        ("asr_encoded", 2, "asr_encoded_lengths"),
+        ("sortformer_sigmoids", 1, "sortformer_lengths"),
+        ("diarization_labels", 2, "diarization_lengths"),
+    ):
+        got_lengths, ref_lengths = getattr(states, lengths_name), getattr(ref_states, lengths_name)
+        assert torch.equal(got_lengths, ref_lengths), name
+        for i, n in enumerate(ref_lengths.tolist()):
+            got, ref = getattr(states, name)[i], getattr(ref_states, name)[i]
+            torch.testing.assert_close(
+                got.narrow(time_axis - 1, 0, n), ref.narrow(time_axis - 1, 0, n), rtol=1e-5, atol=2e-5, msg=name
+            )
+
+
+@pytest.mark.unit
+def test_encoder_graphs_route_each_row_by_its_own_length():
+    """Short rows replay the whole-forward graphs and long rows run in groups of similar length, in request order."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    runner, perception, encoder = _long_audio_runner(ctc_timestamp_inputs=True)
+    window = encoder.chunk_feat_len
+    long_calls = []
+    original = runner._call_long
+
+    def spy(processed, processed_len, return_ctc_timestamp_inputs):
+        long_calls.append(processed_len.tolist())
+        return original(processed, processed_len, return_ctc_timestamp_inputs)
+
+    runner._call_long = spy
+    frames = [5 * window + 3, 30, 20 * window, 4 * window + 5, 40, 2 * window - 1]
+    audio = torch.randn(len(frames), max(frames) * _MEL_FEATURES, device="cuda")
+    lengths = torch.tensor(frames, device="cuda") * _MEL_FEATURES
+
+    embeds, states = runner(audio, lengths, return_ctc_timestamp_inputs=True)
+    ref_embs, ref_lens, ref_states = _eager(perception, encoder, audio, lengths, return_ctc_timestamp_inputs=True)
+
+    # No short row ran through the windowed path; the long rows were grouped by length (the 5- and 4-window rows
+    # together), and the results came back in request order.
+    assert long_calls == [[20 * window], [5 * window + 3, 4 * window + 5], [2 * window - 1]]
+    assert len(embeds) == len(frames)
+    for i, n in enumerate(ref_lens.tolist()):
+        torch.testing.assert_close(embeds[i], ref_embs[i, :n], rtol=1e-5, atol=2e-5)
+    _assert_states_match(states, ref_states)
+
+
+@pytest.mark.unit
+def test_encoder_graphs_keep_request_order_within_one_long_group():
+    """Rows of one group run longest first; each embedding must still go back to its own row."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    runner, perception, encoder = _long_audio_runner()
+    window = encoder.chunk_feat_len
+    frames = torch.tensor([4 * window + 7, 5 * window + 1, 4 * window + 40, 5 * window + 30], device="cuda")
+    audio = torch.randn(len(frames), int(frames.max()) * _MEL_FEATURES, device="cuda")
+    lengths = frames * _MEL_FEATURES
+
+    got = runner(audio, lengths)
+    ref_embs, ref_lens = _eager(perception, encoder, audio, lengths)
+    assert [len(g) for g in got] == ref_lens.tolist()
+    for i, n in enumerate(ref_lens.tolist()):
+        torch.testing.assert_close(got[i], ref_embs[i, :n], rtol=1e-5, atol=2e-5)
+
+
+@pytest.mark.unit
+def test_encoder_graphs_leave_long_rows_to_the_eager_path_without_long_audio():
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    runner, _, encoder = _long_audio_runner(long_audio=False)
+    frames = torch.tensor([30, 3 * encoder.chunk_feat_len], device="cuda")
+    audio = torch.randn(2, int(frames.max()) * _MEL_FEATURES, device="cuda")
+    assert runner(audio, frames * _MEL_FEATURES) is None
+
+
 @pytest.mark.unit
 def test_encoder_graphs_return_ctc_timestamp_inputs_for_long_audio():
     if not torch.cuda.is_available():
@@ -2837,18 +2912,7 @@ def test_encoder_graphs_return_ctc_timestamp_inputs_for_long_audio():
     ref_embs, ref_lens, ref_states = _eager(perception, encoder, audio, lengths, return_ctc_timestamp_inputs=True)
     for i, n in enumerate(ref_lens.tolist()):
         torch.testing.assert_close(embeds[i], ref_embs[i, :n], rtol=1e-5, atol=2e-5)
-    for name, time_axis, lengths_name in (
-        ("asr_encoded", 2, "asr_encoded_lengths"),
-        ("sortformer_sigmoids", 1, "sortformer_lengths"),
-        ("diarization_labels", 2, "diarization_lengths"),
-    ):
-        got_lengths, ref_lengths = getattr(states, lengths_name), getattr(ref_states, lengths_name)
-        assert torch.equal(got_lengths, ref_lengths), name
-        for i, n in enumerate(ref_lengths.tolist()):
-            got, ref = getattr(states, name)[i], getattr(ref_states, name)[i]
-            torch.testing.assert_close(
-                got.narrow(time_axis - 1, 0, n), ref.narrow(time_axis - 1, 0, n), rtol=1e-5, atol=2e-5, msg=name
-            )
+    _assert_states_match(states, ref_states)
 
 
 @pytest.mark.unit
