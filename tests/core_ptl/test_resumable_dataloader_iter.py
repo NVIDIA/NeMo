@@ -31,6 +31,7 @@ from lightning.pytorch.utilities.exceptions import _TunerExitException
 from torchdata.stateful_dataloader import StatefulDataLoader
 
 from nemo.core.utils.lightning_utils import read_batch
+from nemo.utils import logging as nemo_logging
 from nemo.utils.exp_manager import (
     StatelessTimer,
     configure_no_restart_validation_training_loop,
@@ -137,7 +138,11 @@ def _make_checkpoint_callback(root: Path) -> ModelCheckpoint:
 
 
 def _make_trainer(
-    root: Path, max_steps: int, callbacks: list | None = None, skip_dataloader_state: bool = False
+    root: Path,
+    max_steps: int,
+    callbacks: list | None = None,
+    skip_dataloader_state: bool = False,
+    skip_dataloader_state_first: bool = False,
 ) -> pl.Trainer:
     trainer = pl.Trainer(
         accelerator="cpu",
@@ -154,8 +159,12 @@ def _make_trainer(
         enable_model_summary=False,
         enable_progress_bar=False,
     )
+    # exp_manager installs the validation skip first and the loader-state skip second; the reverse order
+    # must behave the same, so tests can request it.
+    if skip_dataloader_state and skip_dataloader_state_first:
+        configure_skip_dataloader_state_restore(trainer)
     configure_no_restart_validation_training_loop(trainer)
-    if skip_dataloader_state:
+    if skip_dataloader_state and not skip_dataloader_state_first:
         configure_skip_dataloader_state_restore(trainer)
     return trainer
 
@@ -168,11 +177,16 @@ def _fit(
     callbacks: list | None = None,
     sleep_sec: float = 0.0,
     skip_dataloader_state: bool = False,
+    skip_dataloader_state_first: bool = False,
 ) -> tuple[list[dict[str, int]], pl.Trainer, _BaseParityModel]:
     seen: list[dict[str, int]] = []
     model = model_cls(seen=seen, sleep_sec=sleep_sec)
     trainer = _make_trainer(
-        root, max_steps=max_steps, callbacks=callbacks, skip_dataloader_state=skip_dataloader_state
+        root,
+        max_steps=max_steps,
+        callbacks=callbacks,
+        skip_dataloader_state=skip_dataloader_state,
+        skip_dataloader_state_first=skip_dataloader_state_first,
     )
     trainer.fit(model, ckpt_path=ckpt_path)
     return seen, trainer, model
@@ -316,13 +330,22 @@ def test_timer_checkpoint_resume_has_consistent_progress_and_no_sample_drift(tmp
 
 
 @pytest.mark.unit
-def test_skip_dataloader_state_restore_restarts_data_but_keeps_progress(tmp_path):
+@pytest.mark.parametrize(
+    "skip_first", [False, True], ids=["validation_skip_installed_first", "loader_skip_installed_first"]
+)
+def test_skip_dataloader_state_restore_restarts_data_but_keeps_progress(tmp_path, monkeypatch, skip_first):
     first_callback = _make_checkpoint_callback(tmp_path / "first")
     first, _, _ = _fit(tmp_path / "first", _BatchStepModel, max_steps=5, callbacks=[first_callback])
     assert _project(first, "sample_id") == list(range(5))
     ckpt = torch.load(first_callback.last_model_path, map_location="cpu", weights_only=False)
     assert ckpt["loops"]["fit_loop"]["state_dict"]["combined_loader"], "the checkpoint must carry dataloader state"
 
+    # The only observable that exists exclusively on the skip path is its log line; Lightning empties
+    # ``_combined_loader_states_to_load`` after a normal restore too, so that attribute proves nothing.
+    messages: list[str] = []
+    monkeypatch.setattr(
+        nemo_logging, "info", lambda msg, *args, **kwargs: messages.append(msg % args if args else msg)
+    )
     second_callback = _make_checkpoint_callback(tmp_path / "second")
     second, trainer, _ = _fit(
         tmp_path / "second",
@@ -331,13 +354,16 @@ def test_skip_dataloader_state_restore_restarts_data_but_keeps_progress(tmp_path
         ckpt_path=first_callback.last_model_path,
         callbacks=[second_callback],
         skip_dataloader_state=True,
+        skip_dataloader_state_first=skip_first,
     )
 
     # Data loading starts over (a normal resume continues with samples 5..9), training progress continues.
     assert _project(second, "sample_id") == list(range(5))
     assert _project(second, "global_step") == list(range(5, 10))
     assert _project(second, "epoch") == [1] * 5
-    assert trainer.fit_loop._combined_loader_states_to_load == []
+    assert any("ignoring the dataloader state of 1 loader(s)" in message for message in messages), messages
+    # The validation-skip loop must not re-apply the dropped state from its cache either.
+    assert getattr(trainer.fit_loop, "_nemo_restart_combined_loader_states", None) is None
 
 
 @pytest.mark.unit
@@ -346,5 +372,8 @@ def test_skip_dataloader_state_restore_is_a_noop_for_fresh_runs_and_idempotent(t
     assert _project(seen, "sample_id") == list(range(5))
 
     installed = trainer.fit_loop._load_combined_loader_states
+    # The installer ran (not a no-op) and its wrapper is the outermost one on the fit loop.
+    assert trainer.fit_loop._nemo_skip_dataloader_state_installed is True
+    assert installed.__qualname__.startswith("configure_skip_dataloader_state_restore.")
     configure_skip_dataloader_state_restore(trainer)
     assert trainer.fit_loop._load_combined_loader_states is installed

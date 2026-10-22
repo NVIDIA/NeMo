@@ -1687,7 +1687,8 @@ def configure_skip_dataloader_state_restore(trainer: lightning.pytorch.Trainer) 
     cursors land on the wrong datasets or fail a size check. This wrapper drops the saved loader
     state before Lightning applies it, so data loading starts afresh while model, optimizer,
     schedulers and the global step are still restored. Installed by :func:`exp_manager` when
-    ``restore_dataloader_state`` is False; safe to call more than once.
+    ``restore_dataloader_state`` is False; safe to call more than once, before or after
+    :func:`configure_no_restart_validation_training_loop`.
     """
     fit_loop = trainer.fit_loop
     if getattr(fit_loop, "_nemo_skip_dataloader_state_installed", False):
@@ -1705,6 +1706,10 @@ def configure_skip_dataloader_state_restore(trainer: lightning.pytorch.Trainer) 
             )
             fit_loop._combined_loader_states_to_load = []
         original_load_combined_loader_states()
+        # When configure_no_restart_validation_training_loop wrapped this method after us, its wrapper ran
+        # first and cached the saved state for SkipResumeTrainingValidationLoop to re-apply after the skipped
+        # restart validation. Clear that cache so the dropped state stays dropped whatever the install order.
+        fit_loop._nemo_restart_combined_loader_states = None
 
     fit_loop._load_combined_loader_states = _drop_combined_loader_states
     fit_loop._nemo_skip_dataloader_state_installed = True
