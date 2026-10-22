@@ -335,7 +335,9 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "language_prompt_features": NeuralType(('B', 'T', 'D'), LabelsType(), optional=True),
             "language_prompt_indices": NeuralType(tuple('B'), LabelsType(), optional=True),
-            # Deprecated aliases of language_prompt_features / language_prompt_indices.
+            # TODO: `prompt` / `prompt_indices` are deprecated aliases of `language_prompt_features` /
+            # `language_prompt_indices`; use the new names. Remove them in next NeMo release, together with the matching
+            # forward() parameters and `resolve_deprecated_prompt_arguments`.
             "prompt": NeuralType(('B', 'T', 'D'), LabelsType(), optional=True),
             "prompt_indices": NeuralType(tuple('B'), LabelsType(), optional=True),
         }
