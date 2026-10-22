@@ -46,6 +46,7 @@ from nemo.collections.asr.inference.utils.pipeline_utils import (
 )
 from nemo.collections.asr.inference.utils.progressbar import ProgressBar
 from nemo.collections.asr.inference.utils.text_segment import TextSegment
+from nemo.collections.asr.parts.utils.prompt_language_utils import resolve_prompt_index
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 if TYPE_CHECKING:
@@ -521,48 +522,21 @@ class BasePipeline(PipelineInterface):
 
         return {}
 
-    def _resolve_prompt_index(self, language_code: str) -> int:
+    def _resolve_prompt_index(self, language_code: str | None) -> int:
         """
-        Resolve language_code to a strict prompt index; raise if invalid.
+        Resolve language_code to a prompt index, with the rules shared by the prompt-conditioned models.
         Args:
-            language_code: (str) Language code to resolve (e.g., "en-US", "es-ES").
+            language_code: (str | None) Language code to resolve (e.g., "en", "es-ES"), or None for
+                the language-agnostic "auto" prompt.
         Returns:
             (int) Prompt index corresponding to the language code.
         Raises:
             RuntimeError: If prompt configuration is missing.
-            ValueError: If language_code is not found in prompt dictionary.
+            ValueError: If the language is not supported by the model, or is ambiguous.
         """
         if not hasattr(self, '_prompt_config') or not self._prompt_config:
             raise RuntimeError("Prompt configuration is missing for a prompt-enabled model.")
-        prompt_dict = self._prompt_config['prompt_dict']
-        lang_index = prompt_dict.get(language_code, None)
-        if lang_index is None:
-            raise ValueError(
-                f"Language code '{language_code}' not found in prompt dictionary. "
-                f"Available languages: {list(prompt_dict.keys())}"
-            )
-        return lang_index
-
-    def _resolve_default_language_code(self) -> str | None:
-        """
-        Pick the language used when a request does not specify one.
-
-        Prefers a language the model itself declares. Only ``auto`` is implied otherwise: it is the
-        established language-agnostic prompt, whereas guessing at a locale such as ``en-US`` would
-        silently transcribe every language as English.
-        Returns:
-            (str | None) A key of the model's prompt dictionary, or None when the model has no
-                prompts or declares no default and defines no ``auto``, in which case the caller
-                must supply a language explicitly.
-        """
-        if not getattr(self, '_prompt_config', None):
-            return None
-
-        declared = getattr(self.asr_model.asr_model, 'default_prompt_language', None)
-        if declared is not None:
-            return declared
-
-        return "auto" if "auto" in self._prompt_config['prompt_dict'] else None
+        return resolve_prompt_index(language_code or None, self._prompt_config['prompt_dict'])
 
     def _create_one_hot_prompts(self, indices: Tensor) -> Tensor:
         """

@@ -26,6 +26,7 @@ import torch.utils.data
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
+from nemo.collections.asr.parts.utils.prompt_language_utils import AUTO_PROMPT_LANGUAGE, resolve_prompt_index
 from nemo.collections.common.data.lhotse.audio_loading import LhotseAudioLoadingDatasetMixin
 from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -72,43 +73,41 @@ class LhotseSpeechToTextBpeDatasetWithPromptIndex(LhotseAudioLoadingDatasetMixin
 
         self.num_prompts = cfg.get('num_prompts', 128)
 
-        # Per-dataset prompt mode is read from cut.custom["prompt_mode"] at runtime.
-        # Supported values:
-        #   "langID"  — always pass the real language ID
-        #   "auto"    — always pass auto (101)
-        #   "unified" — randomize: auto with probability unified_auto_ratio, else lang ID
+        # Per-dataset prompt mode is read from cut.custom["prompt_mode"] at runtime, falling back to
+        # `default_prompt_mode`. Supported values:
+        #   "langID"  — always pass the cut's language ID. Transcription always uses this mode.
+        #   "auto"    — always pass the language-agnostic "auto" prompt.
+        #   "unified" — training default: "auto" with probability unified_auto_ratio, else the
+        #               language ID, so that one model learns both prompted and agnostic decoding.
         # Set via lhotse input_cfg tags, e.g.  tags: { prompt_mode: langID }
         self.prompt_mode_field = cfg.get('prompt_mode_field', 'prompt_mode')
         self.default_prompt_mode = cfg.get('default_prompt_mode', 'unified')
         self.unified_auto_ratio = cfg.get('unified_auto_ratio', 0.5)
 
         # Index used for the language-agnostic / auto prompt
-        self.auto_index = self.prompt_dict.get('auto', 101)
+        self.auto_index = self.prompt_dict.get(AUTO_PROMPT_LANGUAGE, 101)
 
-        # Language used when a cut names none, or names one absent from the dictionary. Transcription
-        # sets this so that audio without a language still decodes; training leaves it unset, which
-        # keeps the strict behaviour of failing on data whose language cannot be honoured.
+        # Language that replaces every cut's own language (set by transcription for a run-wide
+        # `target_lang`), and language for cuts that name none. Training leaves both unset, so a cut
+        # without a language is an error there.
+        self.target_lang = cfg.get('target_lang', None)
         self.default_lang = cfg.get('default_lang', None)
-        if self.default_lang is not None:
-            self.default_lang_index = self._get_prompt_index(self.default_lang)
-        else:
-            self.default_lang_index = None
 
         logging.info(
             f"LhotseSpeechToTextBpeDatasetWithPromptIndex: "
             f"default_prompt_mode={self.default_prompt_mode}, "
             f"unified_auto_ratio={self.unified_auto_ratio}, "
-            f"default_lang={self.default_lang}"
+            f"target_lang={self.target_lang}, default_lang={self.default_lang}"
         )
 
-    def _get_prompt_index(self, prompt_key: str) -> int:
-        """Maps prompt keys to indices using the prompt dictionary."""
-        if prompt_key not in self.prompt_dict:
-            available_keys = list(self.prompt_dict.keys())
-            raise ValueError(
-                f"Unknown prompt key: '{prompt_key}'. Available: {available_keys[:10]}{'...' if len(available_keys) > 10 else ''}"
-            )
-        return self.prompt_dict[prompt_key]
+    def _get_language_index(self, cut) -> int:
+        """Prompt index for the cut's language; raises if the model does not support it."""
+        language = self.target_lang if self.target_lang is not None else cut.supervisions[0].language
+        if language is None:
+            if self.default_lang is None:
+                raise ValueError(f"Cut '{cut.id}' has no language, and no default_lang is configured.")
+            language = self.default_lang
+        return resolve_prompt_index(language, self.prompt_dict)
 
     def _get_prompt_mode(self, cut) -> str:
         """Resolve the prompt_mode for a cut from its custom tags."""
@@ -124,8 +123,8 @@ class LhotseSpeechToTextBpeDatasetWithPromptIndex(LhotseAudioLoadingDatasetMixin
 
         Behaviour depends on prompt_mode (set per-dataset via lhotse
         input_cfg tags, falling back to ``default_prompt_mode``):
-            "langID"  — always return the real language ID
-                        (use for inference / language-forced tasks)
+            "langID"  — always return the cut's language ID
+                        (``target_lang`` replaces it when set; ``default_lang`` covers cuts without one)
             "auto"    — always return auto index (language-agnostic)
             "unified" — return auto with probability unified_auto_ratio,
                         otherwise the real language ID
@@ -145,29 +144,6 @@ class LhotseSpeechToTextBpeDatasetWithPromptIndex(LhotseAudioLoadingDatasetMixin
             if random.random() < self.unified_auto_ratio:
                 return self.auto_index
             return self._get_language_index(cut)
-
-    def _get_language_index(self, cut) -> int:
-        """Prompt index for a cut's own language, falling back to ``default_lang`` when configured."""
-        language = cut.supervisions[0].language
-        if language in self.prompt_dict:
-            return self.prompt_dict[language]
-
-        if self.default_lang_index is not None:
-            self._warn_once(
-                f"Cut language {language!r} is not in the prompt dictionary; "
-                f"using the default language '{self.default_lang}' instead."
-            )
-            return self.default_lang_index
-
-        return self._get_prompt_index(language)
-
-    def _warn_once(self, message: str) -> None:
-        """Log a resolution warning once, since this runs per cut."""
-        if not hasattr(self, '_warned_messages'):
-            self._warned_messages = set()
-        if message not in self._warned_messages:
-            self._warned_messages.add(message)
-            logging.warning(message)
 
     def __getitem__(self, cuts) -> Tuple[torch.Tensor, ...]:
         audio, audio_lens, cuts = self.load_audio_with_cuts(cuts)

@@ -32,6 +32,10 @@ from nemo.collections.asr.parts.mixins import ASRTranscriptionMixin, PromptStrea
 from nemo.collections.asr.parts.mixins.transcription import TranscriptionReturnType
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding
+from nemo.collections.asr.parts.utils.prompt_language_utils import (
+    AUTO_PROMPT_LANGUAGE,
+    resolve_deprecated_prompt_arguments,
+)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -51,10 +55,10 @@ from nemo.utils import logging, model_utils
 class RNNTPromptTranscribeConfig(TranscribeConfig):
     """Transcription configuration for RNNT BPE Model with Prompt conditioning."""
 
-    # Prompt dictionary key applied to every utterance of the run, e.g. "en-US" or the
-    # language-agnostic "auto". Set to None to condition each utterance on its own manifest
-    # language instead, read from `lang_field`.
-    target_lang: Optional[str] = "auto"
+    # Language applied to every utterance of the run, e.g. "en", "de-DE" or the language-agnostic
+    # "auto". None (the default) conditions each utterance on its own manifest language, read from
+    # `lang_field`, and uses "auto" for utterances that name none (e.g. a plain list of audio files).
+    target_lang: Optional[str] = None
 
     # Manifest field holding each utterance's language. Only consulted when `target_lang` is None.
     lang_field: str = "lang"
@@ -72,8 +76,7 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
     mechanism but were trained in dual mode with full-context attention and chunked-limited attention
     with additional right-context. Such checkpoints are transcribed offline or with chunked inference
     (see ``examples/asr/asr_chunked_inference/rnnt``); cache-aware streaming would run
-    their encoder outside its trained regime.  A checkpoint may name its preferred
-    fallback language via ``model_defaults.default_prompt_language``.
+    their encoder outside its trained regime.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -178,67 +181,6 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
-    @property
-    def default_prompt_language(self) -> Optional[str]:
-        """Language used when a caller does not name one.
-
-        ``auto`` is the established language-agnostic prompt and is used whenever the model
-        defines it. A checkpoint whose language-agnostic slot is spelled differently — ``unk``, for
-        instance — names it via ``model_defaults.default_prompt_language``. Nothing else is
-        guessed: falling back to a locale such as ``en-US`` would silently transcribe every
-        language as English.
-
-        Returns:
-            A key of the model's ``prompt_dictionary``, or None when the model neither declares a
-            default nor defines ``auto``, in which case callers must name a language explicitly.
-        """
-        prompt_dict = self.cfg.model_defaults.get('prompt_dictionary') or {}
-        declared = self.cfg.model_defaults.get('default_prompt_language', None)
-        if declared is not None:
-            if declared not in prompt_dict:
-                raise ValueError(
-                    f"model_defaults.default_prompt_language is '{declared}', which is not a key of "
-                    f"prompt_dictionary. Available languages: {list(prompt_dict)[:10]}"
-                )
-            return declared
-
-        return "auto" if "auto" in prompt_dict else None
-
-    def resolve_prompt_language(self, target_lang: Optional[str]) -> int:
-        """Map a language name to its prompt index.
-
-        Accepts an exact ``prompt_dictionary`` key (``"de-DE"``) or a bare language code
-        (``"de"``). An unknown or missing name falls back to :attr:`default_prompt_language`, so
-        that a manifest carrying languages the model was not trained on still transcribes instead
-        of aborting the run.
-
-        Args:
-            target_lang: Language name, or None to use the model's default.
-
-        Returns:
-            (int) Index into the prompt one-hot vector.
-        """
-        prompt_dict = self.cfg.model_defaults.get('prompt_dictionary') or {}
-        if not prompt_dict:
-            raise ValueError("Prompt dictionary is empty. Cannot create dynamic prompts.")
-
-        resolved = self._match_prompt_language(target_lang, prompt_dict)
-        if resolved is None:
-            resolved = self.default_prompt_language
-            if resolved is None:
-                raise ValueError(
-                    f"Unknown target language: '{target_lang}', and this model declares no default "
-                    f"language to fall back to. Set model_defaults.default_prompt_language or pass a "
-                    f"known language. Available languages: {list(prompt_dict)[:10]}"
-                )
-            if target_lang is not None:
-                self._warn_prompt_language_once(
-                    f"Target language '{target_lang}' is not in the model's prompt dictionary; "
-                    f"falling back to '{resolved}'."
-                )
-
-        return prompt_dict[resolved]
-
     # Data loading
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get("use_lhotse"):
@@ -303,7 +245,7 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
         )
 
     def _transcribe_input_manifest_processing(self, audio_files, temp_dir: str, trcfg) -> Dict[str, Any]:
-        """Carry `target_lang` into the dataloader config so it can inform language resolution."""
+        """Carry `target_lang` into the dataloader config, so that it conditions every utterance."""
         ds_config = super()._transcribe_input_manifest_processing(audio_files, temp_dir, trcfg)
         ds_config['target_lang'] = getattr(trcfg, 'target_lang', None)
         return ds_config
@@ -328,17 +270,16 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
             'use_lhotse': config.get('use_lhotse', True),
             'use_bucketing': False,
             'drop_last': False,
-            # Read each utterance's own language from the manifest. "langID" is required here
-            # because the training default, "unified", substitutes the language-agnostic prompt at
-            # random for half the utterances, which would make transcription ignore the manifest.
-            # `default_lang` covers audio that names no language, e.g. a plain list of files; it
-            # prefers `target_lang` so that the indices agree with the run-wide language
-            # `_transcribe_forward` applies, rather than warning about a fallback it will discard.
+            # "langID" always uses the utterance's language. The training default, "unified",
+            # substitutes the language-agnostic prompt at random for half the utterances, which
+            # would make transcription ignore the requested language. `target_lang`, when set,
+            # replaces every utterance's language; `default_lang` covers utterances that name none.
             'initialize_prompt_feature': True,
             'prompt_dictionary': self.cfg.model_defaults.get('prompt_dictionary'),
             'num_prompts': self.cfg.model_defaults.get('num_prompts', 128),
             'default_prompt_mode': 'langID',
-            'default_lang': self._default_transcribe_language(config.get('target_lang')),
+            'target_lang': config.get('target_lang'),
+            'default_lang': AUTO_PROMPT_LANGUAGE,
             # Which manifest field holds each utterance's language (`gt_lang_attr_name` in
             # transcribe_speech.py). Forwarded so a manifest that names it something other than
             # "lang" still conditions the prompt per utterance.
@@ -394,6 +335,9 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "language_prompt_features": NeuralType(('B', 'T', 'D'), LabelsType(), optional=True),
             "language_prompt_indices": NeuralType(tuple('B'), LabelsType(), optional=True),
+            # Deprecated aliases of language_prompt_features / language_prompt_indices.
+            "prompt": NeuralType(('B', 'T', 'D'), LabelsType(), optional=True),
+            "prompt_indices": NeuralType(tuple('B'), LabelsType(), optional=True),
         }
 
     @property
@@ -412,6 +356,8 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
         processed_signal_length=None,
         language_prompt_features=None,
         language_prompt_indices=None,
+        prompt=None,
+        prompt_indices=None,
     ):
         """
         Forward pass of the acoustic model, optionally conditioned on a language-ID prompt.
@@ -421,15 +367,21 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
             input_signal_length: Vector of length B with the individual audio lengths.
             processed_signal: Batch of processed audio signals of shape [B, D, T].
             processed_signal_length: Vector of length B with the individual processed lengths.
-            language_prompt_features: Pre-built one-hot prompt tensor of shape [B, T, D],
-                trimmed to the encoder length when longer. Used by the streaming inference wrappers.
-            language_prompt_indices: Tensor of shape [B] with one language-ID index per sample. The one-hot
-                is built after encoding from the actual encoder length, so no size mismatch is
+            language_prompt_features: Pre-built one-hot prompt tensor of shape [B, T, D], trimmed to
+                the encoder length when longer. Used by the buffered streaming utilities.
+            language_prompt_indices: Tensor of shape [B] with one language-ID index per sample. The
+                one-hot is built after encoding from the actual encoder length, so no size mismatch is
                 possible. Ignored when ``language_prompt_features`` is also provided.
+            prompt: Deprecated alias of ``language_prompt_features``.
+            prompt_indices: Deprecated alias of ``language_prompt_indices``.
 
         Returns:
             A tuple of the encoded tensor of shape [B, D, T] and its lengths of shape [B].
         """
+        language_prompt_features, language_prompt_indices = resolve_deprecated_prompt_arguments(
+            language_prompt_features, language_prompt_indices, prompt, prompt_indices
+        )
+
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
         if (has_input_signal ^ has_processed_signal) is False:
@@ -668,13 +620,10 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
         audio, audio_lens = batch[0], batch[1]
         language_prompt_indices = batch[4] if len(batch) >= 5 else None
 
-        batch_size = audio.shape[0]
-
-        # An explicit `target_lang` names the language for the whole run and so takes precedence
-        # over the per-utterance indices the dataloader derives from the manifest.
-        if trcfg.target_lang is not None or language_prompt_indices is None:
+        # Batches built from audio tensors carry no per-utterance indices.
+        if language_prompt_indices is None:
             prompt_id = self.resolve_prompt_language(trcfg.target_lang)
-            language_prompt_indices = torch.full((batch_size,), prompt_id, dtype=torch.long, device=audio.device)
+            language_prompt_indices = torch.full((audio.shape[0],), prompt_id, dtype=torch.long, device=audio.device)
 
         encoded, encoded_len = self.forward(
             input_signal=audio, input_signal_length=audio_lens, language_prompt_indices=language_prompt_indices
@@ -752,39 +701,3 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         return None
-
-    def _default_transcribe_language(self, target_lang: Optional[str]) -> Optional[str]:
-        """Dictionary key the transcribe dataloader falls back to, or None when there is none.
-
-        Resolved leniently, and never raises: an unrecognised ``target_lang`` must not stop the
-        dataloader from being built, since :meth:`resolve_prompt_language` reports it and falls back
-        when the batch is conditioned.
-        """
-        prompt_dict = self.cfg.model_defaults.get('prompt_dictionary') or {}
-        return self._match_prompt_language(target_lang, prompt_dict) or self.default_prompt_language
-
-    @staticmethod
-    def _match_prompt_language(target_lang: Optional[str], prompt_dict: Dict[str, int]) -> Optional[str]:
-        """Find the dictionary key for a language name, or None when there is no match."""
-        if target_lang is None:
-            return None
-
-        if target_lang in prompt_dict:
-            return target_lang
-
-        # Bare language code, e.g. "de" for a dictionary keyed by locale like "de-DE".
-        prefix = f"{target_lang.lower()}-"
-        matches = sorted(key for key in prompt_dict if key.lower().startswith(prefix))
-        if not matches:
-            return None
-        if len(matches) > 1:
-            logging.warning(f"Language code '{target_lang}' matches {matches}; using '{matches[0]}'.")
-        return matches[0]
-
-    def _warn_prompt_language_once(self, message: str) -> None:
-        """Log a prompt-resolution warning once, since resolution runs per batch."""
-        if not hasattr(self, '_warned_prompt_languages'):
-            self._warned_prompt_languages = set()
-        if message not in self._warned_prompt_languages:
-            self._warned_prompt_languages.add(message)
-            logging.warning(message)

@@ -26,10 +26,9 @@ Supported models:
 - Prompt-conditioned multilingual RNNT models (`EncDecRNNTBPEModelWithPrompt`): additionally inject a
   language-ID prompt into the encoder output. The prompt encodes the language spoken in the audio,
   selected per utterance from each manifest record's `lang_field` (default "lang", the same field
-  offline transcription reads, holding a key of the model's `prompt_dictionary`, e.g. "en" or
-  "en-US"). Passing `target_lang` overrides that field for every utterance (handy to force one
-  language, e.g. to probe behaviour with the "wrong" one). When neither is present, or the value is
-  unknown, the model's own default language is used.
+  offline transcription reads, e.g. "en" or "en-US"). Passing `target_lang` overrides that field
+  for every utterance (handy to force one language). A record without a language uses the
+  language-agnostic "auto" prompt; a language the model does not support raises an error.
   Both are ignored by models without prompt conditioning, and are separate from `langid`, which only
   selects the number-to-words locale used when `clean_groundtruth_text=True`.
 
@@ -57,9 +56,11 @@ python speech_to_text_streaming_infer_rnnt.py \
     left_context_secs=10.0 \
     batch_size=32 \
     clean_groundtruth_text=False \
-    langid='en' \
-    target_lang='en'    # prompt-conditioned models only; overrides each record's lang_field
+    langid='en'
 ```
+
+For prompt-conditioned models, add `target_lang='en'` to force one language for every record,
+instead of reading each record's `lang_field`.
 """
 import copy
 import glob
@@ -156,10 +157,10 @@ class TranscriptionConfig:
         True  # whether to use the att_context_size as chunk size (important for extra-low latency)
     )
 
-    # Language-ID prompt for prompt-conditioned models: the language spoken in the audio, a key of the
-    # model's `prompt_dictionary` (e.g. "en-US"). If `target_lang` is set it overrides every utterance
-    # (handy to force a language, e.g. to probe behaviour with the "wrong" one); if it is None, each
-    # record's `lang_field` is used instead. Ignored by models without prompt support.
+    # Language-ID prompt for prompt-conditioned models: the language spoken in the audio (e.g. "en",
+    # "de-DE", or the language-agnostic "auto"), applied to every utterance. By default (None) each
+    # record uses its own `lang_field`, and "auto" when it names none. A language the model does not
+    # support raises an error. Ignored by models without prompt support.
     target_lang: Optional[str] = None
     # "lang" matches the Lhotse manifest field that offline transcription reads, so the same manifest
     # conditions both paths identically.
@@ -418,16 +419,15 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     # Language-ID prompt setup. The prompt encodes the spoken language, resolved per utterance: an
     # explicit `target_lang` overrides every record (e.g. to force a language); otherwise each
-    # record's `lang_field` is used, falling back to the model's own default language when neither is
-    # present or the value is unknown. Indices follow `records` order (matching the shuffle=False,
-    # in_order=True dataloader), so a running offset maps each batch to its languages. The model
-    # builds the one-hot from these indices at the encoder's own length, once per chunk.
+    # record's `lang_field` is used, and "auto" when the record names none. A language the model does
+    # not support raises before decoding starts. Indices follow `records` order (matching the
+    # shuffle=False, in_order=True dataloader), so a running offset maps each batch to its languages.
+    # The model builds the one-hot from these indices at the encoder's own length, once per chunk.
     prompt_indices = None
     if getattr(asr_model, 'concat', False):
         per_record_langs = [
             cfg.target_lang if cfg.target_lang is not None else record.get(cfg.lang_field, None) for record in records
         ]
-        # Resolve each distinct language once to avoid repeating fallback warnings for every record.
         resolved = {lang: asr_model.resolve_prompt_language(lang) for lang in set(per_record_langs)}
         prompt_indices = torch.tensor(
             [resolved[lang] for lang in per_record_langs], dtype=torch.long, device=map_location

@@ -81,14 +81,6 @@ class BufferedRNNTPipeline(BasePipeline):
         self.init_nmt_model(nmt_model)
         super().__init__()
 
-    def init_prompt_support(self) -> None:
-        """Initialize prompt support, plus the default language for prompt-conditioned models."""
-        super().init_prompt_support()
-
-        # Default prompt language used when the user does not pass `lang`, taken from the model's own
-        # vocabulary so that no language code is hardcoded here.
-        self._default_prompt_language_code = self._resolve_default_language_code() if self.prompt_enabled else None
-
     def init_parameters(self, cfg: DictConfig) -> None:
         """
         Initialize the configuration parameters.
@@ -140,7 +132,7 @@ class BufferedRNNTPipeline(BasePipeline):
         self.residue_tokens_at_end = cfg.endpointing.residue_tokens_at_end
         self.word_boundary_tolerance = cfg.streaming.word_boundary_tolerance
         self.return_tail_result = cfg.return_tail_result
-        # Default language code used to select the prompt for prompt-conditioned (unified ML) models.
+        # Language used to select the prompt for prompt-conditioned models; None selects "auto".
         self.default_language_code = cfg.get('lang', None)
         self.tokens_to_move = self.punctuation_ids.union(self.language_token_ids)
 
@@ -211,13 +203,8 @@ class BufferedRNNTPipeline(BasePipeline):
 
         if self.prompt_enabled:
             # This region is sliced out before decoding, so the language choice doesn't matter; any
-            # index the model defines will do, which keeps construction working for a model whose
-            # vocabulary contains none of the usual default keys.
-            default_prompt_idx = (
-                self._resolve_prompt_index(self._default_prompt_language_code)
-                if self._default_prompt_language_code
-                else next(iter(self._prompt_config['prompt_dict'].values()))
-            )
+            # index the model defines will do.
+            default_prompt_idx = next(iter(self._prompt_config['prompt_dict'].values()))
             prompt_indices = torch.tensor([default_prompt_idx], device=self.device, dtype=torch.long)
 
             zero_encoded, _ = self.asr_model.encode_with_prompts(
@@ -249,18 +236,13 @@ class BufferedRNNTPipeline(BasePipeline):
             default_target_language=self.nmt_model.target_language if self.nmt_enabled else None,
             default_stop_history_eou=self.stop_history_eou_in_milliseconds,
             default_asr_output_granularity=self.asr_output_granularity,
-            default_language_code=(
-                (self.default_language_code or self._default_prompt_language_code) if self.prompt_enabled else None
-            ),
+            default_language_code=self.default_language_code if self.prompt_enabled else None,
         )
         state.set_options(new_options)
 
-        # Create per-stream prompt index for prompt-enabled models
+        # Create per-stream prompt index for prompt-enabled models; no language selects "auto".
         if self.prompt_enabled:
-            lang_code = getattr(new_options, "language_code", None)
-            if not isinstance(lang_code, str) or len(lang_code) == 0:
-                raise ValueError("Prompt-enabled model requires a valid language_code in request options.")
-            prompt_idx = self._resolve_prompt_index(lang_code)
+            prompt_idx = self._resolve_prompt_index(getattr(new_options, "language_code", None))
             state.set_prompt_index(prompt_idx)
 
         return state
