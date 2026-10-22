@@ -60,7 +60,6 @@ def prepare_native_export_model_config(model_cfg: dict) -> dict:
     """Keep native MTP topology and enable the canonical dtype adapter."""
     model_cfg = deepcopy(model_cfg)
     model_cfg["retain_native_mtp"] = True
-    model_cfg["preserve_parameter_dtypes"] = True
     model_cfg["mtp"] = {**(model_cfg.get("mtp") or {}), "enabled": False}
     model_cfg["automodel_backend"] = {
         **(model_cfg.get("automodel_backend") or {}),

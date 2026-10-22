@@ -16,7 +16,7 @@ import re
 import warnings
 from collections import defaultdict
 from contextlib import contextmanager, nullcontext
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import torch
 import torch.distributed as dist
@@ -56,12 +56,9 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskTyp
 from nemo.core.utils.lightning_utils import read_batch
 from nemo.utils import logging, logging_mode
 
-if TYPE_CHECKING:
-    from nemo_automodel.components.utils.parameter_config import ParameterConfig
-
 
 class SALMAutomodel(LightningModule, HFHubMixin):
-    def __init__(self, cfg, *, parameter_config: "ParameterConfig | None" = None) -> None:
+    def __init__(self, cfg) -> None:
         assert isinstance(cfg, dict), (
             "You must pass the config to SALMAutomodel as a Python dict to support hyperparameter serialization "
             f"in PTL checkpoints (we got: '{type(cfg)=}')."
@@ -69,7 +66,6 @@ class SALMAutomodel(LightningModule, HFHubMixin):
         super().__init__()
         self.save_hyperparameters()
         self.cfg = DictConfig(cfg)
-        self.parameter_config = parameter_config
         self.audio_locator_tag = self.cfg.audio_locator_tag
 
         tokenizer_src = self.cfg.get("tokenizer_path", None) or self.cfg.pretrained_llm
@@ -1249,8 +1245,8 @@ class SALMAutomodel(LightningModule, HFHubMixin):
             for module in self.llm.modules():
                 if isinstance(module, Gate):
                     module.train_gate = True
-                    # parameter_config already fixed the trainable parameters; don't unfreeze routers.
-                    if self.parameter_config is None:
+                    # An explicit Automodel freeze policy remains authoritative.
+                    if self.cfg.get("automodel_freeze_config") is None:
                         module.weight.requires_grad_(True)
                         if module.bias is not None:
                             module.bias.requires_grad_(True)
@@ -1561,17 +1557,11 @@ class SALMAutomodel(LightningModule, HFHubMixin):
             # the MTP memory/compute cost during SpeechLM fine-tuning.
             automodel_kwargs["num_nextn_predict_layers"] = 0
 
-        if self.cfg.get("preserve_parameter_dtypes", False):
-            automodel_kwargs["preserve_parameter_dtypes"] = True
+        if self.cfg.get("automodel_freeze_config") is not None:
+            from nemo_automodel.components.utils.model_utils import parse_freeze_config
 
-        if self.parameter_config is not None:
-            from nemo_automodel.components.utils.parameter_config import ParameterConfig
-
-            llm_names = tuple(
-                n.removeprefix("llm.") for n in self.parameter_config.trainable_names if n.startswith("llm.")
-            )
-            automodel_kwargs["parameter_config"] = ParameterConfig(
-                llm_names, self.parameter_config.trainable_dtype, self.parameter_config.frozen_dtype
+            automodel_kwargs["freeze_config"] = parse_freeze_config(
+                OmegaConf.to_container(self.cfg.automodel_freeze_config, resolve=True)
             )
 
         self.llm = load_pretrained_automodel_llm(
@@ -1617,33 +1607,27 @@ class SALMAutomodel(LightningModule, HFHubMixin):
             # prevent_freeze_params pattern is set for configure_optimizers.
             ensure_lora_trainable(self)
 
-        # Cast perception to training dtype BEFORE FSDP2 wrapping.
-        # The LLM is already in the target dtype (loaded via torch_dtype=dtype).
-        # FSDP2 requires uniform parameter dtype, so we cast all parameters.
-        if self.parameter_config is None:
+        # Select storage dtypes before FSDP2 captures parameter identities.
+        # Without an explicit freeze policy, preserve the existing SFT defaults.
+        perception_freeze_config = self.cfg.get("perception_freeze_config")
+        if perception_freeze_config is None:
             if dtype != torch.float32 and device_mesh is not None:
                 self.perception.to(dtype=dtype)
         else:
-            from nemo_automodel.components.utils.parameter_config import ParameterConfig, apply_parameter_config
+            from nemo_automodel.components.models.common.utils import prepare_frozen_parameters_for_sharding
+            from nemo_automodel.components.utils.model_utils import apply_parameter_freezing
 
-            perception_names = tuple(
-                n.removeprefix("perception.")
-                for n in self.parameter_config.trainable_names
-                if n.startswith("perception.")
-            )
-            # Cast each parameter once from its loaded value so FP32 selections never round through BF16.
-            frozen_dtype = self.parameter_config.frozen_dtype
-            if frozen_dtype is None and dtype != torch.float32:
-                frozen_dtype = dtype
-            apply_parameter_config(
-                self.perception,
-                ParameterConfig(perception_names, self.parameter_config.trainable_dtype, frozen_dtype),
-            )
-            if dtype != torch.float32:
+            # The perception constructor uses FP32. Apply the same storage/compute
+            # separation as the backbone before FSDP captures parameter identities.
+            self.perception.to(dtype=dtype)
+            apply_parameter_freezing(self.perception, OmegaConf.to_container(perception_freeze_config, resolve=True))
+            compute_dtype = perception_mixed_precision.param_dtype if perception_mixed_precision is not None else None
+            prepare_frozen_parameters_for_sharding(self.perception, compute_dtype)
+            if compute_dtype is not None:
                 for module in self.perception.modules():
                     for name, buffer in module._buffers.items():
                         if buffer is not None and buffer.is_floating_point():
-                            module._buffers[name] = buffer.to(dtype=dtype)
+                            module._buffers[name] = buffer.to(dtype=compute_dtype)
             perception_fsdp_wrap_asr_layers = True
 
         # Select/cast pristine parameter names before checkpoint wrappers add
@@ -1675,7 +1659,7 @@ class SALMAutomodel(LightningModule, HFHubMixin):
                 fsdp_mesh,
                 wrap_asr_layers=perception_fsdp_wrap_asr_layers,
                 mixed_precision=perception_mixed_precision,
-                wrap_projection=self.parameter_config is not None,
+                wrap_projection=perception_freeze_config is not None,
             )
 
         # Enable MoE FSDP gradient accumulation optimization.

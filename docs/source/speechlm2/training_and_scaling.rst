@@ -306,10 +306,16 @@ adapter; they contain no numerical weights. Loading requires complete parameter
 and persistent-buffer coverage, including frozen and MTP parameters, with
 activation-checkpoint wrapper names mapped to their canonical checkpoint names.
 
-For training integrations, ``SALMAutomodel`` accepts the public Automodel
-``ParameterConfig`` construction option. It applies the declared update surface
-and storage dtypes before checkpoint loading and wrapping; optional
-``perception_mixed_precision`` selects the normal FSDP2 compute/reduction policy.
+For training integrations, ``SALMAutomodel`` accepts ``automodel_freeze_config``
+and ``perception_freeze_config`` model configuration entries, using Automodel's
+public ``FreezeConfig`` schema with names relative to the respective component.
+For example, ``freeze_modules: [{glob: '*'}]`` with
+``unfreeze_parameters: [proj.weight]`` updates only the perception projection
+weight. Set ``torch_dtype: float32`` to retain FP32 trainable storage; the FSDP2
+mixed-precision policy selects compute and reduction dtypes and reduces frozen
+storage before sharding. ``perception_mixed_precision`` supplies that policy for
+the speech encoder and projection. These policies apply before checkpoint loading
+and wrapping.
 ``retain_native_mtp: true`` preserves native MTP topology while ``mtp.enabled``
 remains false. These options do not change existing training defaults.
 

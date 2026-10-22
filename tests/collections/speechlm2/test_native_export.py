@@ -145,7 +145,7 @@ def test_entrypoint_native_export_config_preserves_backend_and_mtp_options():
     assert prepared["mtp"]["num_nextn_predict_layers"] == 2
     assert prepared["mtp"]["use_repeated_layer"] is True
     assert prepared["retain_native_mtp"] is True
-    assert prepared["preserve_parameter_dtypes"] is True
+    assert "preserve_parameter_dtypes" not in prepared
     assert "preserve_parameter_dtypes" not in original
     assert original["automodel_backend"]["enable_hf_state_dict_adapter"] is False
     assert original["mtp"]["enabled"] is True

@@ -12,7 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Perception storage precision under an explicit parameter_config."""
+"""Perception storage precision under an explicit FreezeConfig."""
+
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -20,7 +22,7 @@ from omegaconf import DictConfig
 
 import nemo.collections.speechlm2.models.salm_automodel as salm_module
 
-ParameterConfig = pytest.importorskip("nemo_automodel.components.utils.parameter_config").ParameterConfig
+pytest.importorskip("nemo_automodel.components.utils.model_utils")
 
 VALUE = 0.1234567
 
@@ -46,11 +48,17 @@ class _LLM(torch.nn.Module):
         self.mtp = None
 
 
-def _configure(monkeypatch, parameter_config):
+def _configure(monkeypatch, freeze_config, compute_dtype=None):
     model = salm_module.SALMAutomodel.__new__(salm_module.SALMAutomodel)
     torch.nn.Module.__init__(model)
-    model.cfg = DictConfig({"pretrained_llm": "unused", "pretrained_asr": "unused", "torch_dtype": "bfloat16"})
-    model.parameter_config = parameter_config
+    model.cfg = DictConfig(
+        {
+            "pretrained_llm": "unused",
+            "pretrained_asr": "unused",
+            "torch_dtype": "float32" if freeze_config is not None else "bfloat16",
+            "perception_freeze_config": freeze_config,
+        }
+    )
     model._trainer = None
     model._use_fsdp = False
     model._use_tp = False
@@ -61,26 +69,32 @@ def _configure(monkeypatch, parameter_config):
     )
     monkeypatch.setattr(salm_module, "update_perception_output_dim", lambda _model: None)
     monkeypatch.setattr(salm_module, "maybe_load_pretrained_models", lambda _model: None)
-    salm_module.SALMAutomodel.configure_model(model)
+    salm_module.SALMAutomodel.configure_model(
+        model, perception_mixed_precision=SimpleNamespace(param_dtype=compute_dtype)
+    )
     return model.perception
 
 
-@pytest.mark.parametrize("frozen_dtype", [None, torch.float32])
-def test_selected_fp32_perception_parameters_keep_exact_values(monkeypatch, frozen_dtype):
-    perception = _configure(monkeypatch, ParameterConfig(("perception.proj.weight",), torch.float32, frozen_dtype))
+@pytest.mark.parametrize("compute_dtype", [None, torch.bfloat16])
+def test_selected_fp32_perception_parameters_keep_exact_values(monkeypatch, compute_dtype):
+    perception = _configure(
+        monkeypatch,
+        {"freeze_modules": [{"glob": "*"}], "unfreeze_parameters": ["proj.weight"]},
+        compute_dtype,
+    )
     expected = torch.full((2, 2), VALUE)
 
     assert perception.proj.weight.requires_grad
     assert torch.equal(perception.proj.weight, expected)
     assert not perception.encoder.weight.requires_grad
-    if frozen_dtype is None:
+    if compute_dtype == torch.bfloat16:
         assert perception.encoder.weight.dtype == torch.bfloat16
     else:
         assert torch.equal(perception.encoder.weight, expected)
-    assert perception.window.dtype == torch.bfloat16
+    assert perception.window.dtype == (compute_dtype or torch.float32)
 
 
-def test_perception_storage_is_unchanged_without_parameter_config_or_mesh(monkeypatch):
+def test_perception_storage_is_unchanged_without_freeze_config_or_mesh(monkeypatch):
     perception = _configure(monkeypatch, None)
 
     assert all(t.dtype == torch.float32 for t in (*perception.parameters(), *perception.buffers()))
