@@ -59,6 +59,8 @@ class HfExportConfig:
 def prepare_native_export_model_config(model_cfg: dict) -> dict:
     """Keep native MTP topology and enable the canonical dtype adapter."""
     model_cfg = deepcopy(model_cfg)
+    model_cfg.pop("automodel_freeze_config", None)
+    model_cfg.pop("perception_freeze_config", None)
     model_cfg["retain_native_mtp"] = True
     model_cfg["mtp"] = {**(model_cfg.get("mtp") or {}), "enabled": False}
     model_cfg["automodel_backend"] = {
@@ -155,6 +157,9 @@ def _hf_export_config(model: torch.nn.Module, dtype: str | torch.dtype) -> dict[
     # training-time opt-in in checkpoints that may be loaded by another user.
     config.pop("trust_remote_code", None)
     config.pop("preserve_parameter_dtypes", None)
+    # A new fine-tuning run chooses its own update surface.
+    config.pop("automodel_freeze_config", None)
+    config.pop("perception_freeze_config", None)
     pe_encoder_path = config.get("pe_encoder_path", None)
     pe_encoder_config = config.get("pe_encoder_config", None)
     if pe_encoder_path not in (None, "", False) or pe_encoder_config not in (

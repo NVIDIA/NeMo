@@ -39,6 +39,8 @@ def model_fixture():
             "pretrained_llm": "unused",
             "retain_native_mtp": True,
             "preserve_parameter_dtypes": True,
+            "automodel_freeze_config": {"freeze_parameters": ["model.layers.0.norm.weight"]},
+            "perception_freeze_config": {"freeze_modules": [{"glob": "*"}]},
             "mtp": {
                 "enabled": False,
                 "num_nextn_predict_layers": 2,
@@ -103,6 +105,9 @@ def test_canonical_native_export_preserves_exact_fp32_values(tmp_path):
     }
     assert "retain_native_mtp" not in metadata
     assert "preserve_parameter_dtypes" not in metadata
+    assert "automodel_freeze_config" not in metadata
+    assert "perception_freeze_config" not in metadata
+    assert "automodel_freeze_config" in model.cfg
     assert model.cfg.mtp.enabled is False
 
 
@@ -132,6 +137,8 @@ def test_native_export_config_accepts_null_optional_blocks():
 def test_entrypoint_native_export_config_preserves_backend_and_mtp_options():
     original = {
         "automodel_backend": {"attn": "sdpa", "enable_hf_state_dict_adapter": False},
+        "automodel_freeze_config": {"freeze_parameters": ["model.layers.0.norm.weight"]},
+        "perception_freeze_config": {"freeze_modules": [{"glob": "*"}]},
         "mtp": {
             "enabled": True,
             "num_nextn_predict_layers": 2,
@@ -147,5 +154,9 @@ def test_entrypoint_native_export_config_preserves_backend_and_mtp_options():
     assert prepared["retain_native_mtp"] is True
     assert "preserve_parameter_dtypes" not in prepared
     assert "preserve_parameter_dtypes" not in original
+    assert "automodel_freeze_config" not in prepared
+    assert "perception_freeze_config" not in prepared
+    assert "automodel_freeze_config" in original
+    assert "perception_freeze_config" in original
     assert original["automodel_backend"]["enable_hf_state_dict_adapter"] is False
     assert original["mtp"]["enabled"] is True
