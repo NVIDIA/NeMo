@@ -297,14 +297,19 @@ class LhotseDataLoadingConfig:
     # ``read_dataset_config`` to every nested ``input_cfg`` entry.
     indexes_root: Optional[str] = None
     # Opt-in Lhotse Shar lazy-payload mode. Requires ``indexed: true`` and
-    # applies to ``lhotse_shar`` inputs only (ignored by every other adapter).
+    # applies to every Lhotse Shar source (``shar_path``) opened by ``read_lhotse_manifest``:
+    # the ``lhotse`` / ``lhotse_shar`` types and the transform types that delegate to
+    # ``read_cutset_from_config`` (``s2s_duplex_reverse_role``, ``*_as_conversation``, ...).
+    # Adapters for other formats (``nemo_tarred``, ``parquet``, text types, ...) ignore it.
     # By default the indexed Shar reader inlines every field's tar member
     # into the cut when it is sampled; with this flag it instead attaches
     # byte-range pointers (AudioSource type ``shar_ptr``, array storage type
     # ``shar_ptr_array``) and reads the payload only when ``load_audio()`` /
     # ``load()`` is called, so filtered cuts and never-loaded fields cost no I/O.
-    # Needs Lhotse 2.0.0a6 or newer (``LazyIndexedSharIterator(lazy=)``); gzip cuts
-    # additionally need gzip-indexed Shar support (lhotse-speech/lhotse#1598).
+    # Needs a Lhotse that includes lhotse-speech/lhotse#1598 (``LazyIndexedSharIterator(lazy=)``
+    # plus ``IndexedTarReader.read_metadata``): Lhotse 2.0.0a6 accepts ``lazy=`` but its lazy
+    # mode fails on a field a cut lacks (``.nodata`` member) and on a field appended without a
+    # placeholder in the cuts, e.g. ``codes.*.tar`` written by ``ArrayTarWriter``.
     # Incompatible with ``slice_length``. The mode is stored in the dataloader
     # checkpoint, so a resumed run keeps the mode it was saved with; the flag only
     # changes fresh runs (or restarts without dataloader state).

@@ -972,9 +972,12 @@ The following ``input_cfg`` types accept ``indexed: true`` today and require an
   to keep tar payloads out of the sampler: cuts then carry byte-range pointers
   (``shar_ptr`` audio sources, ``shar_ptr_array`` arrays) and each field is
   read only when ``load_audio()`` / ``load()`` is called, so filtered cuts and
-  never-loaded fields cost no I/O. Needs Lhotse 2.0.0a6 or newer
-  (``LazyIndexedSharIterator(lazy=)``); gzip cuts additionally need gzip-indexed
-  Shar support (lhotse-speech/lhotse#1598). Incompatible with ``slice_length``.
+  never-loaded fields cost no I/O. Needs a Lhotse that includes
+  lhotse-speech/lhotse#1598 (``LazyIndexedSharIterator(lazy=)`` plus
+  ``IndexedTarReader.read_metadata``): 2.0.0a6 accepts ``lazy=`` but its lazy
+  mode fails on fields that have no placeholder in the cuts, such as codes tars
+  appended to existing shards, or fields a cut lacks. Incompatible with
+  ``slice_length``.
   The payload mode is part of the saved dataloader state, so a resumed run keeps
   the mode it was checkpointed with.
 * ``parquet`` — no sidecar required, but the file must expose row-group

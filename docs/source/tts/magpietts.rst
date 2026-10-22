@@ -85,7 +85,8 @@ next batch.
 
 Prerequisites: build the sidecar mirror once per data release with
 ``scripts/dataloading/build_indexes.py --indexes-root <mirror> <blend>.yaml`` (gzip cuts need
-``indexed_gzip`` and a Lhotse with gzip-indexed Shar support), and make the mirror visible to
+``indexed_gzip`` and a Lhotse that includes lhotse-speech/lhotse#1598, which ``shar_lazy_payloads``
+needs as well), and make the mirror visible to
 every training process (node-local staging is recommended for mixtures with hundreds of
 thousands of shards). The multi-config training section then only needs these overrides; the
 top-level values are propagated to every sub-config:

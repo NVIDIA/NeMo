@@ -3,10 +3,10 @@
 
 """Opt-in Lhotse Shar lazy-payload mode (``shar_lazy_payloads``) through NeMo's dataloader."""
 
-import inspect
 import io
 from pathlib import Path
 
+import lhotse.indexing
 import numpy as np
 import pytest
 import soundfile as sf
@@ -14,7 +14,8 @@ import torch
 from lhotse import AudioSource, CutSet, MonoCut, Recording, SupervisionSegment
 from lhotse.array import TemporalArray
 from lhotse.features.io import MemoryRawWriter
-from lhotse.shar.writers import SharWriter
+from lhotse.indexing import create_tar_index
+from lhotse.shar.writers import ArrayTarWriter, AudioTarWriter, SharWriter
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
@@ -25,19 +26,12 @@ from nemo.collections.common.data.lhotse.dataloader import (
 )
 
 pytest.importorskip("indexed_gzip")
-
-
-def _lazy_reader_available() -> bool:
-    try:
-        from lhotse.shar.readers.indexed import LazyIndexedSharIterator
-    except ImportError:
-        return False
-    return "lazy" in inspect.signature(LazyIndexedSharIterator).parameters
-
-
-pytestmark = pytest.mark.skipif(
-    not _lazy_reader_available(), reason="Installed Lhotse's LazyIndexedSharIterator does not accept lazy="
-)
+# The fixtures write gzip cuts and the production layout appends fields without placeholders; both need
+# lhotse-speech/lhotse#1598 (the pinned 2.0.0a6 accepts ``lazy=`` but cannot do either).
+if not hasattr(lhotse.indexing, "gzip_index_file_path") or not hasattr(
+    lhotse.indexing.IndexedTarReader, "read_metadata"
+):
+    pytest.skip("Lhotse without gzip-indexed Shar support (lhotse-speech/lhotse#1598)", allow_module_level=True)
 
 SAMPLING_RATE = 16000
 NUM_CUTS = 6
@@ -102,6 +96,59 @@ def duplex_shar(tmp_path) -> Path:
             )
             writer.write(cut)
     return root
+
+
+@pytest.fixture
+def production_shar(tmp_path) -> tuple[Path, dict[str, dict[str, np.ndarray]]]:
+    """
+    The layout the TTS release data has: the cuts carry only a ``recording`` placeholder; the target audio is
+    written by a separate ``AudioTarWriter`` into ``target_audio/recording.*.tar`` and declared under another
+    field key; ``context_audio`` is written the same way with one missing cut (a ``.nodata`` member); and
+    ``target_codes`` is appended afterwards by an ``ArrayTarWriter`` into ``codes.*.tar`` without rewriting
+    the cuts. None of the declared fields has a placeholder in the cuts.
+    """
+    root = tmp_path / "production-shar"
+    root.mkdir()
+    rng = np.random.default_rng(2)
+    cuts = [_make_cut(idx, rng, custom={}, speakers=["agent"]) for idx in range(NUM_CUTS)]
+    with SharWriter(
+        root, fields={"recording": "wav"}, shard_size=SHARD_SIZE, compress_jsonl=True, create_index=True
+    ) as writer:
+        for cut in cuts:
+            writer.write(cut)
+    for sub in ("target_audio", "context_audio", "codes_25fps/target_codes"):
+        (root / sub).mkdir(parents=True)
+    expected: dict[str, dict[str, np.ndarray]] = {}
+    with (
+        AudioTarWriter(
+            str(root / "target_audio" / "recording.%06d.tar"), shard_size=SHARD_SIZE, format="wav"
+        ) as target,
+        AudioTarWriter(str(root / "context_audio" / "recording.%06d.tar"), shard_size=SHARD_SIZE, format="wav") as ctx,
+        ArrayTarWriter(str(root / "codes_25fps" / "target_codes" / "codes.%06d.tar"), shard_size=SHARD_SIZE) as codes,
+    ):
+        for idx, cut in enumerate(cuts):
+            target_rec, codes_array = _wav_recording(f"target-{idx:04d}", rng), _codes(rng)
+            target.write(cut.id, target_rec.load_audio(), SAMPLING_RATE, manifest=target_rec)
+            codes.write(cut.id, codes_array.load(), manifest=codes_array)
+            expected[cut.id] = {"target_audio": target_rec.load_audio(), "target_codes": codes_array.load()}
+            if idx == 1:
+                ctx.write_placeholder(cut.id)
+            else:
+                ctx_rec = _wav_recording(f"context-{idx:04d}", rng)
+                ctx.write(cut.id, ctx_rec.load_audio(), SAMPLING_RATE, manifest=ctx_rec)
+                expected[cut.id]["context_audio"] = ctx_rec.load_audio()
+    for tar in root.glob("*/**/*.tar"):
+        create_tar_index(tar)
+    return root, expected
+
+
+def _production_fields(root: Path) -> dict[str, str]:
+    return {
+        "cuts": f"{root}/cuts.{{000000..000001}}.jsonl.gz",
+        "target_audio": f"{root}/target_audio/recording.{{000000..000001}}.tar",
+        "context_audio": f"{root}/context_audio/recording.{{000000..000001}}.tar",
+        "target_codes": f"{root}/codes_25fps/target_codes/codes.{{000000..000001}}.tar",
+    }
 
 
 def _lazy_config(shar_path, **overrides) -> OmegaConf:
@@ -312,8 +359,39 @@ def test_lazy_payloads_require_indexed(tts_shar, indexed):
         read_cutset_from_config(OmegaConf.create(config))
 
 
+def test_lazy_payloads_for_fields_without_placeholders(production_shar):
+    root, expected = production_shar
+
+    cuts, is_tarred = read_cutset_from_config(_lazy_config(_production_fields(root)))
+
+    assert is_tarred
+    seen = set()
+    for cut in cuts:
+        seen.add(cut.id)
+        # The cuts' own ``recording`` is not declared in the blend, so it stays an unfilled placeholder.
+        assert cut.recording.sources[0].type == "shar"
+        # Declared fields without a placeholder are resolved from the tar metadata (lazy pointers).
+        assert cut.target_audio.sources[0].type == "shar_ptr"
+        _assert_lazy_pointer(cut.target_audio.sources[0].source, "recording")
+        assert cut.target_codes.array.storage_type == "shar_ptr_array"
+        _assert_lazy_pointer(cut.target_codes.array.storage_key, "codes")
+        # The tar writers store 16-bit PCM, so audio round-trips to within one quantization step.
+        np.testing.assert_allclose(cut.target_audio.load_audio(), expected[cut.id]["target_audio"], atol=1e-4)
+        np.testing.assert_array_equal(cut.target_codes.load(), expected[cut.id]["target_codes"])
+        np.testing.assert_array_equal(cut.load_custom("target_codes"), expected[cut.id]["target_codes"])
+        if "context_audio" in expected[cut.id]:
+            assert cut.context_audio.sources[0].type == "shar_ptr"
+            np.testing.assert_allclose(cut.context_audio.load_audio(), expected[cut.id]["context_audio"], atol=1e-4)
+        else:
+            # A ``.nodata`` member means the cut has no such field at all.
+            assert not cut.has_custom("context_audio")
+    assert seen == set(expected)
+
+
 def test_lazy_payloads_reject_slice_length(tts_shar):
-    with pytest.raises(ValueError, match="slice_length"):
+    # The advice must name every option that has to change: flipping ``indexed`` alone trips the
+    # ``shar_lazy_payloads requires indexed`` check.
+    with pytest.raises(ValueError, match=r"slice_length.*shar_lazy_payloads=False and indexed=False"):
         read_cutset_from_config(_lazy_config(str(tts_shar), slice_length=2))
 
 
@@ -334,6 +412,15 @@ def test_lazy_payloads_require_lhotse_with_lazy_reader(tts_shar, monkeypatch):
 
     monkeypatch.setattr("lhotse.shar.readers.indexed.LazyIndexedSharIterator", LegacyIndexedSharIterator)
     with pytest.raises(ImportError, match="lhotse#1598"):
+        read_cutset_from_config(_lazy_config(str(tts_shar)))
+
+
+def test_lazy_payloads_require_lhotse_with_tar_metadata_reads(tts_shar, monkeypatch):
+    class LegacyIndexedTarReader:  # Lhotse 2.0.0a6 shape: ``lazy=`` exists, ``read_metadata`` does not.
+        pass
+
+    monkeypatch.setattr("lhotse.indexing.IndexedTarReader", LegacyIndexedTarReader)
+    with pytest.raises(ImportError, match="read_metadata"):
         read_cutset_from_config(_lazy_config(str(tts_shar)))
 
 

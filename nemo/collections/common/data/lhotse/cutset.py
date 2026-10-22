@@ -2129,16 +2129,24 @@ def _open_shar_cutset(
         )
     if slice_length is not None:
         raise ValueError(
-            "'slice_length' is not supported with shar_lazy_payloads=True (indexed mode). "
-            "Use indexed=False for streaming mode."
+            "'slice_length' is not supported with shar_lazy_payloads=True. "
+            "Remove slice_length, or set shar_lazy_payloads=False and indexed=False for streaming mode."
         )
+    from lhotse.indexing import IndexedTarReader
     from lhotse.shar.readers.indexed import LazyIndexedSharIterator
 
-    if "lazy" not in inspect.signature(LazyIndexedSharIterator).parameters:
+    # Lhotse 2.0.0a6 already accepts ``lazy=`` but resolves lazy fields only through placeholders in the
+    # cuts; fields a cut lacks, or fields appended to existing shards (e.g. codes tars), need the
+    # ``IndexedTarReader.read_metadata`` path from lhotse-speech/lhotse#1598.
+    if "lazy" not in inspect.signature(LazyIndexedSharIterator).parameters or not hasattr(
+        IndexedTarReader, "read_metadata"
+    ):
         raise ImportError(
-            "shar_lazy_payloads=True requires a Lhotse whose LazyIndexedSharIterator accepts 'lazy=' "
-            "(Lhotse 2.0.0a6 or newer; gzip-compressed cuts additionally need gzip-indexed Shar support from "
-            "lhotse-speech/lhotse#1598). Upgrade Lhotse or set shar_lazy_payloads: false."
+            "shar_lazy_payloads=True requires a Lhotse that includes lhotse-speech/lhotse#1598: "
+            "LazyIndexedSharIterator must accept 'lazy=' and IndexedTarReader must provide read_metadata(), "
+            "which resolves fields without a placeholder in the cuts (e.g. codes tars appended to existing "
+            "shards). Lhotse 2.0.0a6 accepts 'lazy=' but fails on such fields. "
+            "Upgrade Lhotse or set shar_lazy_payloads: false."
         )
     return CutSet(
         cuts=LazyIndexedSharIterator(
