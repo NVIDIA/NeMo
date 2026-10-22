@@ -2359,6 +2359,37 @@ class TestMTPPlugin:
 
         assert supports_multimodal_embeddings(NeMoSpeechLMMTP)
 
+    def test_mtp_warms_every_triton_variant_of_the_eagle_prepare_kernel(self, monkeypatch):
+        """Loading the draft should JIT every num_reqs variant, so no request pays for it later."""
+        import vllm.v1.spec_decode.utils as spec_utils
+
+        from nemo.collections.speechlm2.vllm.salm.mtp import warm_eagle_prepare_inputs_kernel
+
+        launched = []
+
+        class _Kernel:
+            def __getitem__(self, grid):
+                return lambda *args: launched.append((grid, args[-1]))
+
+        monkeypatch.setattr(spec_utils, "eagle_prepare_inputs_padded_kernel", _Kernel())
+        warm_eagle_prepare_inputs_kernel()
+
+        # Triton specializes integer arguments on ``== 1`` and ``% 16 == 0``.
+        assert [num_reqs for _, num_reqs in launched] == [1, 2, 16]
+        assert all(grid == (num_reqs,) for grid, num_reqs in launched)
+
+    def test_mtp_kernel_warmup_never_fails_loading(self, monkeypatch):
+        import vllm.v1.spec_decode.utils as spec_utils
+
+        from nemo.collections.speechlm2.vllm.salm.mtp import warm_eagle_prepare_inputs_kernel
+
+        class _Broken:
+            def __getitem__(self, grid):
+                raise RuntimeError("compile failed")
+
+        monkeypatch.setattr(spec_utils, "eagle_prepare_inputs_padded_kernel", _Broken())
+        warm_eagle_prepare_inputs_kernel()
+
     def test_embed_input_ids_text_only(self):
         """embed_input_ids with no audio embeddings should return plain text embeddings."""
         import torch

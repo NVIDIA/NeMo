@@ -62,6 +62,17 @@ Set the number of speculative tokens according to the checkpoint's trained
 prediction depths, and use ``--mamba-cache-mode all`` with MTP. For a separate
 checkpoint-backed draft, see :doc:`vllm_dflash`.
 
+The MTP draft compiles the Triton variants of vLLM's
+``eagle_prepare_inputs_padded_kernel`` while the weights load, so the first
+request with a new batch size does not stall on a JIT compile.
+
+If the checkpoint's chat template enables thinking by default, add
+``--default-chat-template-kwargs '{"enable_thinking": false}'`` so OpenAI-style
+clients receive plain transcripts without passing the option on every request.
+Async scheduling (``--async-scheduling``) can lower the latency of a single short
+clip; compare it against synchronous scheduling with your own load and audio
+lengths before enabling it, because the best setting depends on both.
+
 .. _speechlm2-vllm-hybrid-precision:
 
 Hybrid checkpoint precision
