@@ -22,7 +22,9 @@ from omegaconf import DictConfig
 
 import nemo.collections.speechlm2.models.salm_automodel as salm_module
 
-pytest.importorskip("nemo_automodel.components.utils.model_utils")
+FreezeConfig = pytest.importorskip("nemo_automodel.components.utils.model_utils").FreezeConfig
+if "unfreeze_parameters" not in FreezeConfig.__dataclass_fields__:
+    pytest.skip("requires Automodel FreezeConfig exact parameter selectors", allow_module_level=True)
 
 VALUE = 0.1234567
 
