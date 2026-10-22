@@ -59,11 +59,34 @@ _CAPTURE_RECOMPILE_LIMIT = 64
 _MIN_SPLIT_ROWS = 8
 # Graph cache limit for the long-audio window graphs; the start-up capture needs about a dozen per batch size.
 _MAX_ONLINE_GRAPHS = 1024
-# Diarization step graphs are small, so long audio pads their rows less than the ASR graphs': every count up to 16,
-# then sizes at most 1.5x apart.
 # Long rows share a windowed pass only within this length ratio, so a 90 s clip is not padded to an hour.
 _LONG_GROUP_RATIO = 1.5
+# Diarization step graphs are small, so long audio pads their rows less than the ASR graphs': every count up to 16,
+# then sizes at most 1.5x apart.
 _STEP_BATCH_SIZES = (*range(1, 17), 24, 32, 48, 64, 96, 128, 192, 256)
+
+
+def encoder_graph_options(config) -> dict:
+    """Return the EncoderGraphRunner arguments set in a model config (see ``ENCODER_GRAPH_CONFIG_KEYS``).
+
+    Args:
+        config: HF model config, after ``--hf-overrides``.
+
+    Returns:
+        Keyword arguments for EncoderGraphRunner; unset keys are left out, so the runner's defaults apply.
+    """
+    options = {}
+    for key, argument in ENCODER_GRAPH_CONFIG_KEYS.items():
+        value = getattr(config, key, None)
+        if value is not None:
+            if argument == "batch_sizes":
+                value = tuple(int(b) for b in value)
+            elif argument == "long_audio":
+                value = bool(value)
+            else:
+                value = int(value)
+            options[argument] = value
+    return options
 
 
 class EncoderGraphRunner:
@@ -274,29 +297,16 @@ class EncoderGraphRunner:
         if not self.enabled or (return_ctc_timestamp_inputs and not self.ctc_timestamp_inputs):
             return None
         processed, processed_len = self.perception.maybe_preprocess_audio(audio_signal, audio_lengths, None, None)
-        n_feat = processed.shape[1]
-        # Each row takes the path its own length needs; one long clip must not drag the short ones through it.
         lengths = processed_len.tolist()
-        short = [i for i, n in enumerate(lengths) if n <= self.max_frames]
-        if len(short) < len(lengths) and not self.long_audio:
-            return None
-        if not self.graphs:
-            try:
-                with _compile_limit_for_capture():
-                    self._capture_all(n_feat, processed.dtype)
-                # The capture's eager runs leave cached blocks behind; hand them back to the serving engine.
-                torch.cuda.empty_cache()
-            except Exception as error:  # noqa: BLE001 - a failed capture must not break inference
-                logger.warning("Encoder CUDA graph capture failed; encoding eagerly from now on: %s", error)
-                self.graphs.clear()
-                self.pool = None
-                self.enabled = False
-                self._disable_long_audio()
-                torch.cuda.empty_cache()
-                return None
         long = [i for i, n in enumerate(lengths) if n > self.max_frames]
+        if long and not self.long_audio:
+            return None
+        if not self.graphs and not self._capture_or_disable(processed.shape[1], processed.dtype):
+            return None
+        short = [i for i, n in enumerate(lengths) if n <= self.max_frames]
+        # Each row takes the path its own length needs; one long clip must not drag the short ones through it.
         groups = [(short, self._call_short)] if short else []
-        groups += [(group, self._call_long) for group in self._long_groups(long, lengths)]
+        groups += [(group, self._call_long) for group in _group_by_length(long, lengths, self.batch_sizes[-1])]
         embeddings, pieces, order = [None] * len(lengths), [], []
         for rows, encode in groups:
             if rows == list(range(len(lengths))):
@@ -312,26 +322,28 @@ class EncoderGraphRunner:
         if not return_ctc_timestamp_inputs:
             return embeddings
         states = _cat_states(pieces)
-        if order != sorted(order):
+        if order != sorted(order):  # the groups ran in length order; hand the states back in request order
             restore = torch.empty(len(order), dtype=torch.long)
             restore[torch.tensor(order)] = torch.arange(len(order))
             states = _take_rows(states, restore)
         return embeddings, states
 
-    def _long_groups(self, rows: list[int], lengths: list[int]) -> list[list[int]]:
-        """Split the long rows into groups of similar length, longest first, each at most the largest batch size.
-
-        A group runs together, padded to its longest row, so a row joins a group only if it is at least
-        ``1 / _LONG_GROUP_RATIO`` as long as the group's longest.
-        """
-        groups: list[list[int]] = []
-        for i in sorted(rows, key=lengths.__getitem__, reverse=True):
-            open_group = groups and len(groups[-1]) < self.batch_sizes[-1]
-            if open_group and lengths[i] * _LONG_GROUP_RATIO >= lengths[groups[-1][0]]:
-                groups[-1].append(i)
-            else:
-                groups.append([i])
-        return groups
+    def _capture_or_disable(self, n_feat: int, dtype: torch.dtype) -> bool:
+        """Capture every graph at the first call; on failure, encode eagerly from now on and return False."""
+        try:
+            with _compile_limit_for_capture():
+                self._capture_all(n_feat, dtype)
+            # The capture's eager runs leave cached blocks behind; hand them back to the serving engine.
+            torch.cuda.empty_cache()
+            return True
+        except Exception as error:  # noqa: BLE001 - a failed capture must not break inference
+            logger.warning("Encoder CUDA graph capture failed; encoding eagerly from now on: %s", error)
+            self.graphs.clear()
+            self.pool = None
+            self.enabled = False
+            self._disable_long_audio()
+            torch.cuda.empty_cache()
+            return False
 
     def _call_short(self, processed: torch.Tensor, processed_len: torch.Tensor, return_ctc_timestamp_inputs: bool):
         """Replay the whole-forward graphs for rows up to ``max_frames``; returns embeddings and CTC inputs."""
@@ -356,13 +368,28 @@ class EncoderGraphRunner:
     def _call_long(self, processed: torch.Tensor, processed_len: torch.Tensor, return_ctc_timestamp_inputs: bool):
         """Encode audio longer than the whole-forward graphs through the online path and its window graphs.
 
-        The rows run together (at most the largest batch size, as ``_long_groups`` ensures): the ASR windows of every
+        The rows run together (at most the largest batch size, as ``_group_by_length`` ensures): the ASR windows of every
         row are split over the graph batch sizes, and only the diarization steps pad the rows to one. Returns
         embeddings and CTC inputs.
         """
         frames, padded = processed.shape[2], self._long_frames(processed.shape[2])
         emb, emb_len, states = self._forward(F.pad(processed, (0, padded - frames)), processed_len)
         return [emb[i, :length] for i, length in enumerate(emb_len.tolist())], states
+
+
+def _group_by_length(rows: list[int], lengths: list[int], max_rows: int) -> list[list[int]]:
+    """Split ``rows`` into groups of similar length, longest first, each of at most ``max_rows`` rows.
+
+    A group runs together, padded to its longest row, so a row joins a group only if it is at least
+    ``1 / _LONG_GROUP_RATIO`` as long as the group's longest.
+    """
+    groups: list[list[int]] = []
+    for i in sorted(rows, key=lengths.__getitem__, reverse=True):
+        if groups and len(groups[-1]) < max_rows and lengths[i] * _LONG_GROUP_RATIO >= lengths[groups[-1][0]]:
+            groups[-1].append(i)
+        else:
+            groups.append([i])
+    return groups
 
 
 def _tensor_fields(states) -> list[str]:
@@ -388,36 +415,17 @@ def _pad_to(shape, target) -> list[int]:
 
 def _take_rows(states, index: torch.Tensor):
     """``CTCTimestampInputs`` with the rows of every tensor picked (and ordered) by ``index``."""
-    picked = {name: getattr(states, name)[index.to(getattr(states, name).device)] for name in _tensor_fields(states)}
-    return dataclasses.replace(states, **picked)
+    return _map_tensors(states, lambda t: t[index.to(t.device)])
 
 
 def _rows(states, n: int):
     """Copies of the first ``n`` rows of every tensor in captured ``CTCTimestampInputs``."""
-    return dataclasses.replace(states, **{name: getattr(states, name)[:n].clone() for name in _tensor_fields(states)})
+    return _map_tensors(states, lambda t: t[:n].clone())
 
 
-def encoder_graph_options(config) -> dict:
-    """Return the EncoderGraphRunner arguments set in a model config (see ``ENCODER_GRAPH_CONFIG_KEYS``).
-
-    Args:
-        config: HF model config, after ``--hf-overrides``.
-
-    Returns:
-        Keyword arguments for EncoderGraphRunner; unset keys are left out, so the runner's defaults apply.
-    """
-    options = {}
-    for key, argument in ENCODER_GRAPH_CONFIG_KEYS.items():
-        value = getattr(config, key, None)
-        if value is not None:
-            if argument == "batch_sizes":
-                value = tuple(int(b) for b in value)
-            elif argument == "long_audio":
-                value = bool(value)
-            else:
-                value = int(value)
-            options[argument] = value
-    return options
+def _map_tensors(states, fn):
+    """``CTCTimestampInputs`` with ``fn`` applied to every tensor field."""
+    return dataclasses.replace(states, **{name: fn(getattr(states, name)) for name in _tensor_fields(states)})
 
 
 def _compile_limit_for_capture():

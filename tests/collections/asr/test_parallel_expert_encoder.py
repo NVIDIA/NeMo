@@ -28,8 +28,8 @@ from torch import nn
 
 from nemo.collections.asr.models import SortformerEncLabelModel
 from nemo.collections.asr.modules import online_encoder_graphs as online_graphs_module
-from nemo.collections.asr.modules.online_encoder_graphs import OnlineGraphs
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
+from nemo.collections.asr.modules.online_encoder_graphs import OnlineGraphs
 from nemo.collections.asr.modules.parallel_expert_encoder import (
     CTCTimestampInputs,
     ParallelExpertEncoder,
@@ -2837,6 +2837,62 @@ def _assert_states_match(states, ref_states):
             torch.testing.assert_close(
                 got.narrow(time_axis - 1, 0, n), ref.narrow(time_axis - 1, 0, n), rtol=1e-5, atol=2e-5, msg=name
             )
+
+
+@pytest.mark.unit
+def test_group_by_length_joins_rows_within_the_length_ratio_and_caps_the_group_size():
+    from nemo.collections.speechlm2.vllm.salm.encoder_graphs import _group_by_length
+
+    lengths = [100, 400, 90, 130, 410, 1000]
+    # Longest first; a row joins only if within 1.5x of its group's longest row.
+    assert _group_by_length(list(range(6)), lengths, max_rows=8) == [[5], [4, 1], [3, 0, 2]]
+    assert _group_by_length(list(range(6)), lengths, max_rows=2) == [[5], [4, 1], [3, 0], [2]]
+    assert _group_by_length([], lengths, max_rows=8) == []
+
+
+@pytest.mark.unit
+def test_cat_and_take_rows_of_ctc_timestamp_inputs_pad_and_reorder():
+    from nemo.collections.asr.modules.parallel_expert_encoder import CTCTimestampInputs
+    from nemo.collections.speechlm2.vllm.salm.encoder_graphs import _cat_states, _take_rows
+
+    def inputs(rows, frames, fill):
+        return CTCTimestampInputs(
+            asr_encoded=torch.full((rows, 3, frames), float(fill)),
+            asr_encoded_lengths=torch.full((rows,), frames),
+            sortformer_sigmoids=torch.full((rows, frames, 2), float(fill)),
+            sortformer_lengths=torch.full((rows,), frames),
+        )
+
+    joined = _cat_states([inputs(1, 4, 1), inputs(2, 6, 2)])
+    assert joined.asr_encoded.shape == (3, 3, 6) and joined.sortformer_sigmoids.shape == (3, 6, 2)
+    # The shorter piece is zero padded on its trailing dimensions, the longer one is untouched.
+    assert joined.asr_encoded[0, :, 4:].eq(0).all() and joined.asr_encoded[0, :, :4].eq(1).all()
+    assert joined.asr_encoded[1:].eq(2).all()
+
+    swapped = _take_rows(joined, torch.tensor([2, 0, 1]))
+    assert swapped.asr_encoded_lengths.tolist() == [6, 4, 6]
+    assert _cat_states([joined]) is joined
+
+
+@pytest.mark.unit
+def test_online_graphs_switches_restore_their_previous_value_and_clear_drops_graphs():
+    graphs = OnlineGraphs()
+    assert graphs.enabled and not graphs.capture_now and graphs.count() == 0
+    with graphs.paused():
+        assert not graphs.enabled
+        with graphs.capturing():
+            assert graphs.capture_now
+        assert not graphs.capture_now
+    assert graphs.enabled
+
+    with pytest.raises(RuntimeError):
+        with graphs.paused():
+            raise RuntimeError
+    assert graphs.enabled  # restored even when the block raises
+
+    graphs._asr_windows = graphs._diar_steps = None
+    graphs.clear()
+    assert graphs.count() == 0
 
 
 @pytest.mark.unit

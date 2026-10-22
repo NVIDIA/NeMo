@@ -107,7 +107,9 @@ The keys can also be set in the checkpoint's ``config.json``.
 - ``encoder_cuda_graphs``: capture graphs at the first encoder call, so audio of any length replays them. Audio up
   to two 40-second encoder windows replays one graph per batch of 1 to 128 clips. Longer audio runs the windowed
   encoder with each piece replayed from graphs: the ASR encoder over batches of windows, and every streaming
-  diarization step. Capture adds start-up time and GPU memory; the graphs reproduce the encoder's outputs.
+  diarization step. Each clip of a step takes the path its own length needs, so a long clip does not slow the short
+  ones; long clips of similar length share a windowed pass. Capture adds start-up time and GPU memory; the graphs
+  reproduce the encoder's outputs.
 - ``encoder_compile``: also compile each encoder transformer block with ``torch.compile``, fusing its
   memory-bound operations. This lowers encoder GPU time further and changes the outputs at bf16 rounding level.
 
