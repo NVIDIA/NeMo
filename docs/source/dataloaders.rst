@@ -1296,11 +1296,6 @@ resume:
    ``iter()`` and does not checkpoint it, so only the first batch after the resume is guaranteed
    to come from the same sub-sampler as in the uninterrupted run.
 
-   When ``bucket_batch_size`` is set, the last entry of ``bucket_duration_bins`` is the longest
-   duration the sampler accepts; longer cuts are dropped by ``BucketingFilter`` even when
-   ``max_duration`` is larger. Extend ``bucket_duration_bins`` (and ``bucket_batch_size``) up to
-   the longest cut you want to keep.
-
 Non-indexed pipelines fall back to Lhotse's ``_fast_forward()`` replay (O(N)
 in batches consumed before the checkpoint) and require ``num_workers`` only to
 be consistent for replay-based restore — not exact restore.
@@ -1312,6 +1307,10 @@ Pre-computing bucket duration bins
 ------------------------------------
 
 We recommend to pre-compute the bucket duration bins in order to accelerate the start of the training -- otherwise, the dynamic bucketing sampler will have to spend some time estimating them before the training starts.
+When ``bucket_batch_size`` is set, the last entry of ``bucket_duration_bins`` is the longest
+duration the sampler accepts; longer cuts are dropped by ``BucketingFilter`` even when
+``max_duration`` is larger. Extend ``bucket_duration_bins`` (and ``bucket_batch_size``) up to
+the longest cut you want to keep.
 The following script may be used:
 
 .. code-block:: bash

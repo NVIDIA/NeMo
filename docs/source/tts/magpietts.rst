@@ -73,7 +73,7 @@ The training script uses Hydra for configuration management, making it easy to c
 
 
 Indexed and resumable Lhotse Shar dataloading
-#############################################
+---------------------------------------------
 
 The EasyMagpie Lhotse recipes (``easy_magpietts_lhotse*.yaml``) read Lhotse Shar shards, typically
 from object storage through AIStore. By default every Shar source is streamed, which keeps one
@@ -111,7 +111,10 @@ partition. ``shar_lazy_payloads`` makes Shar field payloads (``target_codes``, `
 state, so changing it only affects a fresh run. ``concurrent_bucketing`` must be
 disabled so that only the checkpointed iterator advances the sources. Keep the number of nodes,
 devices and ``num_workers`` identical for every chunk of a run; the saved dataloader state refuses
-a different topology. The non-Lhotse validation dataset (``MagpieTTSDataset``) is unaffected.
+a different topology. These keys apply only to the dataloader they are set on: the validation set of
+the ``easy_magpietts_lhotse*.yaml`` recipes is also a Lhotse Shar source, but it is not touched by the
+``model.train_ds.dataset`` overrides above and keeps the default streaming mode (validation does not
+need to be resumable). A non-Lhotse ``MagpieTTSDataset`` validation set is unaffected as well.
 
 
 Preference Optimization
