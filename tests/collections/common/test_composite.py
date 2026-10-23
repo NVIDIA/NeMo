@@ -13,17 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CompositeLoss: separately normalized loss terms with scales, and their normalization across ranks."""
-
-import os
-import socket
-import sys
-
 import pytest
 import torch
-import torch.multiprocessing as mp
 
 from nemo.collections.common.losses import CompositeLoss, LossTerm
+from nemo.collections.common.losses import composite as composite_module
 
 
 def _terms():
@@ -57,6 +51,26 @@ class TestCompositeLoss:
         assert total.item() == pytest.approx(12.0 / 4.0 + 0.5 * 30.0 / 5.0)
         assert reported["ce"].item() == 3.0 and reported["ctc"].item() == 6.0
         assert not reported["ce"].requires_grad
+
+    @pytest.mark.unit
+    def test_hybrid_objective_with_six_terms(self):
+        """Four CTC heads counted in target labels and two cross-entropy heads counted in tokens with EOS."""
+        torch.manual_seed(3)
+        target_lengths = torch.tensor([47, 5, 23])
+        ctc_terms = {
+            f"ctc_{layer}": LossTerm.from_sequences(torch.rand(3) * 50, target_lengths) for layer in (4, 10, 16, 24)
+        }
+        token_mask = torch.arange(48)[None, :] <= target_lengths[:, None]
+        ce_terms = {
+            name: LossTerm.from_elements(torch.rand(3, 48).requires_grad_(), token_mask) for name in ("ce", "ce_3")
+        }
+        terms = {**ctc_terms, **ce_terms}
+        total, reported = CompositeLoss(scales={name: 1.0 for name in terms})(terms)
+        for name, term in terms.items():
+            assert term.count.item() == (75.0 if name.startswith("ctc") else 78.0)
+            torch.testing.assert_close(reported[name], term.summed.detach() / term.count)
+        torch.testing.assert_close(total, sum(reported.values()))
+        total.backward()
 
     @pytest.mark.unit
     def test_scale_zero_reports_without_training(self):
@@ -94,50 +108,24 @@ class TestCompositeLoss:
         assert sum(per_rank) / 2 != pytest.approx(global_mean)
 
     @pytest.mark.unit
-    @pytest.mark.skipif(sys.platform in ("win32", "cygwin"), reason="needs the gloo backend")
-    def test_global_normalization_across_ranks(self):
-        ctx = mp.get_context("spawn")
-        queue = ctx.Queue()
-        world_size = 2
-        port = _free_port()
-        processes = [
-            ctx.Process(target=_global_worker, args=(rank, world_size, port, queue)) for rank in range(world_size)
-        ]
-        for process in processes:
-            process.start()
-        results = {}
-        for _ in processes:
-            status, rank, payload = queue.get(timeout=120)
-            assert status == "ok", payload
-            results[rank] = payload
-        for process in processes:
-            process.join(timeout=30)
-        # rank 0: sum 10 over 2 elements; rank 1: sum 10 over 8 elements; global mean 20 / 10 = 2
-        for rank, expected_local in ((0, world_size * 10.0 / 10.0), (1, world_size * 10.0 / 10.0)):
-            total, reported = results[rank]
-            assert total == pytest.approx(expected_local)
-            assert reported == pytest.approx(2.0)
-        # the data-parallel average of the per-rank losses is the global mean
-        assert (results[0][0] + results[1][0]) / world_size == pytest.approx(2.0)
+    def test_global_normalization_uses_the_all_reduced_counts(self, monkeypatch):
+        """Two ranks are simulated: rank 0 sees sum 10 over 2 elements, rank 1 sum 10 over 8 elements."""
+        other = {"ce": (10.0, 8.0)}
 
+        def fake_all_reduce(tensor, op):
+            assert op == torch.distributed.ReduceOp.SUM
+            half = tensor.numel() // 2
+            tensor[:half] += torch.tensor([other[name][0] for name in names])
+            tensor[half:] += torch.tensor([other[name][1] for name in names])
 
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
-
-
-def _global_worker(rank: int, world_size: int, port: int, queue) -> None:
-    try:
-        os.environ["MASTER_ADDR"] = "127.0.0.1"
-        os.environ["MASTER_PORT"] = str(port)
-        torch.distributed.init_process_group(backend="gloo", rank=rank, world_size=world_size)
-        count = 2.0 if rank == 0 else 8.0
-        terms = {"ce": LossTerm(torch.tensor(10.0), torch.tensor(count))}
-        total, reported = CompositeLoss(normalization="global")(terms)
-        queue.put(("ok", rank, (total.item(), reported["ce"].item())))
-    except Exception as exc:  # pragma: no cover - reported to the test process
-        queue.put(("err", rank, repr(exc)))
-    finally:
-        if torch.distributed.is_initialized():
-            torch.distributed.destroy_process_group()
+        names = ["ce"]
+        monkeypatch.setattr(composite_module, "_world_size", lambda: 2)
+        monkeypatch.setattr(torch.distributed, "all_reduce", fake_all_reduce)
+        summed = torch.tensor(10.0, requires_grad=True)
+        total, reported = CompositeLoss(normalization="global")({"ce": LossTerm(summed, torch.tensor(2.0))})
+        # The local loss is the local sum times the world size over the global count 10,
+        # so the data-parallel average of both ranks' losses is the global mean 20 / 10 = 2.
+        assert total.item() == pytest.approx(2 * 10.0 / 10.0)
+        assert reported["ce"].item() == pytest.approx(2.0)
+        total.backward()
+        assert summed.grad.item() == pytest.approx(2 / 10.0)

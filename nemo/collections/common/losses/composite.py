@@ -20,7 +20,7 @@ import torch
 
 from nemo.core.classes import Loss
 
-__all__ = ['CompositeLoss', 'LossTerm']
+__all__ = ["CompositeLoss", "LossTerm"]
 
 
 @dataclass(frozen=True)
@@ -28,21 +28,29 @@ class LossTerm:
     """
     One loss as the sum over its elements and the number of elements that normalizes it.
 
-    ``summed`` and ``count`` are scalar tensors; ``summed / count`` is the mean of the loss over the elements it
-    counts (target tokens, target labels, frames or sequences), so each term defines its own normalization.
+    ``summed / count`` is the mean of the loss over the elements it counts
+    (target tokens, target labels, frames or sequences),
+    so each term defines its own normalization.
+
+    Args:
+        summed: scalar tensor, the loss summed over its elements
+        count: scalar tensor, the number of elements the sum runs over
     """
 
     summed: torch.Tensor
     count: torch.Tensor
 
     @classmethod
-    def from_elements(cls, losses: torch.Tensor, mask: Optional[torch.Tensor] = None) -> 'LossTerm':
+    def from_elements(cls, losses: torch.Tensor, mask: Optional[torch.Tensor] = None) -> "LossTerm":
         """
-        Per-element losses of any shape, normalized by the number of valid elements.
+        Per-element losses, normalized by the number of valid elements.
 
         Args:
-            losses: per-element losses; masked-out elements may hold any finite value
-            mask: valid elements (same shape as ``losses``, boolean or 0/1 values); all elements are valid if None
+            losses: per-element losses of any shape; masked-out elements may hold any finite value
+            mask: valid elements, same shape as ``losses``, boolean or 0/1 values; all elements are valid if None
+
+        Returns:
+            the term with the masked sum and the number of valid elements
         """
         if mask is None:
             return cls(losses.sum(), torch.tensor(losses.numel(), device=losses.device, dtype=losses.dtype))
@@ -50,10 +58,17 @@ class LossTerm:
         return cls((losses * mask).sum(), mask.sum())
 
     @classmethod
-    def from_sequences(cls, losses: torch.Tensor, lengths: torch.Tensor) -> 'LossTerm':
+    def from_sequences(cls, losses: torch.Tensor, lengths: torch.Tensor) -> "LossTerm":
         """
-        Per-sequence losses of shape ``(B,)`` normalized by the per-sequence element counts of shape ``(B,)``,
+        Per-sequence losses, normalized by the per-sequence element counts,
         for example a CTC loss per sequence normalized by the target lengths.
+
+        Args:
+            losses: per-sequence losses of shape ``(B,)``
+            lengths: elements per sequence of shape ``(B,)``
+
+        Returns:
+            the term with the summed losses and the summed lengths
         """
         return cls(losses.sum(), lengths.to(losses.dtype).sum())
 
@@ -62,18 +77,21 @@ class CompositeLoss(Loss):
     """
     Sums separately normalized loss terms with per-term scales, and reports the normalized value of each term.
 
-    Every term is a :class:`LossTerm` with its own element count, and contributes ``scale * summed / count``;
+    Every term is a :class:`LossTerm` with its own element count and contributes ``scale * summed / count``:
     a cross-entropy over target tokens stays a mean per token and a CTC loss stays a mean per target label,
-    whatever the other terms count. A term with scale 0 is reported but not trained on.
+    whatever the other terms count.
+    A term with scale 0 is reported but not trained on.
 
-    ``normalization`` says how the mean is formed across the ranks of data-parallel training, whose element counts
-    differ from batch to batch:
+    ``normalization`` says how the mean is formed across the ranks of data-parallel training,
+    whose element counts differ from batch to batch:
 
-    - ``"per_rank"``: every rank normalizes by its own count; the gradient averaging of data-parallel training
-      then weights the ranks equally (the mean of the per-rank means).
-    - ``"global"``: the counts are summed over all ranks, so the result is the mean over all elements of the
-      global batch; every rank's loss is scaled by the world size to undo the gradient averaging.
-      The reported values are then the global means as well.
+    - ``"per_rank"``: every rank normalizes by its own count;
+      the gradient averaging of data-parallel training then weights the ranks equally
+      (the mean of the per-rank means).
+    - ``"global"``: the counts are summed over all ranks,
+      so the result is the mean over all elements of the global batch;
+      every rank's loss is scaled by the world size to undo the gradient averaging,
+      and the reported values are the global means as well.
 
     Without an initialized process group the two are the same.
 
