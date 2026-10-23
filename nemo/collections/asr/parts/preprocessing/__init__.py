@@ -14,7 +14,12 @@
 # limitations under the License.
 
 from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
-from nemo.collections.asr.parts.preprocessing.features import FeaturizerFactory, FilterbankFeatures, WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.features import (
+    FeatureBatchNorm,
+    FeaturizerFactory,
+    FilterbankFeatures,
+    WaveformFeaturizer,
+)
 from nemo.collections.asr.parts.preprocessing.perturb import (
     AudioAugmentor,
     AugmentationDataset,
