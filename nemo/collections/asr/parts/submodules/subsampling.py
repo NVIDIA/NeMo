@@ -22,6 +22,7 @@ from torch.nn import LayerNorm
 
 from nemo.collections.asr.parts.packed_sequence import (
     PackedEncoderActivations,
+    PackedSlotLayout,
     _lengths_to_cu_seqlens,
     _new_packed_encoder_activations,
     packed_slot_layout,
@@ -579,7 +580,7 @@ class ConvSubsampling(torch.nn.Module):
         out_f = calculate_conv_output_size(f, self._kernel_size, self._stride, pad)
         return b * self._conv_channels * out_t * out_f
 
-    def output_lengths(self, lengths):
+    def output_lengths(self, lengths: torch.Tensor) -> torch.Tensor:
         """The number of output frames for every input length."""
         if self._time_strides is not None:
             out_lengths = lengths
@@ -602,14 +603,21 @@ class ConvSubsampling(torch.nn.Module):
         )
 
     def forward_packed(self, packed: PackedEncoderActivations) -> PackedEncoderActivations:
-        """Subsample token-flat features ``(sum(T_i), feat_in)`` to token-flat outputs ``(sum(T'_i), feat_out)``.
+        """Subsample token-flat features to token-flat outputs.
 
-        The utterances are laid out on one gapped time axis (``PackedSlotLayout``): every slot starts at a multiple
-        of the subsampling factor and keeps at least one empty frame after the utterance at every stage, and the
-        frames outside the utterances are zeroed before every layer as the padded forward masks them. The strided
-        convolutions therefore keep their stride phase per utterance and read zeros beyond it, and the result equals
-        :meth:`forward` on the padded batch at the valid frames. Only the two-dimensional, non-causal convolution
-        stacks are supported.
+        The utterances are laid out on one gapped time axis (``PackedSlotLayout``):
+        every slot starts at a multiple of the subsampling factor
+        and keeps at least one empty frame after the utterance at every stage,
+        and the frames outside the utterances are zeroed before every layer as the padded forward masks them.
+        The strided convolutions therefore keep their stride phase per utterance and read zeros beyond it,
+        and the result equals ``forward`` on the padded batch at the valid frames.
+        Only the two-dimensional, non-causal convolution stacks are supported.
+
+        Args:
+            packed: features of all utterances, data of shape ``(sum(T_i), feat_in)``.
+
+        Returns:
+            The subsampled features, data of shape ``(sum(T'_i), feat_out)``.
         """
         if not self.conv2d_subsampling:
             raise NotImplementedError(f"subsampling={self._subsampling!r} has no sequence-packed form.")
@@ -640,11 +648,11 @@ class ConvSubsampling(torch.nn.Module):
             torch.cat(outputs), out_lengths, _lengths_to_cu_seqlens(out_lengths), max_seqlen
         )
 
-    def _packed_sequence_groups(self, layout):
+    def _packed_sequence_groups(self, layout: PackedSlotLayout) -> list[tuple[int, int]]:
         """Split the utterances into groups whose convolution activations stay below the indexing limit.
 
-        The padded forward splits the batch for the same reason (``subsampling_conv_chunking_factor``); here a group
-        is a run of utterances, and a group boundary is exact because the slots are independent.
+        The padded forward splits the batch for the same reason (``subsampling_conv_chunking_factor``);
+        here a group is a run of utterances, and a group boundary is exact because the slots are independent.
         """
         batch_size = layout.slot_lengths.numel()
         if batch_size == 0:
@@ -674,7 +682,14 @@ class ConvSubsampling(torch.nn.Module):
         groups.append((first, batch_size))
         return groups
 
-    def _forward_packed_group(self, data, lengths, slot_offsets, token_slots, total_slots):
+    def _forward_packed_group(
+        self,
+        data: torch.Tensor,
+        lengths: torch.Tensor,
+        slot_offsets: torch.Tensor,
+        token_slots: torch.Tensor,
+        total_slots: int,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """The convolution stack over one gapped time axis; returns the valid output frames and their lengths."""
         x = data.new_zeros((total_slots, data.shape[1])).index_copy(0, token_slots, data)
         x = x.view(1, 1, total_slots, -1)
@@ -702,7 +717,7 @@ class ConvSubsampling(torch.nn.Module):
         return self.out(x), current_lengths
 
     @staticmethod
-    def _packed_stage_mask(x, slot_offsets, lengths):
+    def _packed_stage_mask(x: torch.Tensor, slot_offsets: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         """One for the slots inside an utterance's valid frames at this stage, zero elsewhere; shape (1, 1, S, 1)."""
         positions = torch.arange(x.shape[2], device=x.device)
         sequence_ids = torch.bucketize(positions, slot_offsets[1:], right=True)

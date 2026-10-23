@@ -16,6 +16,7 @@
 """Self-attention over sequence-packed activations with explicit per-utterance boundaries."""
 
 import math
+from collections.abc import Callable
 
 import torch
 from torch import Tensor
@@ -29,16 +30,14 @@ from nemo.collections.asr.parts.packed_sequence import (
     packed_sequence_ids,
 )
 
-__all__ = ['PackedAttentionContext', 'packed_attention', 'packed_cross_attention']
+__all__ = ["PackedAttentionContext", "packed_attention", "packed_cross_attention"]
 
 # the sparse block size of FlexAttention; the document block mask is built at this granularity
 BLOCK_SIZE = 128
-# The FlexAttention kernels are compiled per shape: with dynamic shapes Dynamo graph-breaks on the gather of the
-# relative-position bias in the score modification and falls back to the eager operator, whose autograd rejects
-# captured tensors. The token axis is padded to a multiple of TOKEN_PADDING and the relative-position width to a
-# multiple of LENGTH_PADDING, so a training run compiles a bounded number of kernels (the budget fixes the token
-# total up to a few multiples, the longest utterance varies over a few multiples), and the recompile limit is raised
-# for these calls. Capacity-padded shapes are also what CUDA-graph capture of a training step needs.
+# The FlexAttention kernels are compiled statically per shape,
+# because with dynamic shapes Dynamo cannot trace the gather of the relative-position bias.
+# The token axis and the relative-position width are padded to these multiples,
+# so a training run compiles a bounded number of kernels.
 TOKEN_PADDING = 4096
 LENGTH_PADDING = 128
 RECOMPILE_LIMIT = 64
@@ -52,7 +51,8 @@ def _round_up(value: int, multiple: int) -> int:
 
 def _recompile_limit_patch():
     """Raise Dynamo's per-function recompile limit for the per-shape FlexAttention kernels."""
-    name = 'recompile_limit' if hasattr(torch._dynamo.config, 'recompile_limit') else 'cache_size_limit'
+    # torch renamed `cache_size_limit` to `recompile_limit`; older versions have only the old name
+    name = "recompile_limit" if hasattr(torch._dynamo.config, "recompile_limit") else "cache_size_limit"
     current = getattr(torch._dynamo.config, name)
     return torch._dynamo.config.patch(**{name: max(current, RECOMPILE_LIMIT)})
 
@@ -60,12 +60,14 @@ def _recompile_limit_patch():
 class PackedAttentionContext:
     """Packing metadata of one batch, shared by all attention layers of a packed forward.
 
+    The FlexAttention block mask is derived from the utterance boundaries,
+    without evaluating a mask over the dense token grid:
+    a key block is complete for a query block when both lie inside the same utterance,
+    partial when it intersects an utterance that the query block touches,
+    and skipped otherwise.
+
     Args:
         packed: the packed activations entering the encoder layers; only their sequence metadata is used.
-
-    The FlexAttention block mask is derived from the utterance boundaries without evaluating a mask over the dense
-    token grid: a key block is complete for a query block when both lie inside the same utterance, and partial when
-    it intersects an utterance that the query block touches; all other blocks are skipped.
     """
 
     def __init__(self, packed: PackedEncoderActivations):
@@ -117,8 +119,11 @@ def document_block_mask(
         sequence_ids: utterance index of every token, shape ``(T_total,)``.
         cu_seqlens: cumulative token counts, shape ``(B + 1,)``.
         total_tokens: number of tokens.
-        padded_total_tokens: length of the token axis the kernel sees; the tail beyond ``total_tokens`` belongs to
-            no utterance and its blocks are skipped. Defaults to ``total_tokens``.
+        padded_total_tokens: length of the token axis the kernel sees, ``total_tokens`` by default;
+            the tail beyond ``total_tokens`` belongs to no utterance and its blocks are skipped.
+
+    Returns:
+        The block mask over the padded token axis.
     """
     if total_tokens <= 0:
         raise ValueError("document_block_mask needs at least one token.")
@@ -128,8 +133,8 @@ def document_block_mask(
         raise ValueError("padded_total_tokens must not be smaller than total_tokens.")
     device = sequence_ids.device
     num_blocks = -(-padded_total_tokens // BLOCK_SIZE)
-    # FlexAttention evaluates the mask on the block-rounded grid, so the tail beyond the last token must index
-    # safely; the sentinel never equals a real utterance index.
+    # FlexAttention evaluates the mask on the block-rounded grid,
+    # so the tail beyond the last token must index safely; the sentinel never equals a real utterance index.
     padded_ids = sequence_ids.new_full((num_blocks * BLOCK_SIZE,), -1)
     padded_ids[:total_tokens] = sequence_ids
     block_starts = torch.arange(num_blocks, device=device) * BLOCK_SIZE
@@ -143,8 +148,8 @@ def document_block_mask(
     span_end = offsets[last_utterance + 1].view(-1, 1)
     intersects = (block_starts.view(1, -1) < span_end) & (block_ends.view(1, -1) >= span_start)
     intersects &= in_range.view(-1, 1) & in_range.view(1, -1)
-    # a complete block lies inside one utterance and holds no padded tail tokens; the tail belongs to no utterance
-    # and must stay masked, so a partially filled block keeps its mask evaluation
+    # a complete block lies inside one utterance and holds no padded tail tokens;
+    # the tail belongs to no utterance and must stay masked, so a partially filled block keeps its mask evaluation
     complete = block_ends == block_starts + BLOCK_SIZE - 1
     one_utterance = (first_utterance == last_utterance) & in_range & complete
     full = one_utterance.view(-1, 1) & one_utterance.view(1, -1) & (first_utterance.view(-1, 1) == first_utterance)
@@ -183,28 +188,31 @@ def packed_attention(
 ) -> Tensor:
     """Attend within utterances over token-flat queries, keys and values.
 
+    On CUDA, attention without a position bias runs variable-length FlashAttention in half precision when available,
+    and everything else runs FlexAttention with the document block mask of the context.
+    Elsewhere the utterances are attended one at a time with dense attention,
+    which is also the reference of the unit tests.
+
     Args:
-        q, k, v: shape ``(T_total, H, d_k)``.
+        q: queries, shape ``(T_total, H, d_k)``.
+        k: keys, shape ``(T_total, H, d_k)``.
+        v: values, shape ``(T_total, H, d_k)``.
         context: packing metadata of the batch.
-        rel_pos_bias: optional Transformer-XL position bias of shape ``(T_total, H, 2 * max_seqlen - 1)`` whose last
-            axis is indexed by ``max_seqlen - 1 - (query position - key position)``; it is scaled like the content
-            scores and added to them.
-        dropout_p: dropout on the attention weights, supported by the variable-length FlashAttention path and the
-            reference path but not by FlexAttention.
+        rel_pos_bias: optional Transformer-XL position bias, shape ``(T_total, H, 2 * max_seqlen - 1)``,
+            whose last axis is indexed by ``max_seqlen - 1 - (query position - key position)``;
+            it is scaled like the content scores and added to them.
+        dropout_p: dropout on the attention weights,
+            supported by the variable-length FlashAttention path and the reference path but not by FlexAttention.
         scale: score scale, ``1 / sqrt(d_k)`` by default.
 
     Returns:
         Context vectors of shape ``(T_total, H, d_k)``.
-
-    On CUDA, attention without a position bias runs variable-length FlashAttention in half precision when available,
-    and everything else runs FlexAttention with the document block mask of the context. Elsewhere the utterances are
-    attended one at a time with dense attention, which is also the reference of the unit tests.
     """
     if scale is None:
         scale = 1.0 / math.sqrt(q.shape[-1])
     if context.total_tokens == 0:
-        # keep every projection in the autograd graph when a rank holds no valid token, so distributed gradient
-        # reductions see the same parameters on all ranks
+        # keep every projection in the autograd graph when a rank holds no valid token,
+        # so distributed gradient reductions see the same parameters on all ranks
         anchor = q.sum() + k.sum()
         if rel_pos_bias is not None:
             anchor = anchor + rel_pos_bias.sum()
@@ -228,8 +236,9 @@ def packed_attention(
                 )
         if dropout_p > 0.0:
             raise NotImplementedError(
-                "FlexAttention has no dropout on the attention weights; packed attention with a relative position "
-                "bias needs dropout_att=0, or run without autocast half precision for the FlashAttention path."
+                "FlexAttention has no dropout on the attention weights; "
+                "packed attention with a relative position bias needs dropout_att=0, "
+                "while abs_pos and rope attention keep their dropout through FlashAttention."
             )
         return _flex_packed_attention(q, k, v, context, rel_pos_bias=rel_pos_bias, scale=scale)
     return _reference_packed_attention(q, k, v, context, rel_pos_bias=rel_pos_bias, dropout_p=dropout_p, scale=scale)
@@ -314,7 +323,7 @@ def _reference_packed_cross_attention(q, k, v, query_context, key_context, *, ca
     return torch.cat(outputs, dim=0)
 
 
-def _flash_attention_varlen(q: Tensor):
+def _flash_attention_varlen(q: Tensor) -> Callable | None:
     """The variable-length FlashAttention provider for bias-free attention, or None when it does not apply."""
     # a function-level import: the modules package initializes the encoders, which import this module
     from nemo.collections.asr.modules.transformer_encoder_utils import _select_flash_attention_varlen
@@ -323,19 +332,21 @@ def _flash_attention_varlen(q: Tensor):
     return _select_flash_attention_varlen(q, static_eligible=head_dim <= 256 and head_dim % 8 == 0)
 
 
-def _flex_packed_attention(q, k, v, context, *, rel_pos_bias, scale):
+def _flex_packed_attention(
+    q: Tensor, k: Tensor, v: Tensor, context: PackedAttentionContext, *, rel_pos_bias: Tensor | None, scale: float
+) -> Tensor:
     total_tokens = context.total_tokens
     padded_total = context.padded_total_tokens
     tail = padded_total - total_tokens
 
-    def pad_tokens(tensor):
+    def pad_tokens(tensor: Tensor) -> Tensor:
         return torch.nn.functional.pad(tensor, (0, 0) * (tensor.dim() - 1) + (0, tail)) if tail else tensor
 
     score_mod = None
     if rel_pos_bias is not None:
         bias = pad_tokens(rel_pos_bias)
-        # the bias covers the relative positions (W - 1) / 2 down to -(W - 1) / 2; indices outside an utterance are
-        # masked, so clamping only keeps the gather in bounds
+        # the bias covers the relative positions (W - 1) / 2 down to -(W - 1) / 2;
+        # indices outside an utterance are masked, so clamping only keeps the gather in bounds
         center = (bias.shape[-1] - 1) // 2
         last_index = bias.shape[-1] - 1
 
@@ -355,7 +366,16 @@ def _flex_packed_attention(q, k, v, context, *, rel_pos_bias, scale):
     return out.squeeze(0).transpose(0, 1)[:total_tokens]
 
 
-def _reference_packed_attention(q, k, v, context, *, rel_pos_bias, dropout_p, scale):
+def _reference_packed_attention(
+    q: Tensor,
+    k: Tensor,
+    v: Tensor,
+    context: PackedAttentionContext,
+    *,
+    rel_pos_bias: Tensor | None,
+    dropout_p: float,
+    scale: float,
+) -> Tensor:
     """Dense attention one utterance at a time, with the same bias convention as the kernels."""
     outputs = []
     center = (rel_pos_bias.shape[-1] - 1) // 2 if rel_pos_bias is not None else 0

@@ -117,11 +117,12 @@ class PackedEncoderActivations:
 class PackedSlotLayout:
     """A gapped time axis on which a convolution runs over all packed utterances at once.
 
-    Every utterance owns a slot of ``slot_lengths[i]`` frames starting at ``slot_offsets[i]``: its valid frames
-    first, zeros after them. The caller chooses the alignment of the slot starts and the number of empty frames
-    after the valid ones so that a convolution never reads a neighbouring utterance: the frames it reads beyond an
-    utterance are zeros, like the masked padding of a padded batch, and a strided convolution keeps its phase per
-    utterance.
+    Every utterance owns a slot of ``slot_lengths[i]`` frames starting at ``slot_offsets[i]``:
+    its valid frames first, zeros after them.
+    The caller chooses the alignment of the slot starts and the number of empty frames after the valid ones
+    so that a convolution never reads a neighbouring utterance:
+    the frames it reads beyond an utterance are zeros, like the masked padding of a padded batch,
+    and a strided convolution keeps its phase per utterance.
 
     Args:
         slot_offsets: first slot of every utterance, shape ``(B,)``.
@@ -266,9 +267,15 @@ def packed_encoder_position_ids(packed: PackedEncoderActivations) -> Tensor:
 
 
 def packed_slot_layout(packed: PackedEncoderActivations, *, alignment: int = 1, gap: int = 0) -> PackedSlotLayout:
-    """Lay the utterances of ``packed`` out with ``gap`` empty frames after each and slots aligned to ``alignment``.
+    """Lay the utterances of ``packed`` out on one gapped time axis.
 
-    An utterance with ``L`` valid frames gets ``ceil((L + gap) / alignment) * alignment`` slots.
+    Args:
+        packed: the packed activations whose lengths define the utterances.
+        alignment: every slot starts at a multiple of this.
+        gap: empty frames after the valid frames of every utterance.
+
+    Returns:
+        The layout; an utterance with ``L`` valid frames gets ``ceil((L + gap) / alignment) * alignment`` slots.
     """
 
     if alignment < 1:

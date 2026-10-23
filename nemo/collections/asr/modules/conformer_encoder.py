@@ -207,8 +207,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             see ConformerLayer; the layer supplies sizes, dropouts and the options above, the block names
             what deviates (for example an even conv kernel or a different norm eps).
 
-    Besides the padded ``forward``, the encoder runs sequence-packed through ``forward_sequence_packed``, which
-    keeps all activations token-flat with explicit utterance boundaries; see that method for its contract.
+    Besides the padded ``forward``, the encoder runs sequence-packed through ``forward_sequence_packed``,
+    which keeps all activations token-flat with explicit utterance boundaries; see that method for its contract.
     """
 
     # the opt-in token-flat contract that packed perception modules look for
@@ -848,33 +848,38 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         else:
             return audio_signal, length
 
-    def forward_sequence_packed(self, audio_signal, length=None, bypass_pre_encode=False) -> PackedEncoderActivations:
+    def forward_sequence_packed(
+        self,
+        audio_signal: torch.Tensor | PackedEncoderActivations,
+        length: torch.Tensor | None = None,
+        bypass_pre_encode: bool = False,
+    ) -> PackedEncoderActivations:
         """Encode a batch with every activation token-flat, keeping the utterance boundaries explicit.
 
+        The subsampling and the depthwise convolutions run over gapped per-utterance slots
+        and the self-attention over all tokens with a block mask of the utterances, so no padded frame is computed.
+        At the valid frames the result equals ``forward`` up to floating-point summation order,
+        with one documented difference:
+        batch normalization in the convolution modules takes its training statistics from the valid frames only,
+        while the padded forward includes the padded frames (see ``ConformerConvolution.forward_packed``).
+        Dropout draws its masks per token, so same-seed elementwise equality with the padded forward is not promised.
+        Intermediate layer captures for InterCTC (``interctc/layer_output_X``) are registered as
+        ``PackedEncoderActivations``; their consumer must accept the packed form.
+
+        Not supported: streaming caches, limited or chunked attention context, ``rel_pos_local_attn``,
+        reduction layers, adapters, causal subsampling,
+        and attention dropout together with ``rel_pos`` attention on CUDA (FlexAttention has no dropout).
+
         Args:
-            audio_signal: packed features ``PackedEncoderActivations`` with data ``(sum(T_i), feat_in)``, a padded
-                feature batch ``(B, feat_in, T)``, or with ``bypass_pre_encode`` packed or padded ``(B, T, d_model)``
-                pre-encoded states.
+            audio_signal: packed features (``PackedEncoderActivations`` with data ``(sum(T_i), feat_in)``),
+                a padded feature batch ``(B, feat_in, T)``,
+                or with ``bypass_pre_encode`` packed or padded ``(B, T, d_model)`` pre-encoded states.
             length: valid frames of every padded utterance; for packed input it must equal the packed lengths.
             bypass_pre_encode: whether ``audio_signal`` already holds encoder-width states.
 
         Returns:
-            The encoder output as ``PackedEncoderActivations`` with data ``(sum(T'_i), feat_out)``; the padded
-            ``forward`` output is ``unpack_encoder_output(...).transpose(1, 2)``.
-
-        The subsampling and the depthwise convolutions run over gapped per-utterance slots and the self-attention
-        over all tokens with a block mask of the utterances, so no padded frame is computed. At the valid frames the
-        result equals ``forward`` up to floating-point summation order, with one documented difference: batch
-        normalization in the convolution modules takes its training statistics from the valid frames only, while
-        the padded forward includes the padded frames (see ``ConformerConvolution.forward_packed``). Dropout draws
-        its masks per token, so same-seed elementwise equality with the padded forward is not promised.
-
-        Intermediate layer captures for InterCTC (``interctc/layer_output_X``) are registered as
-        ``PackedEncoderActivations``; their consumer must accept the packed form.
-
-        Not supported: streaming caches, limited or chunked attention context, ``rel_pos_local_attn``, reduction
-        layers, adapters, causal subsampling, and attention dropout together with ``rel_pos`` attention on CUDA
-        (FlexAttention has no dropout).
+            The encoder output as ``PackedEncoderActivations`` with data ``(sum(T'_i), feat_out)``;
+            the padded ``forward`` output is ``unpack_encoder_output(...).transpose(1, 2)``.
         """
         if self.self_attention_model == 'rel_pos_local_attn':
             raise NotImplementedError("rel_pos_local_attn has no sequence-packed form.")
@@ -905,13 +910,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
 
         if not bypass_pre_encode:
-            pre_encode = getattr(self.pre_encode, '_checkpoint_wrapped_module', self.pre_encode)
-            if isinstance(pre_encode, nn.Linear):
+            if isinstance(self.pre_encode, nn.Linear):
                 packed = packed.with_data(self.pre_encode(packed.data))
-            elif hasattr(pre_encode, 'forward_packed'):
-                packed = pre_encode.forward_packed(packed)
+            elif isinstance(self.pre_encode, ConvSubsampling):
+                packed = self.pre_encode.forward_packed(packed)
             else:
-                raise NotImplementedError(f"{type(pre_encode).__name__} has no sequence-packed form.")
+                raise NotImplementedError(f"{type(self.pre_encode).__name__} has no sequence-packed form.")
 
         attention_context = PackedAttentionContext(packed)
         # the relative-position table covers the padded length the attention kernels see
