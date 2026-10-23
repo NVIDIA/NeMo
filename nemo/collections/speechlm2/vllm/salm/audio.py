@@ -36,7 +36,7 @@ Public surface used by the rest of the package:
 
 import inspect
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -558,15 +558,19 @@ class NeMoSpeechLMMultiModalProcessor(
         hf_processor_mm_kwargs: Mapping[str, object],
         out_mm_kwargs: MultiModalKwargsItems,
     ) -> list[PromptUpdate]:
-        audios = mm_items.get_items("audio", AudioProcessorItems)
         chunk_size_seconds = self.info._get_encoder_chunk_size_seconds()
         estimator_config = self.info._get_audio_token_estimator_config()
+
+        def audio_samples(item_idx: int) -> int:
+            # Looked up per replacement: vLLM passes only the items missing from its processor cache, so when every
+            # audio item is cached there is no audio modality here, and no replacement is asked for.
+            return mm_items.get_items("audio", AudioProcessorItems).get(item_idx).shape[-1]
+
         if not _PROMPT_UPDATES_TAKE_TEXT:
-            return self._get_token_prompt_updates(audios, chunk_size_seconds, estimator_config)
+            return self._get_token_prompt_updates(audio_samples, chunk_size_seconds, estimator_config)
 
         def get_replacement(item_idx: int):
-            audio = audios.get(item_idx)
-            n_tokens = self.info._estimate_audio_tokens(audio.shape[-1], chunk_size_seconds, estimator_config)
+            n_tokens = self.info._estimate_audio_tokens(audio_samples(item_idx), chunk_size_seconds, estimator_config)
             repl_full = _AUDIO_PLACEHOLDER * n_tokens
             return PromptUpdateDetails.select_text(repl_full, _AUDIO_PLACEHOLDER)
 
@@ -580,7 +584,7 @@ class NeMoSpeechLMMultiModalProcessor(
 
     def _get_token_prompt_updates(
         self,
-        audios: AudioProcessorItems,
+        audio_samples: Callable[[int], int],
         chunk_size_seconds: float | None,
         estimator_config: Mapping[str, object] | None,
     ) -> list[PromptUpdate]:
@@ -592,8 +596,7 @@ class NeMoSpeechLMMultiModalProcessor(
             raise ValueError(f"{_AUDIO_PLACEHOLDER!r} must encode to exactly one token, got {placeholder_ids}.")
 
         def get_replacement(item_idx: int) -> list[int]:
-            audio = audios.get(item_idx)
-            n_tokens = self.info._estimate_audio_tokens(audio.shape[-1], chunk_size_seconds, estimator_config)
+            n_tokens = self.info._estimate_audio_tokens(audio_samples(item_idx), chunk_size_seconds, estimator_config)
             return placeholder_ids * n_tokens
 
         return [PromptReplacement(modality="audio", target=placeholder_ids, replacement=get_replacement)]

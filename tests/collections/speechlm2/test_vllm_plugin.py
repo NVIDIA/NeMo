@@ -1404,6 +1404,33 @@ class TestAudioProcessing:
         assert update.replacement(0) == [42] * 3
         assert update.replacement(1) == [42] * 6
 
+    def test_prompt_updates_without_uncached_audio(self, monkeypatch):
+        """vLLM asks for prompt updates of the items missing from its processor cache only; with every audio item
+        cached (as for the second startup profiling input) there are no audio items at all."""
+        from nemo.collections.speechlm2.vllm.salm import audio
+        from nemo.collections.speechlm2.vllm.salm.audio import NeMoSpeechLMMultiModalProcessor
+
+        class _PlaceholderTokenizer(_FakeTokenizer):
+            def encode(self, prompt, add_special_tokens=True):
+                return [42] if prompt == "<|audio|>" else [1, 2]
+
+        def no_items(modality, typ):
+            raise KeyError(f"Modality {modality!r} not found. Available modalities: set()")
+
+        processor = object.__new__(NeMoSpeechLMMultiModalProcessor)
+        processor.info = SimpleNamespace(
+            get_tokenizer=_PlaceholderTokenizer,
+            _get_encoder_chunk_size_seconds=lambda: None,
+            _get_audio_token_estimator_config=lambda: None,
+        )
+        mm_items = SimpleNamespace(get_items=no_items)
+        monkeypatch.setattr(audio, "_PROMPT_UPDATES_TAKE_TEXT", False)
+
+        (update,) = processor._get_prompt_updates(mm_items, {}, None)
+
+        assert update.modality == "audio"
+        assert update.target == [42]
+
     def test_prompt_updates_require_a_single_placeholder_token(self, monkeypatch):
         from nemo.collections.speechlm2.vllm.salm import audio
         from nemo.collections.speechlm2.vllm.salm.audio import NeMoSpeechLMMultiModalProcessor
