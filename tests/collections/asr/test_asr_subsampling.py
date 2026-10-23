@@ -270,6 +270,21 @@ class TestConvSubsamplingStrides:
             ConvSubsampling("dw_striding", 6, 8, 16, [2, 2, 2], conv_strides=[1, 3, 2])
         with pytest.raises(ValueError, match="one entry per stride"):
             ConvSubsampling("striding", 6, 8, 16, [2, 2], conv_strides=[1, 3, 2])
+        with pytest.raises(ValueError, match="needs conv_strides"):
+            ConvSubsampling("striding", 4, 8, 16, [2, 3])
+
+    @pytest.mark.unit
+    def test_production_configuration(self):
+        # 80 mel features, channels 32, 64, 64, time strides 1, 3, 2 and one frequency pool of 2
+        module = _build_strided_conv_subsampling(feat_in=80, feat_out=256, conv_channels=[32, 64, 64])
+        features = torch.randn(3, 101, 80)
+        lengths = torch.tensor([101, 67, 13])
+        with torch.no_grad():
+            out, out_lengths = module(x=features, lengths=lengths)
+        assert out.shape == (3, 17, 256) and out_lengths.tolist() == [17, 12, 3]
+        assert module.out.weight.shape == (256, 64 * 40)
+        # the 32-bit indexing guard counts the first convolution's output elements
+        assert module._first_conv_output_numel(features) == module.conv[0](features.unsqueeze(1)).numel()
 
     @pytest.mark.unit
     def test_defaults_unchanged(self):

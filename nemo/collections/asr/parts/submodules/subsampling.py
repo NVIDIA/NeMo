@@ -178,15 +178,14 @@ class ConvSubsampling(torch.nn.Module):
         1 (auto) or a power of 2. Default is 1
         feat_in (int): size of the input features
         feat_out (int): size of the output features
-        conv_channels (int or list[int]): Number of channels for the convolution layers, one value for all
-            stages or one per stage with conv_strides.
+        conv_channels: number of channels of the convolution layers,
+            one value for all stages, or one per stage together with `conv_strides`
         activation (Module): activation function, default is nn.ReLU()
-        conv_strides (list[int], Optional): for "striding", the time stride of each 3x3 stage instead of
-            stride 2 on both axes; the frequency axis is then reduced only by freq_pools. The product of the
-            strides must equal subsampling_factor.
-        freq_pools (list[int], Optional): with conv_strides, a max-pool over the frequency axis after each
-            stage (1 for none).
-        out_bias (bool): bias of the output projection, default True.
+        conv_strides: for "striding", the time stride of each 3x3 stage instead of stride 2 on both axes;
+            the frequency axis is then reduced only by `freq_pools`,
+            and the product of the strides must equal `subsampling_factor`
+        freq_pools: with `conv_strides`, a max-pool over the frequency axis after each stage, 1 for none
+        out_bias: bias of the output projection
     """
 
     def __init__(
@@ -195,7 +194,7 @@ class ConvSubsampling(torch.nn.Module):
         subsampling_factor,
         feat_in,
         feat_out,
-        conv_channels,
+        conv_channels: int | Sequence[int],
         subsampling_conv_chunking_factor=1,
         activation=nn.ReLU(),
         is_causal=False,
@@ -208,7 +207,10 @@ class ConvSubsampling(torch.nn.Module):
         self._subsampling = subsampling
         # per-stage channel lists arrive as plain lists or as OmegaConf sequences from Hydra instantiation
         channels_per_stage = isinstance(conv_channels, Sequence) and not isinstance(conv_channels, str)
-        self._conv_channels = max(conv_channels) if channels_per_stage else conv_channels
+        if channels_per_stage and conv_strides is None:
+            raise ValueError(f"conv_channels per stage ({list(conv_channels)}) needs conv_strides")
+        # the 32-bit indexing guard sizes the output of the first convolution
+        self._conv_channels = conv_channels[0] if channels_per_stage else conv_channels
         self._feat_in = feat_in
         self._feat_out = feat_out
         self._time_strides = list(conv_strides) if conv_strides is not None else None
@@ -570,8 +572,13 @@ class ConvSubsampling(torch.nn.Module):
         """
         b, t, f = x.size()
         pad = (self._left_padding, self._right_padding)
-        out_t = calculate_conv_output_size(t, self._kernel_size, self._stride, pad)
-        out_f = calculate_conv_output_size(f, self._kernel_size, self._stride, pad)
+        if self._time_strides is not None:
+            # the per-stage stages stride only in time and keep the frequency axis
+            out_t = calculate_conv_output_size(t, self._kernel_size, self._time_strides[0], pad)
+            out_f = calculate_conv_output_size(f, self._kernel_size, 1, pad)
+        else:
+            out_t = calculate_conv_output_size(t, self._kernel_size, self._stride, pad)
+            out_f = calculate_conv_output_size(f, self._kernel_size, self._stride, pad)
         return b * self._conv_channels * out_t * out_f
 
     def forward(self, x, lengths):
