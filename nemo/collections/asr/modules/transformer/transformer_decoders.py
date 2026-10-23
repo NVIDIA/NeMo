@@ -15,7 +15,7 @@
 
 import copy
 from dataclasses import dataclass
-from typing import List, Optional, Set
+from typing import Callable, List, Optional, Set
 
 import torch
 import torch.nn as nn
@@ -33,11 +33,18 @@ __all__ = ["TransformerDecoder", "TransformerDecoderKeyValueCache", "LayerKeyVal
 
 @dataclass
 class LayerKeyValueCache:
-    """The slice of a ``TransformerDecoderKeyValueCache`` one ``TransformerDecoderBlock`` reads and writes in a step.
+    """The slice of a ``TransformerDecoderKeyValueCache`` one decoder block reads and writes in a step.
 
-    ``self_keys`` and ``self_values`` (batch, head, capacity, head_size) are views the block writes at
-    ``positions``; ``cross_keys`` and ``cross_values`` (batch, head, frames, head_size) are read only.
     The masks are additive, as ``form_attention_mask`` builds them.
+
+    Attributes:
+        self_keys: self-attention keys (B, H, capacity, D), a view the block writes at ``positions``
+        self_values: self-attention values (B, H, capacity, D), written like ``self_keys``
+        self_attention_mask: mask (B, 1, L_new, capacity) for the queries of the step
+        positions: positions (L_new,) of the new tokens in the cache
+        cross_keys: cross-attention keys (B, H, L_enc, D) of the encoder states, read only
+        cross_values: cross-attention values (B, H, L_enc, D), read only
+        cross_attention_mask: mask (B, 1, 1, L_enc) of the encoder states
     """
 
     self_keys: torch.Tensor
@@ -52,30 +59,43 @@ class LayerKeyValueCache:
 class TransformerDecoderKeyValueCache:
     """Bounded key-value state of a ``TransformerDecoder`` for incremental decoding.
 
-    ``TransformerDecoder.create_kv_cache`` builds it for a batch of encoder states; the constructor allocates
-    buffers of fixed capacities that ``load_encoder_states`` fills, so that buffers and captured CUDA graphs
-    can be reused across batches. The cache holds the cross-attention keys and values of every layer,
-    projected once per batch, and the self-attention keys and values of the decoded positions, which
-    ``TransformerDecoder.forward(..., kv_cache=cache)`` writes for the new positions only. Buffer shapes never
-    change while the sequence grows and ``length`` is a device tensor, so a decode step over the cache is free
-    of host synchronization and can be captured in a CUDA graph.
+    ``TransformerDecoder.create_kv_cache`` builds the cache for a batch of encoder states.
+    The constructor allocates buffers of fixed capacities,
+    and ``load_encoder_states`` fills them for a batch,
+    so buffers and captured CUDA graphs can be reused across batches.
+    The cache holds the cross-attention keys and values of every layer, projected once per batch,
+    and the self-attention keys and values of the decoded positions,
+    which ``TransformerDecoder.forward(..., kv_cache=cache)`` writes for the new positions only.
+    Buffer shapes never change while the sequence grows and ``length`` is a device tensor,
+    so a decode step over the cache is free of host synchronization and can be captured in a CUDA graph.
 
-    Batch entries are hypotheses: ``repeat_interleave`` makes several per source sequence and
-    ``reorder_hypotheses`` applies beam search back references in place. Positions whose decoder mask is 0
-    (padding after an ended hypothesis) are never attended to.
+    Batch entries are hypotheses:
+    ``repeat_interleave`` makes several per source sequence,
+    and ``reorder_hypotheses`` applies beam search back references in place.
+    Positions whose decoder mask is 0 (padding after an ended hypothesis) are never attended to.
 
-    The attention blocks of the decoder provide the head layout and the projections: ``num_attention_heads``,
-    ``attn_head_size``, ``project_queries``, ``project_keys_values`` and ``attend`` as ``MultiHeadAttention``.
+    The attention blocks of the decoder provide the head layout and the projections,
+    as ``MultiHeadAttention`` does with ``num_attention_heads``, ``attn_head_size``,
+    ``project_queries``, ``project_keys_values`` and ``attend``.
 
     Args:
         decoder: the ``TransformerDecoder`` the cache belongs to
         batch_size: number of hypotheses
         frame_capacity: number of encoder frames the cross-attention buffers hold
-        capacity: number of decoder positions the self-attention buffers hold (prompt plus generated tokens)
-        device, dtype: of the key and value buffers
+        capacity: number of decoder positions the self-attention buffers hold, prompt plus generated tokens
+        device: device of the buffers
+        dtype: dtype of the key and value buffers
     """
 
-    def __init__(self, decoder, batch_size, frame_capacity, capacity, device, dtype):
+    def __init__(
+        self,
+        decoder: "TransformerDecoder",
+        batch_size: int,
+        frame_capacity: int,
+        capacity: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ):
         for layer in decoder.layers:
             for block in (layer.first_sub_layer, layer.second_sub_layer):
                 for name in (
@@ -132,18 +152,25 @@ class TransformerDecoderKeyValueCache:
     def frame_capacity(self) -> int:
         return self.cross_keys.shape[3]
 
-    def load_encoder_states(self, decoder, encoder_states, encoder_mask=None, repeats=1):
+    def load_encoder_states(
+        self,
+        decoder: "TransformerDecoder",
+        encoder_states: torch.Tensor,
+        encoder_mask: torch.Tensor | None = None,
+        repeats: int = 1,
+    ) -> None:
         """Project a batch of encoder states into the cross-attention buffers and start a new decode.
 
-        Rows ``[0, batch * repeats)`` receive the projections, each source sequence repeated ``repeats``
-        times consecutively (one row per beam hypothesis); the frames beyond a sequence, the remaining rows
-        and the remaining frames are masked. The self-attention state is reset.
+        Rows ``[0, batch * repeats)`` receive the projections,
+        each source sequence repeated ``repeats`` times consecutively (one row per beam hypothesis);
+        the frames beyond a sequence, the remaining rows and the remaining frames are masked.
+        The self-attention state is reset.
 
         Args:
             decoder: the ``TransformerDecoder`` the cache was created for
-            encoder_states: (batch, frames, hidden) with batch * repeats <= batch_size and
-                frames <= frame_capacity
-            encoder_mask: (batch, frames) with 1 for valid frames, or None for all valid
+            encoder_states: encoder output (B, L_enc, H), ``B * repeats`` at most ``batch_size``
+                and ``L_enc`` at most ``frame_capacity``
+            encoder_mask: encoder inputs mask (B, L_enc) with 1 for valid frames, or None for all valid
             repeats: hypotheses per source sequence
         """
         batch, frames, _ = encoder_states.shape
@@ -166,12 +193,12 @@ class TransformerDecoderKeyValueCache:
             self.cross_values[index, :rows, :, :frames].copy_(value)
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         """Forget the decoded positions; the cross-attention projections stay."""
         self.self_mask.zero_()
         self.length.zero_()
 
-    def _with_batch(self, select):
+    def _with_batch(self, select: Callable[[torch.Tensor, int], torch.Tensor]) -> "TransformerDecoderKeyValueCache":
         """A new cache whose batch entries are ``select(tensor, batch_dim)`` of this one."""
         clone = copy.copy(self)
         clone.self_keys = select(self.self_keys, 1)
@@ -183,36 +210,70 @@ class TransformerDecoderKeyValueCache:
         clone.length = self.length.clone()
         return clone
 
-    def repeat_interleave(self, repeats):
-        """A new cache with every hypothesis repeated ``repeats`` times consecutively, for beam search."""
+    def repeat_interleave(self, repeats: int) -> "TransformerDecoderKeyValueCache":
+        """A new cache for beam search, with every hypothesis repeated consecutively.
+
+        Args:
+            repeats: hypotheses per source sequence
+
+        Returns:
+            the new cache, with ``repeats`` times the rows
+        """
         return self._with_batch(lambda tensor, dim: tensor.repeat_interleave(repeats, dim=dim))
 
-    def index_select(self, indices):
-        """A new cache with the hypotheses ``indices`` (int64 tensor), in that order."""
+    def index_select(self, indices: torch.Tensor) -> "TransformerDecoderKeyValueCache":
+        """A new cache with selected hypotheses.
+
+        Args:
+            indices: hypothesis rows (N,) to keep, in the order of the new cache
+
+        Returns:
+            the new cache with ``N`` rows
+        """
         return self._with_batch(lambda tensor, dim: tensor.index_select(dim, indices))
 
-    def reorder_hypotheses(self, indices):
-        """Replace hypothesis ``i`` by hypothesis ``indices[i]`` in place (beam search back references).
+    def reorder_hypotheses(self, indices: torch.Tensor) -> None:
+        """Replace hypothesis ``i`` by hypothesis ``indices[i]`` in place, for beam search back references.
 
-        Only the self-attention state moves: every index must select a hypothesis of the same source
-        sequence, whose cross-attention projections are therefore already in place.
+        Only the self-attention state moves:
+        every index must select a hypothesis of the same source sequence,
+        whose cross-attention projections are therefore already in place.
+
+        Args:
+            indices: source row (batch_size,) of every hypothesis
         """
         self.self_keys.copy_(self.self_keys.index_select(1, indices))
         self.self_values.copy_(self.self_values.index_select(1, indices))
         self.self_mask.copy_(self.self_mask.index_select(0, indices))
 
-    def self_attention_mask(self, positions):
-        """Additive mask (batch, 1, len(positions), capacity) for queries at ``positions``.
+    def self_attention_mask(self, positions: torch.Tensor) -> torch.Tensor:
+        """Additive self-attention mask for the queries of a step.
 
-        A key is attended to when its position was written with a set decoder mask and is not after the query.
+        A key is attended to when its position was written with a set decoder mask
+        and is not after the query.
+
+        Args:
+            positions: positions (L_new,) of the queries
+
+        Returns:
+            mask (B, 1, L_new, capacity), 0 where attended and ``NEG_INF`` otherwise
         """
         allowed = self.self_mask[:, None, None, :] & (
             self.position_ids[None, None, None, :] <= positions[None, None, :, None]
         )
         return (1 - allowed.to(torch.float)) * NEG_INF
 
-    def layer(self, index, positions, self_attention_mask) -> LayerKeyValueCache:
-        """The slice of layer ``index`` for a step writing ``positions``."""
+    def layer(self, index: int, positions: torch.Tensor, self_attention_mask: torch.Tensor) -> LayerKeyValueCache:
+        """The slice of one layer for a step.
+
+        Args:
+            index: layer index
+            positions: positions (L_new,) of the new tokens
+            self_attention_mask: the mask from ``self_attention_mask(positions)``
+
+        Returns:
+            the views and masks the block of that layer reads and writes
+        """
         return LayerKeyValueCache(
             self_keys=self.self_keys[index],
             self_values=self.self_values[index],
@@ -243,10 +304,11 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
             (sizes, dropouts, hidden_act); a block section only names what deviates. Defaults to
             LayerNorm, MultiHeadAttention (both attentions) and PositionWiseFF.
 
-    ``forward`` takes an optional ``kv_cache`` (a ``LayerKeyValueCache``) for incremental decoding: the query
-    states are the new positions only, their self-attention keys and values are written to the cache, and the
-    attention runs over the cached keys and values, with ``decoder_keys``, ``encoder_states`` and
-    ``encoder_mask`` unused.
+    ``forward`` takes an optional ``kv_cache`` (a ``LayerKeyValueCache``) for incremental decoding:
+    the query states are the new positions only,
+    their self-attention keys and values are written to the cache,
+    and the attention runs over the cached keys and values,
+    with ``decoder_keys``, ``encoder_states`` and ``encoder_mask`` unused.
     """
 
     def __init__(
@@ -291,7 +353,13 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         # Information for the adapter module mixin
         self.self_attention_model = "transf_abs"
 
-    def _self_attention(self, decoder_query, decoder_mask, decoder_keys, kv_cache):
+    def _self_attention(
+        self,
+        decoder_query: torch.Tensor,
+        decoder_mask: torch.Tensor | None,
+        decoder_keys: torch.Tensor | None,
+        kv_cache: LayerKeyValueCache | None,
+    ) -> torch.Tensor:
         """Self-attention over the key sequence, or over the layer's key-value cache for the new positions."""
         if kv_cache is None:
             output_states, _ = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
@@ -306,7 +374,13 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         )
         return output_states
 
-    def _cross_attention(self, decoder_states, encoder_states, encoder_mask, kv_cache):
+    def _cross_attention(
+        self,
+        decoder_states: torch.Tensor,
+        encoder_states: torch.Tensor | None,
+        encoder_mask: torch.Tensor | None,
+        kv_cache: LayerKeyValueCache | None,
+    ) -> tuple[torch.Tensor, dict]:
         """Attention over the encoder states, or over their cached projections."""
         if kv_cache is None:
             return self.second_sub_layer(decoder_states, encoder_states, encoder_states, encoder_mask)
@@ -320,7 +394,15 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         extra_output = {'xatt_scores': attention_probs} if attention.return_xatt_scores else {}
         return output_states, extra_output
 
-    def forward_preln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask, kv_cache=None):
+    def forward_preln(
+        self,
+        decoder_query,
+        decoder_mask,
+        decoder_keys,
+        encoder_states,
+        encoder_mask,
+        kv_cache: LayerKeyValueCache | None = None,
+    ):
         """
         Pre-LayerNorm block
         Order of operations: LN -> Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN
@@ -366,7 +448,15 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
 
         return output_states, extra_output
 
-    def forward_postln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask, kv_cache=None):
+    def forward_postln(
+        self,
+        decoder_query,
+        decoder_mask,
+        decoder_keys,
+        encoder_states,
+        encoder_mask,
+        kv_cache: LayerKeyValueCache | None = None,
+    ):
         """
         Post-LayerNorm block
         Order of operations: Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN -> Residual -> LN
@@ -407,7 +497,15 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
 
         return self.layer_norm_3(output_states), extra_output
 
-    def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask, kv_cache=None):
+    def forward(
+        self,
+        decoder_query,
+        decoder_mask,
+        decoder_keys,
+        encoder_states,
+        encoder_mask,
+        kv_cache: LayerKeyValueCache | None = None,
+    ):
         if self.pre_ln:
             return self.forward_preln(
                 decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask, kv_cache=kv_cache
@@ -490,13 +588,18 @@ class TransformerDecoder(nn.Module):
             memory_states = decoder_states
         return memory_states
 
-    def create_kv_cache(self, encoder_states, encoder_mask, capacity):
-        """Key-value cache for incremental decoding over ``encoder_states``, see TransformerDecoderKeyValueCache.
+    def create_kv_cache(
+        self, encoder_states: torch.Tensor, encoder_mask: torch.Tensor | None, capacity: int
+    ) -> TransformerDecoderKeyValueCache:
+        """Key-value cache for incremental decoding over ``encoder_states``.
 
         Args:
             encoder_states: output of the encoder (B x L_enc x H)
             encoder_mask: encoder inputs mask (B x L_enc), or None for all valid
-            capacity: number of decoder positions the cache holds (prompt plus generated tokens)
+            capacity: number of decoder positions the cache holds, prompt plus generated tokens
+
+        Returns:
+            a ``TransformerDecoderKeyValueCache`` with the encoder projections loaded
         """
         batch_size, frames, _ = encoder_states.shape
         cache = TransformerDecoderKeyValueCache(
@@ -514,7 +617,7 @@ class TransformerDecoder(nn.Module):
         decoder_mems_list=None,
         return_mems=False,
         return_mems_as_list=True,
-        kv_cache=None,
+        kv_cache: TransformerDecoderKeyValueCache | None = None,
     ):
         """
         Args:
@@ -528,12 +631,11 @@ class TransformerDecoder(nn.Module):
             return_mems: bool, whether to return outputs of all decoder layers
                 or the last layer only
             return_mems_as_list: bool, when True, mems returned are as a list; otherwise mems are Tensor
-            kv_cache: a TransformerDecoderKeyValueCache from ``create_kv_cache`` for fast autoregressive
-                generation: decoder_states and decoder_mask cover the new positions only, their keys and
-                values are written to the cache at its ``length``, which advances by their number, and the
-                attention runs over the cache. The cache carries the encoder projections, so encoder_states,
-                encoder_mask and decoder_mems_list must be None; with return_mems, the returned states are
-                those of the new positions.
+            kv_cache: a TransformerDecoderKeyValueCache from ``create_kv_cache`` for fast autoregressive generation;
+                decoder_states and decoder_mask then cover the new positions only,
+                their keys and values are written at the cache ``length``, which advances,
+                encoder_states, encoder_mask and decoder_mems_list must be None,
+                and with return_mems the returned states are those of the new positions
         """
         if kv_cache is not None:
             if encoder_states is not None or encoder_mask is not None or decoder_mems_list is not None:
@@ -581,7 +683,14 @@ class TransformerDecoder(nn.Module):
         else:
             return memory_states, xatt_scores_list
 
-    def _forward_with_kv_cache(self, decoder_states, decoder_mask, kv_cache, return_mems, return_mems_as_list):
+    def _forward_with_kv_cache(
+        self,
+        decoder_states: torch.Tensor,
+        decoder_mask: torch.Tensor | None,
+        kv_cache: TransformerDecoderKeyValueCache,
+        return_mems: bool,
+        return_mems_as_list: bool,
+    ):
         num_new = decoder_states.shape[1]
         positions = kv_cache.length + torch.arange(num_new, device=decoder_states.device)
         if decoder_mask is None:
