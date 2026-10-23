@@ -379,6 +379,43 @@ def test_save_hf_checkpoint_writes_llm_backbone_config(tmp_path):
     assert _FakeExportModel.cfg["dtype"] == "bf16"
 
 
+@pytest.mark.parametrize("mtp_layers", [0, 1])
+def test_nemotron_backbone_export_preserves_portable_topology(tmp_path, mtp_layers):
+    from transformers import AutoConfig, NemotronHConfig
+
+    blocks = ["mamba", "moe", "attention", "mlp"]
+    config = NemotronHConfig(
+        layers_block_type=blocks,
+        mtp_layers_block_type=["attention", "moe"],
+        num_nextn_predict_layers=mtp_layers,
+        architectures=["NemotronHForCausalLM"],
+    )
+    before = config.to_dict()
+    model = SimpleNamespace(llm=SimpleNamespace(config=config))
+
+    to_hf.save_llm_backbone_config(model, tmp_path)
+
+    backbone_dir = tmp_path / "llm_backbone"
+    saved = json.loads((backbone_dir / "config.json").read_text())
+    assert saved["layers_block_type"] == blocks
+    assert saved["mtp_layers_block_type"] == ["attention", "moe"]
+    assert saved["num_nextn_predict_layers"] == mtp_layers
+    assert config.to_dict() == before
+    reloaded = AutoConfig.from_pretrained(backbone_dir, local_files_only=True)
+    assert reloaded.hybrid_override_pattern == "ME*-"
+    assert reloaded.mtp_hybrid_override_pattern == "*E"
+    assert reloaded.num_nextn_predict_layers == mtp_layers
+    assert tuple(reloaded.time_step_limit) == tuple(config.time_step_limit)
+
+    # The serving wrapper must embed the same portable config, not the live one.
+    _seed_output_dir(tmp_path)
+    tokenizer = _FakeTokenizer(vocab_tokens=("a", AUDIO_TOKEN))
+    with patch("transformers.AutoTokenizer.from_pretrained", return_value=tokenizer):
+        to_hf.prepare_for_vllm(str(tmp_path), _FakeExportModel.cfg)
+    wrapper = json.loads((tmp_path / "config.json").read_text())
+    assert wrapper["llm_config"] == saved
+
+
 def test_save_hf_checkpoint_accepts_bf16_export_dtype(tmp_path):
     cfg = to_hf.HfExportConfig(
         class_path="fake.Class",

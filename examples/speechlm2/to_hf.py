@@ -344,7 +344,18 @@ def save_llm_backbone_config(model: torch.nn.Module, output_dir: str | Path) -> 
 
     llm_backbone_dir = Path(output_dir) / LLM_BACKBONE_DIR
     llm_backbone_dir.mkdir(parents=True, exist_ok=True)
-    llm_config.save_pretrained(str(llm_backbone_dir))
+    if getattr(llm_config, "model_type", None) == "nemotron_h":
+        # Transformers >= 5.15 renames these discriminators in memory. Serialize
+        # the original names, which both older and newer serving runtimes accept.
+        # Keep the live model config untouched, including its native MTP topology.
+        config = json.loads(llm_config.to_json_string())
+        aliases = {"linear_attention": "mamba", "full_attention": "attention"}
+        for key in ("layers_block_type", "mtp_layers_block_type"):
+            if config.get(key) is not None:
+                config[key] = [aliases.get(block, block) for block in config[key]]
+        (llm_backbone_dir / "config.json").write_text(json.dumps(config, indent=2) + "\n")
+    else:
+        llm_config.save_pretrained(str(llm_backbone_dir))
 
 
 def _detect_vllm_architecture(model_cfg: dict) -> tuple[str, int]:
