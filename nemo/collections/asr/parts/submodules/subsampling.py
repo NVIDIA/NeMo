@@ -673,7 +673,8 @@ class ConvSubsampling(torch.nn.Module):
                 # init fc (80 * 64 = 5120 from https://github.com/kssteven418/Squeezeformer/blob/13c97d6cf92f2844d2cb3142b4c5bfa9ad1a8951/src/models/conformer_encoder.py#L487
                 fc_scale = (self._feat_out * self._feat_in / self._sampling_num) ** -0.5
                 torch.nn.init.uniform_(self.out.weight, -fc_scale, fc_scale)
-                torch.nn.init.uniform_(self.out.bias, -fc_scale, fc_scale)
+                if self.out.bias is not None:
+                    torch.nn.init.uniform_(self.out.bias, -fc_scale, fc_scale)
 
     def conv_split_by_batch(self, x, lengths):
         """Tries to split input by batch, run conv and concat results"""

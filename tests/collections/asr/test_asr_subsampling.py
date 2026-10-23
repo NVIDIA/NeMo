@@ -355,6 +355,17 @@ class TestConvSubsamplingStrides:
         assert out.shape == (1, 5, 16) and out_lengths.tolist() == [5]
 
     @pytest.mark.unit
+    def test_reset_parameters_without_output_bias(self):
+        # reset_parameters re-initializes the dw_striding stages and the projection; no bias to draw without out_bias
+        module = ConvSubsampling("dw_striding", 4, 8, 16, 4, out_bias=False)
+        assert module.out.bias is None
+        module.reset_parameters()
+        with_bias = ConvSubsampling("dw_striding", 4, 8, 16, 4)
+        torch.nn.init.zeros_(with_bias.out.bias)
+        with_bias.reset_parameters()
+        assert with_bias.out.bias.abs().sum() > 0
+
+    @pytest.mark.unit
     def test_layer_padding_of_pooling_layers(self):
         assert _layer_padding(torch.nn.MaxPool2d(kernel_size=(1, 2), stride=(1, 2))) == (0, 0)
         assert _layer_padding(torch.nn.Conv2d(1, 1, kernel_size=3, padding=1)) == (1, 1)
