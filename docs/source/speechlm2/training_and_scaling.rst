@@ -292,6 +292,39 @@ For distributed inference, launch with ``torchrun``:
       inputs=path/to/manifest \
       ep_size=2
 
+Native NeMo-RL checkpoints
+""""""""""""""""""""""""""
+
+The canonical ``examples/speechlm2/to_hf.py`` exporter accepts
+``checkpoint_format=nemo_rl`` for flat DCP checkpoints saved by NeMo-RL.
+Point ``ckpt_path`` at ``policy/weights/model`` and ``ckpt_config`` at the
+SpeechLM model configuration. The exporter retains any native frozen MTP head
+without enabling auxiliary MTP training, and uses the model's canonical HF
+dtype mapping so intrinsically FP32 weights and router buffers are preserved.
+Empty Transformer Engine bookkeeping entries are omitted by the canonical
+adapter; they contain no numerical weights. Loading requires complete parameter
+and persistent-buffer coverage, including frozen and MTP parameters, with
+activation-checkpoint wrapper names mapped to their canonical checkpoint names.
+
+For training integrations, ``SALMAutomodel`` accepts ``automodel_freeze_config``
+and ``perception_freeze_config`` model configuration entries, using Automodel's
+public ``FreezeConfig`` schema with names relative to the respective component.
+For example, ``freeze_modules: [{glob: '*'}]`` with
+``unfreeze_parameters: [proj.weight]`` updates only the perception projection
+weight. Set ``torch_dtype: float32`` to retain FP32 trainable storage; the FSDP2
+mixed-precision policy selects compute and reduction dtypes and reduces frozen
+storage before sharding. ``perception_mixed_precision`` supplies that policy for
+the speech encoder and projection. These policies apply before checkpoint loading
+and wrapping.
+``retain_native_mtp: true`` preserves native MTP topology, including the absence
+of a head, while ``mtp.enabled`` remains false during training. It never creates
+or replaces a head. These options do not change existing training defaults.
+
+The vLLM SpeechLM model requires a complete initial PE/dual-encoder state.
+After successful initialization, normal ``load_weights`` calls can update only
+the selected perception tensors; supplied names and shapes are checked before
+mutation, and omitted frozen tensors retain their seed values.
+
 Packed Sequences (THD)
 """"""""""""""""""""""
 
@@ -439,3 +472,18 @@ When customizing the training scripts, keep these points in mind:
 1. **Path Overrides**: Override paths in the YAML configuration files with your own, as needed
 2. **W&B Keys**: Update Weights & Biases API keys in configuration files
 3. **Batch Size Tuning**: Adjust batch size based on your GPU memory and model size
+
+GSPO post-training
+------------------
+
+The NeMo RL SpeechLM GSPO guide (``docs/guides/gspo-speechlm.md`` in the NeMo RL repository)
+describes the full-scale, 400-update recipe, its Parquet data contract, selected
+parameter surface, training/resume commands, and canonical HF export. It supports
+compatible full SpeechLM checkpoints with or without a bundled CTC timestamp head.
+
+Use ``examples/speechlm2/prepare_rl_export_config.py --seed <hf-model-dir> --output <config.json>``
+to reconstruct the model and CTC configuration for ``examples/speechlm2/to_hf.py``.
+``<hf-model-dir>`` is the Hugging Face model directory that GSPO training started from;
+it contains ``config.json``, ``llm_backbone/`` and the tokenizer.
+The resulting file is the converter's ``ckpt_config`` input, not an HF model config.
+Keep the original seed available for its tokenizer and backbone configuration.
