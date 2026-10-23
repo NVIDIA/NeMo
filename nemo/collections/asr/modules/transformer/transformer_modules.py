@@ -252,23 +252,38 @@ class MultiHeadAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, queries, keys, values, attention_mask):
+    def project_queries(self, queries, positions=None):
+        """Query heads (batch, head, time, head_size), pre-divided by sqrt(sqrt(d)) for numerical stability.
 
-        # attention_mask is needed to hide the tokens which correspond to [PAD]
-        # in the case of BERT, or to hide the future tokens in the case of
-        # vanilla language modeling and translation
-        query = self.query_net(queries)
-        key = self.key_net(keys)
-        value = self.value_net(values)
-        query = self.transpose_for_scores(query) / self.attn_scale
-        key = self.transpose_for_scores(key) / self.attn_scale
-        value = self.transpose_for_scores(value)
-        if self.rotary_pos_enc is not None:
-            # the rotation commutes with the scalar scaling above; the table grows with the key length
-            self.rotary_pos_enc.extend_pe(key.size(2), key.device, key.dtype)
-            query, key = self.rotary_pos_enc(query, key)
+        With a rotary position embedding, ``positions`` (time,) are the absolute positions to rotate at;
+        None leaves the rotation to the caller (``forward`` rotates queries and keys together).
+        """
+        query = self.transpose_for_scores(self.query_net(queries)) / self.attn_scale
+        if positions is not None and self.rotary_pos_enc is not None:
+            query = self.rotary_pos_enc.rotate(query, positions)
+        return query
 
-        # for numerical stability we pre-divide query and key by sqrt(sqrt(d))
+    def project_keys_values(self, keys, values, positions=None):
+        """Key and value heads (batch, head, time, head_size); the keys are pre-divided like the queries.
+
+        ``positions`` as in ``project_queries``. The projections of a fixed sequence, such as encoder states
+        under cross-attention, can be computed once and reused for every query.
+        """
+        key = self.transpose_for_scores(self.key_net(keys)) / self.attn_scale
+        value = self.transpose_for_scores(self.value_net(values))
+        if positions is not None and self.rotary_pos_enc is not None:
+            key = self.rotary_pos_enc.rotate(key, positions)
+        return key, value
+
+    def attend(self, query, key, value, attention_mask):
+        """Scaled dot-product attention over projected heads, followed by the output projection.
+
+        Args:
+            query, key, value: as returned by ``project_queries`` and ``project_keys_values``
+            attention_mask: additive mask broadcastable to (batch, head, time1, time2), or None
+        Returns:
+            output states (batch, time1, hidden_size) and the attention probabilities (batch, head, time1, time2)
+        """
         attention_scores = torch.matmul(query, key.transpose(-1, -2))
         if attention_mask is not None:
             attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)
@@ -284,6 +299,21 @@ class MultiHeadAttention(nn.Module):
         # output projection
         output_states = self.out_projection(context)
         output_states = self.layer_dropout(output_states)
+        return output_states, attention_probs
+
+    def forward(self, queries, keys, values, attention_mask):
+
+        # attention_mask is needed to hide the tokens which correspond to [PAD]
+        # in the case of BERT, or to hide the future tokens in the case of
+        # vanilla language modeling and translation
+        query = self.project_queries(queries)
+        key, value = self.project_keys_values(keys, values)
+        if self.rotary_pos_enc is not None:
+            # the rotation commutes with the scalar scaling above; the table grows with the key length
+            self.rotary_pos_enc.extend_pe(key.size(2), key.device, key.dtype)
+            query, key = self.rotary_pos_enc(query, key)
+
+        output_states, attention_probs = self.attend(query, key, value, attention_mask)
 
         extra_output = {}
         if self.return_xatt_scores:
