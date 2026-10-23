@@ -18,6 +18,7 @@ import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
 
+from nemo.collections.asr.parts.packed_sequence import PackedSlotLayout
 from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
 from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
@@ -255,18 +256,27 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         else:
             return x, cache_last_channel, cache_last_time
 
-    def forward_packed(self, x, *, attention_context: PackedAttentionContext, conv_layout, pos_emb=None):
+    def forward_packed(
+        self,
+        x: torch.Tensor,
+        *,
+        attention_context: PackedAttentionContext,
+        conv_layout: PackedSlotLayout,
+        pos_emb: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         """The layer over token-flat input of all utterances, with explicit boundaries instead of padding masks.
 
-        Args:
-            x (torch.Tensor): input signals (T_total, d_model)
-            attention_context (PackedAttentionContext): packing metadata for the self-attention
-            conv_layout (PackedSlotLayout): gapped layout for the depthwise convolution, see ConformerConvolution
-            pos_emb (torch.Tensor): (1, 2 * max_seqlen - 1, d_model) for rel_pos attention, else None
-        Returns:
-            x (torch.Tensor): (T_total, d_model)
-
         Streaming caches, adapters and local attention are not supported in this form.
+
+        Args:
+            x: input signals, shape ``(T_total, d_model)``.
+            attention_context: packing metadata for the self-attention.
+            conv_layout: gapped layout for the depthwise convolution, see ``ConformerConvolution.forward_packed``.
+            pos_emb: relative positional embedding ``(1, 2 * max_seqlen - 1, d_model)`` for ``rel_pos`` attention,
+                else None.
+
+        Returns:
+            The layer output, shape ``(T_total, d_model)``.
         """
         if self.is_adapter_available():
             raise NotImplementedError("Adapters are not supported in the sequence-packed ConformerLayer.")
@@ -423,21 +433,23 @@ class ConformerConvolution(nn.Module):
         else:
             return x, cache
 
-    def forward_packed(self, x, layout):
-        """The module over token-flat input (T_total, d_model) of all utterances.
+    def forward_packed(self, x: torch.Tensor, layout: PackedSlotLayout) -> torch.Tensor:
+        """The module over token-flat input of all utterances.
+
+        Batch normalization takes its statistics from the valid frames only.
+        The padded forward includes the padded frames,
+        which hold the bias and the boundary tails of the depthwise convolution,
+        so the two forms differ in training mode by the share of padding in the batch and agree in evaluation mode.
+        Instance and group normalization need per-utterance statistics and are not supported here.
 
         Args:
-            x (torch.Tensor): (T_total, d_model)
-            layout (PackedSlotLayout): gapped layout of the utterances with at least ``kernel_size - 1`` empty
-                frames after each, so the depthwise convolution reads zeros beyond an utterance as it does beyond the
-                masked padding of a padded batch
-        Returns:
-            x (torch.Tensor): (T_total, d_model)
+            x: input signals, shape ``(T_total, d_model)``.
+            layout: gapped layout of the utterances with at least ``kernel_size - 1`` empty frames after each,
+                so the depthwise convolution reads zeros beyond an utterance,
+                as it does beyond the masked padding of a padded batch.
 
-        Batch normalization takes its statistics from the valid frames only. The padded forward includes the padded
-        frames, which hold the bias and the boundary tails of the depthwise convolution, so the two forms differ in
-        training mode by the share of padding in the batch and agree in evaluation mode. Instance and group
-        normalization need per-utterance statistics and are not supported here.
+        Returns:
+            The module output, shape ``(T_total, d_model)``.
         """
         if self.norm_type == 'instance_norm' or self.norm_type.startswith('group_norm'):
             raise NotImplementedError(f"conv_norm_type={self.norm_type} has no sequence-packed form.")
