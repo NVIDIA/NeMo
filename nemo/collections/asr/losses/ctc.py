@@ -68,15 +68,24 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
     def forward_packed(self, log_probs: PackedEncoderActivations, targets: Tensor, target_lengths: Tensor) -> Tensor:
         """Compute the CTC loss from token-flat log probabilities with explicit sequence boundaries.
 
-        Args:
-            log_probs: Concatenated per-utterance log probabilities, shape ``(sum(T_i), D)`` including the blank.
-            targets: Padded target ids with shape ``(B, U)``.
-            target_lengths: Number of target ids per utterance, shape ``(B,)``.
+        This is a compatibility boundary, not a padding-free CTC kernel:
+        it materializes the padded log probabilities for the existing kernel and calls ``forward``,
+        so the encoder and the vocabulary projection can stay packed up to this call.
+        ``reduction`` and ``zero_infinity`` apply unchanged.
 
-        This is a compatibility boundary: it materializes padded log probabilities for the existing CTC kernel,
-        so the encoder and the vocabulary projection can stay packed up to this call. The reduction and
-        zero-infinity settings apply unchanged; it is not a padding-free CTC kernel.
+        Args:
+            log_probs: concatenated per-utterance log probabilities, shape ``(sum(T_i), D)`` including the blank.
+            targets: padded target ids, shape ``(B, U)``.
+            target_lengths: number of target ids per utterance, shape ``(B,)``.
+
+        Returns:
+            The loss as ``forward`` returns it for the configured reduction.
         """
+        if not isinstance(log_probs, PackedEncoderActivations):
+            raise TypeError(
+                f"forward_packed expects PackedEncoderActivations as log_probs, got {type(log_probs).__name__}; "
+                "padded log probabilities go to forward."
+            )
         return self.forward(
             log_probs=unpack_encoder_output(log_probs),
             targets=targets,
