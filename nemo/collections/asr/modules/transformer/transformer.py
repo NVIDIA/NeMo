@@ -166,6 +166,36 @@ class TransformerEncoderNM(EncoderModule, Exportable):
 
 
 class TransformerDecoderNM(DecoderModule, Exportable):
+    """
+    Transformer decoder with its token and position embedding, as a NeMo decoder module.
+
+    Args:
+        vocab_size: size of the vocabulary
+        hidden_size: size of the embeddings in the model, also known as d_model
+        num_layers: number of decoder blocks
+        inner_size: number of neurons in the intermediate part of the feed-forward net
+        num_attention_heads: number of heads in multi-head attention
+        max_sequence_length: maximum allowed length of the input sequence
+        num_token_types: number of different token types, 0 for none
+        embedding_dropout: probability of dropout applied to embeddings
+        learn_positional_encodings: whether to learn positional encodings or use fixed (sine-cosine) ones
+        ffn_dropout: probability of dropout applied to the feed-forward output
+        attn_score_dropout: probability of dropout applied to attention scores
+        attn_layer_dropout: probability of dropout applied to the output of the attention layers,
+            but before layer normalization
+        hidden_act: activation function used between the two linear layers of the feed-forward net
+        pre_ln: whether to apply the layer norms before the sub-layers instead of after them
+        pre_ln_final_layer_norm: with `pre_ln`, whether a final layer norm follows the last block
+        embedding: block of the embedding, default `TransformerEmbedding`,
+            built with the vocabulary and embedding arguments above;
+            a block is a class, a callable or a Hydra partial (``_target_`` with ``_partial_: true``),
+            built from the arguments the parent supplies, so a block section only names what deviates
+        norm: block of every layer norm of the decoder, see `TransformerDecoderBlock`
+        self_attn: block of the self-attention of every block, see `TransformerDecoderBlock`
+        cross_attn: block of the attention over the encoder states of every block, see `TransformerDecoderBlock`
+        feed_forward: block of the feed-forward sub-layer of every block, see `TransformerDecoderBlock`
+    """
+
     DECODER_TYPE: type = TransformerDecoder
 
     def __init__(
@@ -191,14 +221,6 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         cross_attn: ModuleBlock | None = None,
         feed_forward: ModuleBlock | None = None,
     ):
-        """
-        Args:
-            embedding: configurable embedding block (class, callable or Hydra partial with ``_target_`` and
-                ``_partial_: true``) built with the vocabulary and embedding arguments above; default
-                TransformerEmbedding
-            norm, self_attn, cross_attn, feed_forward: configurable blocks of the decoder layers, see
-                TransformerDecoderBlock
-        """
         super().__init__()
 
         self._vocab_size = vocab_size
