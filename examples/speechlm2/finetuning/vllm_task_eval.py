@@ -164,16 +164,8 @@ def eval_fingerprint(args, manifest, prompt, template):
 def main():
     args = parse_args()
     assert len(args.manifest) == len(args.out), "--manifest and --out must pair up"
-    # vLLM 0.32 removed mamba_cache_mode "all"; speculative decoding through Mamba layers uses ReplaySSM instead.
-    args.replayssm = args.spec_k > 0 and speechlm_is_hybrid(args.model)
     task_metrics.check_dependencies(args.task)
-    if args.score_labels:
-        # Exact label scores need exact prompt_logprobs. With prefix caching (and the hybrid-cache mode that
-        # speculative decoding requires), requests sharing a cached prompt+audio prefix get wrong prompt_logprobs on
-        # hybrid backbones, so label scoring runs on a plain engine. Generation is unaffected, just slower.
-        if args.spec_k > 0:
-            print("[eval] --score-labels: disabling speculative decoding and prefix caching for exact scores")
-        args.spec_k = 0
+    resolve_speculation(args)
     from fingerprint import differences
 
     jobs = list(zip(args.manifest, args.out, [args.prompt] * len(args.manifest)))
@@ -377,6 +369,19 @@ def speechlm_is_hybrid(model: str) -> bool:
     from nemo.collections.speechlm2.vllm.salm.config import NeMoSpeechLMConfig
 
     return bool(NeMoSpeechLMConfig.from_pretrained(model).is_hybrid)
+
+
+def resolve_speculation(args):
+    """Settle the speculation settings the engine, the fingerprint and the summary all record."""
+    if args.score_labels:
+        # Exact label scores need exact prompt_logprobs. With prefix caching (and the hybrid-cache mode that
+        # speculative decoding requires), requests sharing a cached prompt+audio prefix get wrong prompt_logprobs on
+        # hybrid backbones, so label scoring runs on a plain engine. Generation is unaffected, just slower.
+        if args.spec_k > 0:
+            print("[eval] --score-labels: disabling speculative decoding and prefix caching for exact scores")
+        args.spec_k = 0
+    # vLLM 0.32 removed mamba_cache_mode "all"; speculative decoding through Mamba layers uses ReplaySSM instead.
+    args.replayssm = args.spec_k > 0 and speechlm_is_hybrid(args.model)
 
 
 if __name__ == "__main__":
