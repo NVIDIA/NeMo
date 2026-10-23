@@ -19,7 +19,7 @@ import logging
 import math
 import os
 from collections.abc import Mapping
-from typing import Any, Callable, Iterable, List, Union
+from typing import Any, Callable, Iterable, List
 
 logger = logging.getLogger(__name__)
 
@@ -49,17 +49,24 @@ activation_registry = {
     "squared_relu": SquaredReLU,
 }
 
-ModuleBlock = Union[Callable[..., nn.Module], functools.partial, Mapping]
+ModuleBlock = Callable[..., nn.Module] | functools.partial | Mapping
 
 
 def build_module(block: ModuleBlock, **defaults: Any) -> nn.Module:
     """Instantiate a configurable sub-module of a parent module.
 
-    ``block`` is a class or callable returning the module, a ``functools.partial`` of one (what Hydra
-    creates for a config section with ``_target_`` and ``_partial_: true``), or such a config section
-    itself. ``defaults`` are the arguments the parent supplies, such as sizes and dropout rates;
-    arguments bound in the partial or the section take precedence, so a section only names what
-    deviates from the parent's defaults.
+    Args:
+        block: what builds the module:
+            a class or callable returning it,
+            a ``functools.partial`` of one
+            (what Hydra creates for a config section with ``_target_`` and ``_partial_: true``),
+            or such a config section itself, resolved through ``safe_instantiate``.
+        defaults: the arguments the parent supplies, such as sizes and dropout rates;
+            arguments bound in the partial or the section take precedence,
+            so a section only names what deviates from the parent's defaults.
+
+    Returns:
+        The instantiated module.
     """
     if isinstance(block, Mapping):
         # imported here: nemo.core.classes.common imports this module
