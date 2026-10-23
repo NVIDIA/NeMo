@@ -25,6 +25,8 @@ from lhotse.dataset.sampling.dynamic import DurationBatcher, Filter
 from lhotse.dataset.sampling.dynamic_bucketing import BucketSelectionState, DynamicBucketer
 from lhotse.lazy import get_graph_origin, resolve_iterator_source
 
+from nemo.collections.common.data.lhotse.sampling import MultimodalSamplingConstraint
+
 
 def _select_best_fit_indices(lengths: Sequence[int], capacity: int, max_items: int | None = None) -> list[int]:
     """Select an exact best-fit subset, preferring earlier items on ties."""
@@ -134,21 +136,6 @@ def _fit_output_cap(
     return sorted(kept)
 
 
-def _output_cap(constraint) -> int | None:
-    cap = getattr(constraint, "batch_output_tokens", None)
-    if cap is None:
-        return None
-    cap = int(cap)
-    if cap <= 0:
-        raise ValueError(f"batch_output_tokens must be positive (got {cap})")
-    return cap
-
-
-def _measure_output_length(constraint, example) -> int:
-    measure = getattr(constraint, "measure_output_length", None)
-    return int(measure(example)) if callable(measure) else 0
-
-
 class ExactTokenBatcher(DurationBatcher):
     """Bounded-lookahead best-fit batching for padding-free sequences."""
 
@@ -253,15 +240,17 @@ class ExactTokenBatcher(DurationBatcher):
             batch_tokens - anchor_budget,
             max_items=remaining_items,
         )
-        output_cap = _output_cap(self.constraint)
-        if output_cap is not None:
-            output_lengths = [_measure_output_length(self.constraint, self._measured_example(ex)) for ex in pool]
+        if (
+            isinstance(self.constraint, MultimodalSamplingConstraint)
+            and self.constraint.batch_output_tokens is not None
+        ):
+            output_lengths = [self.constraint.measure_output_length(self._measured_example(ex)) for ex in pool]
             tail_indices = _fit_output_cap(
                 tail_indices,
                 budget_lengths,
                 output_lengths,
                 batch_tokens=batch_tokens,
-                output_cap=output_cap,
+                output_cap=self.constraint.batch_output_tokens,
                 max_items=remaining_items,
             )
         selected_indices = {0, *(index + 1 for index in tail_indices)}
@@ -400,15 +389,17 @@ class PackedSequenceDynamicBucketer(DynamicBucketer):
             batch_tokens - budget_lengths[0],
             max_items=remaining_items,
         )
-        output_cap = _output_cap(self.constraint)
-        if output_cap is not None:
-            output_lengths = [_measure_output_length(self.constraint, self._measured_example(ex)) for ex in candidates]
+        if (
+            isinstance(self.constraint, MultimodalSamplingConstraint)
+            and self.constraint.batch_output_tokens is not None
+        ):
+            output_lengths = [self.constraint.measure_output_length(self._measured_example(ex)) for ex in candidates]
             tail_selection = _fit_output_cap(
                 tail_selection,
                 budget_lengths,
                 output_lengths,
                 batch_tokens=batch_tokens,
-                output_cap=output_cap,
+                output_cap=self.constraint.batch_output_tokens,
                 max_items=remaining_items,
             )
         selected_positions = [0, *(index + 1 for index in tail_selection)]
