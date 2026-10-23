@@ -17,11 +17,14 @@ import functools
 import numpy as np
 import pytest
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerConvolution, ConformerFeedForward
-from nemo.collections.asr.parts.submodules.multi_head_attention import RelPositionMultiHeadAttention
+from nemo.collections.asr.parts.submodules.multi_head_attention import (
+    MultiHeadAttention,
+    RelPositionMultiHeadAttention,
+)
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 
 
@@ -324,6 +327,49 @@ class TestConformerBlockComposition:
         encoder = _composed_encoder(self_attn=functools.partial(RelPositionMultiHeadAttention, use_bias=False))
         assert encoder.layers[0].self_attn.linear_q.bias is None
         assert encoder.layers[0].self_attn.h == 2
+
+    @pytest.mark.unit
+    def test_conv_block_context_reaches_the_encoder(self):
+        # a block that sets its own context: the encoder's streaming caches follow it, not the kernel option
+        encoder = _composed_encoder(
+            conv=functools.partial(ConformerConvolution, kernel_size=4, conv_context_size=[3, 0])
+        )
+        assert encoder.conv_kernel_size == 4 and list(encoder.conv_context_size) == [3, 0]
+        assert list(encoder.layers[0].conv.conv_context_size) == [3, 0]
+        _, cache_last_time, _ = encoder.get_initial_cache_state(batch_size=1)
+        assert cache_last_time.shape == (2, 1, 16, 3)
+        causal = _composed_encoder(
+            conv=functools.partial(ConformerConvolution, kernel_size=4, conv_context_size="causal")
+        )
+        assert list(causal.conv_context_size) == [3, 0]
+        with pytest.raises(ValueError, match="conv_context_size"):
+            ConformerConvolution(d_model=16, kernel_size=4, conv_context_size=[1, 1])
+
+    @pytest.mark.unit
+    def test_change_attention_model_keeps_the_attention_block(self):
+        encoder = _composed_encoder(self_attn=functools.partial(RelPositionMultiHeadAttention, use_bias=False))
+        encoder._cfg = OmegaConf.create(
+            {
+                "d_model": 16,
+                "n_heads": 2,
+                "dropout": 0.0,
+                "dropout_att": 0.0,
+                "dropout_emb": 0.0,
+                "pos_emb_max_len": 5000,
+            }
+        )
+        encoder.change_attention_model(att_context_size=[2, 2])
+        attention = encoder.layers[0].self_attn
+        assert type(attention) is RelPositionMultiHeadAttention and attention.linear_q.bias is None
+        assert attention._max_cache_len == 2
+        # the stored block fixes the class, so a new attention model needs a block of its own
+        with pytest.raises(ValueError, match="self_attn block"):
+            encoder.change_attention_model(self_attention_model="abs_pos")
+        encoder.change_attention_model(
+            self_attention_model="abs_pos", self_attn=functools.partial(MultiHeadAttention, use_bias=False)
+        )
+        assert type(encoder.layers[0].self_attn) is MultiHeadAttention
+        assert encoder.layers[0].self_attn.linear_q.bias is None
 
     @pytest.mark.unit
     def test_defaults_unchanged(self):
