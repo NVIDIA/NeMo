@@ -12,6 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import tempfile
+
+import onnx
 import pytest
 import torch
 from omegaconf import ListConfig
@@ -272,6 +276,62 @@ class TestConvSubsamplingStrides:
             ConvSubsampling("striding", 6, 8, 16, [2, 2], conv_strides=[1, 3, 2])
         with pytest.raises(ValueError, match="needs conv_strides"):
             ConvSubsampling("striding", 4, 8, 16, [2, 3])
+        with pytest.raises(ValueError, match="conv_strides must be positive integers"):
+            ConvSubsampling("striding", 6, 8, 16, 4, conv_strides=[-1, -3, 2])
+        with pytest.raises(ValueError, match="freq_pools must be positive integers"):
+            ConvSubsampling("striding", 6, 8, 16, 4, conv_strides=[1, 3, 2], freq_pools=[0, 1, 1])
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("batch_size", [4, 1])
+    def test_batch_chunking_matches_unchunked(self, batch_size):
+        torch.manual_seed(0)
+        module = _build_strided_conv_subsampling()
+        features = torch.randn(batch_size, 50, 8)
+        lengths = torch.tensor([50, 31, 50, 12][:batch_size])
+        with torch.no_grad():
+            reference, reference_lengths = module(x=features, lengths=lengths)
+            # a factor above 1 always splits by batch; a batch of one falls back to the unsplit convolution
+            module.change_subsampling_conv_chunking_factor(2)
+            out, out_lengths = module(x=features, lengths=lengths)
+        torch.testing.assert_close(out, reference, atol=1e-5, rtol=1e-5)
+        assert out_lengths.tolist() == reference_lengths.tolist()
+
+    @pytest.mark.unit
+    def test_export_to_onnx(self):
+        torch.manual_seed(0)
+        module = _build_strided_conv_subsampling()
+        features = torch.randn(2, 50, 8)
+        lengths = torch.tensor([50, 31])
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'subsampling.onnx')
+            torch.onnx.export(
+                module,
+                (features, lengths),
+                filename,
+                input_names=['features', 'lengths'],
+                output_names=['outputs', 'out_lengths'],
+                dynamic_axes={
+                    'features': {0: 'batch', 1: 'time'},
+                    'lengths': {0: 'batch'},
+                    'outputs': {0: 'batch', 1: 'time'},
+                    'out_lengths': {0: 'batch'},
+                },
+                opset_version=17,
+                dynamo=False,
+            )
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert [node.name for node in onnx_model.graph.input] == ['features', 'lengths']
+            try:
+                import onnxruntime
+            except ImportError:
+                return
+            session = onnxruntime.InferenceSession(filename, providers=['CPUExecutionProvider'])
+            outputs, out_lengths = session.run(None, {'features': features.numpy(), 'lengths': lengths.numpy()})
+        with torch.no_grad():
+            reference, reference_lengths = module(x=features, lengths=lengths)
+        torch.testing.assert_close(torch.from_numpy(outputs), reference, atol=1e-5, rtol=1e-5)
+        assert out_lengths.tolist() == reference_lengths.tolist()
 
     @pytest.mark.unit
     def test_production_configuration(self):

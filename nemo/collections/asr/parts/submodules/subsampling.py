@@ -221,6 +221,12 @@ class ConvSubsampling(torch.nn.Module):
                 raise ValueError("conv_strides is only supported with subsampling='striding'")
             if is_causal:
                 raise ValueError("conv_strides is not supported with causal subsampling")
+            if any(not isinstance(stride, int) or stride < 1 for stride in self._time_strides):
+                raise ValueError(f"conv_strides must be positive integers, got {self._time_strides}")
+            if self._freq_pools is not None and any(
+                not isinstance(pool, int) or pool < 1 for pool in self._freq_pools
+            ):
+                raise ValueError(f"freq_pools must be positive integers, got {self._freq_pools}")
             if math.prod(self._time_strides) != subsampling_factor:
                 raise ValueError(
                     f"The product of conv_strides {self._time_strides} must equal subsampling_factor {subsampling_factor}"
