@@ -194,12 +194,15 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             positional encoding buffers on all GPUs. Disabling this setting may help with deadlocks in certain
             scenarios such as model parallelism, or generally when this module is not being ran on some GPUs
             as a part of the training step.
-        pre_encode (block, Optional): a configurable subsampling block (class, callable or Hydra partial with
-            ``_target_`` and ``_partial_: true``) built with feat_in and feat_out=d_model, replacing the
-            subsampling options; its subsampling_factor, if it has one, becomes the encoder's.
-        feed_forward, conv, self_attn, norm (block, Optional): configurable blocks of every ConformerLayer,
-            see ConformerLayer; the layer supplies sizes, dropouts and the options above, the block names
-            what deviates (for example an even conv kernel or a different norm eps).
+        pre_encode: configurable subsampling block
+            (a class, a callable or a Hydra partial with ``_target_`` and ``_partial_: true``),
+            built with `feat_in` and `feat_out=d_model` in place of the subsampling options;
+            its `subsampling_factor`, if it has one, becomes the encoder's
+        feed_forward: block of the feed-forward modules of every layer, see `ConformerLayer`;
+            the layer supplies sizes, dropouts and the options above, the block names what deviates
+        conv: block of the convolution module of every layer, see `ConformerLayer`
+        self_attn: block of the self-attention of every layer, see `ConformerLayer`
+        norm: block of every layer norm, see `ConformerLayer`
     """
 
     def input_example(self, max_batch=1, max_dim=256):

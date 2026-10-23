@@ -60,10 +60,12 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         dropout_att (float): dropout probabilities for attention distributions
         use_bias (bool): Apply bias to all Linear and Conv1d layers from each ConformerLayer to improve activation flow and stabilize training of huge models.
             Defaults to True.
-        feed_forward, conv, self_attn, norm (block, Optional): configurable blocks, each a class, a callable
-            or a Hydra partial (``_target_`` with ``_partial_: true``) building the module from the arguments the
-            layer supplies (sizes, dropouts, the options above); a block only names what deviates. Defaults to
-            ConformerFeedForward, ConformerConvolution, the attention class of self_attention_model and LayerNorm.
+        feed_forward: block of both feed-forward modules, default `ConformerFeedForward`;
+            a block is a class, a callable or a Hydra partial (``_target_`` with ``_partial_: true``),
+            built from the arguments the parent supplies, so a block section only names what deviates
+        conv: block of the convolution module, default `ConformerConvolution`
+        self_attn: block of the self-attention, default the attention class of `self_attention_model`
+        norm: block of every layer norm, default `torch.nn.LayerNorm`
     """
 
     def __init__(
@@ -259,14 +261,15 @@ class ConformerConvolution(nn.Module):
     """The convolution module for the Conformer model.
     Args:
         d_model (int): hidden dimension
-        kernel_size (int): kernel size for depthwise convolution; an even kernel pads (kernel_size - 1) // 2
-            frames before and kernel_size // 2 after each frame unless conv_context_size says otherwise
+        kernel_size (int): kernel size for depthwise convolution;
+            an even kernel pads (kernel_size - 1) // 2 frames before and kernel_size // 2 frames after each frame,
+            unless conv_context_size says otherwise
         pointwise_activation (str): name of the activation function to be used for the pointwise conv.
             Note that Conformer uses a special key `glu_` which is treated as the original default from
             the paper.
         use_bias (bool): Use bias in all Linear and Conv1d layers improve activation flow and stabilize training of huge models.
             Defaults to True
-        norm_eps (float): epsilon of the normalization layer. Defaults to 1e-5.
+        norm_eps: epsilon of the normalization layer
     """
 
     def __init__(
@@ -395,11 +398,15 @@ class ConformerConvolution(nn.Module):
 
 
 class ConformerFeedForward(nn.Module):
-    """
-    feed-forward module of Conformer model.
-    activation (Module or str): the activation module, or its name in the activation registry
-        ('swish', 'relu', 'gelu', 'squared_relu', ...); default Swish.
-    use_bias (bool): Apply bias to all Linear and Conv1d layers improve activation flow and stabilize training of huge models.
+    """Feed-forward module of the Conformer model.
+
+    Args:
+        d_model: input and output dimension
+        d_ff: hidden dimension
+        dropout: dropout probability after the activation
+        activation: the activation module, or its name in the activation registry
+            (`swish`, `relu`, `gelu`, `squared_relu`, ...); default `Swish`
+        use_bias: bias in both linear layers
     """
 
     def __init__(self, d_model, d_ff, dropout, activation: nn.Module | str = Swish(), use_bias=True):

@@ -274,9 +274,10 @@ class TestConformerBlockComposition:
         assert layer.self_attn.linear_q.bias is not None
 
     @pytest.mark.unit
-    def test_even_kernel_padding_invariance(self):
+    @pytest.mark.parametrize("kernel_size", [4, 32])
+    def test_even_kernel_padding_invariance(self, kernel_size):
         torch.manual_seed(0)
-        encoder = _composed_encoder()
+        encoder = _composed_encoder(conv=functools.partial(ConformerConvolution, kernel_size=kernel_size))
         features = torch.randn(2, 8, 40)
         lengths = torch.tensor([40, 25])
         with torch.no_grad():
