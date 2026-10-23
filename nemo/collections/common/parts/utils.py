@@ -14,18 +14,29 @@
 # limitations under the License.
 # pylint: disable=missing-function-docstring,missing-class-docstring
 
+import functools
 import logging
 import math
 import os
-from typing import Iterable, List
+from collections.abc import Mapping
+from typing import Any, Callable, Iterable, List, Union
 
 logger = logging.getLogger(__name__)
 
 import einops
 import torch
 import torch.nn as nn
+from omegaconf import DictConfig
 
-__all__ = ['if_exist', '_compute_softmax', 'flatten']
+__all__ = ['if_exist', '_compute_softmax', 'flatten', 'build_module', 'block_binds', 'SquaredReLU']
+
+
+class SquaredReLU(nn.Module):
+    """ReLU squared, ``relu(x) ** 2`` (So et al., Primer, 2021)."""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.square(torch.relu(x))
+
 
 activation_registry = {
     "identity": nn.Identity,
@@ -35,7 +46,40 @@ activation_registry = {
     "swish": nn.SiLU,
     "silu": nn.SiLU,
     "gelu": nn.GELU,
+    "squared_relu": SquaredReLU,
 }
+
+ModuleBlock = Union[Callable[..., nn.Module], functools.partial, Mapping]
+
+
+def build_module(block: ModuleBlock, **defaults: Any) -> nn.Module:
+    """Instantiate a configurable sub-module of a parent module.
+
+    ``block`` is a class or callable returning the module, a ``functools.partial`` of one (what Hydra
+    creates for a config section with ``_target_`` and ``_partial_: true``), or such a config section
+    itself. ``defaults`` are the arguments the parent supplies, such as sizes and dropout rates;
+    arguments bound in the partial or the section take precedence, so a section only names what
+    deviates from the parent's defaults.
+    """
+    if isinstance(block, Mapping):
+        # imported here: nemo.core.classes.common imports this module
+        from nemo.core.classes.common import safe_instantiate
+
+        section = dict(block)
+        section.setdefault('_partial_', True)
+        block = safe_instantiate(DictConfig(section))
+    if isinstance(block, functools.partial):
+        return block.func(*block.args, **{**defaults, **block.keywords})
+    return block(**defaults)
+
+
+def block_binds(block: ModuleBlock | None, name: str) -> bool:
+    """Whether a block section or partial fixes the argument ``name`` itself."""
+    if isinstance(block, functools.partial):
+        return name in block.keywords
+    if isinstance(block, Mapping):
+        return name in block
+    return False
 
 
 def if_exist(outfold: str, files: List[str]):
