@@ -14,11 +14,15 @@
 
 """Focused tests for SpeechLM's exact vLLM training-time prompt contract."""
 
+import sys
 from types import SimpleNamespace
 
 import pytest
 
-from nemo.collections.speechlm2.vllm.salm.runtime_compat import _patch_speechlm_training_prompt_contract
+from nemo.collections.speechlm2.vllm.salm.runtime_compat import (
+    _patch_speechlm_training_prompt_contract,
+    install_prompt_contract,
+)
 
 _AUDIO = {"type": "audio_url", "audio_url": {"url": "data:audio/wav;base64,AA=="}}
 
@@ -219,3 +223,23 @@ def test_adapter_is_idempotent_and_fails_closed_on_vllm_api_change():
     assert chat_utils._parse_chat_message_content_parts is patched
     with pytest.raises(TypeError, match="_parse_chat_message_content_parts"):
         _patch_speechlm_training_prompt_contract(SimpleNamespace())
+
+
+def test_install_prompt_contract_patches_vllm_renderers_chat_utils(monkeypatch):
+    """vLLM 0.32 moved the chat parser to ``vllm.renderers.chat_utils``."""
+    chat_utils, _ = _fake_vllm_chat_utils()
+    monkeypatch.setitem(sys.modules, "vllm.renderers", SimpleNamespace(chat_utils=chat_utils))
+
+    install_prompt_contract()
+
+    assert chat_utils._parse_chat_message_content_parts._nemo_speechlm_exact_training_prompt
+
+
+def test_install_prompt_contract_falls_back_to_vllm_entrypoints_chat_utils(monkeypatch):
+    chat_utils, _ = _fake_vllm_chat_utils()
+    monkeypatch.setitem(sys.modules, "vllm.renderers", None)
+    monkeypatch.setitem(sys.modules, "vllm.entrypoints", SimpleNamespace(chat_utils=chat_utils))
+
+    install_prompt_contract()
+
+    assert chat_utils._parse_chat_message_content_parts._nemo_speechlm_exact_training_prompt
