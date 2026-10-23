@@ -455,15 +455,17 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
 
     def _get_audio_dir(self) -> str:
         """Return (and create if needed) the directory used to store intermediate waveforms during PO."""
-        if not self.cfg.get('save_reward_audios', True):
-            if not hasattr(self, '_tmp_reward_audio_dir'):
-                job_id = os.environ.get('SLURM_JOB_ID', 'local')
-                self._tmp_reward_audio_dir = os.path.join(
-                    '/dev/shm', f'easy_magpie_rewards_{job_id}_rank{self.global_rank}'
-                )
-                os.makedirs(self._tmp_reward_audio_dir, exist_ok=True)
-                atexit.register(shutil.rmtree, self._tmp_reward_audio_dir, ignore_errors=True)
-            return self._tmp_reward_audio_dir
+        ## As discussed, commenting out /dev/shm section for now
+        
+        # if not self.cfg.get('save_reward_audios', True):
+        #     if not hasattr(self, '_tmp_reward_audio_dir'):
+        #         job_id = os.environ.get('SLURM_JOB_ID', 'local')
+        #         self._tmp_reward_audio_dir = os.path.join(
+        #             '/dev/shm', f'easy_magpie_rewards_{job_id}_rank{self.global_rank}'
+        #         )
+        #         os.makedirs(self._tmp_reward_audio_dir, exist_ok=True)
+        #         atexit.register(shutil.rmtree, self._tmp_reward_audio_dir, ignore_errors=True)
+        #     return self._tmp_reward_audio_dir
 
         if self.logger is not None and hasattr(self.logger, "log_dir") and self.logger.log_dir is not None:
             log_dir = self.logger.log_dir
