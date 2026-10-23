@@ -499,6 +499,7 @@ Learning rate schedulers can be optionally configured under the ``optim.sched`` 
     name: SquareRootAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.SquareRootAnnealing'>
     name: PolynomialDecayAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.PolynomialDecayAnnealing'>
     name: PolynomialHoldDecayAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.PolynomialHoldDecayAnnealing'>
+    name: PiecewiseLinear, schedule: <class 'nemo.core.optim.lr_scheduler.PiecewiseLinear'>
     name: StepLR, schedule: <class 'torch.optim.lr_scheduler.StepLR'>
     name: ExponentialLR, schedule: <class 'torch.optim.lr_scheduler.ExponentialLR'>
     name: ReduceLROnPlateau, schedule: <class 'torch.optim.lr_scheduler.ReduceLROnPlateau'>
