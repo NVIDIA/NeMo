@@ -179,8 +179,8 @@ class TestFilterbankFeaturesOptions:
         # (T - 400) // 160 + 1 frames, all valid, and none for a signal shorter than one window
         assert out_lengths.tolist() == [17, 12, 0]
         assert features.shape == (3, 80, 17)
-        # frame t covers samples [160 t, 160 t + 400): the TensorFlow framing, with the window and the signal
-        # zero-padded to n_fft on the right
+        # frame t covers samples [160 t, 160 t + 400):
+        # the TensorFlow framing, with the window and the signal zero-padded to n_fft on the right
         window = torch.nn.functional.pad(torch.hann_window(400, periodic=True), (0, 112))
         padded = torch.nn.functional.pad(signal[:1], (0, 112))
         spectrum = torch.stft(

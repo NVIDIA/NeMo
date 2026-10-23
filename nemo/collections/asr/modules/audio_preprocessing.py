@@ -144,17 +144,17 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
         window (str): Windowing function for fft. can be one of ['hann',
             'hamming', 'blackman', 'bartlett']
             Defaults to "hann"
-        normalize (str): Can be one of ['per_feature', 'all_features'] or a
-            normalization block; all other options disable feature normalization.
+        normalize: Can be one of ['per_feature', 'all_features'] or a normalization block;
+            all other options disable feature normalization.
             'all_features' normalizes the entire spectrogram to be mean 0 with std 1.
             'pre_features' normalizes per channel / freq instead.
-            A normalization block is a module class, a functools.partial or a config
-            section with `_target_` and `_partial_: true`, built with `num_features`
-            and called as `block(features, lengths)` on [B, D, T] features; for the
-            packed front end it also provides `normalize_frames(frames)` on the valid
-            frames [N, D]. FeatureBatchNorm normalizes per channel / freq with the
-            statistics of the batch's valid frames in training and with running
-            statistics in evaluation, without affine parameters.
+            A normalization block is a module class, a `functools.partial`
+            or a config section with `_target_` and `_partial_: true`;
+            it is built with `num_features` and called as `block(features, lengths)` on [B, D, T] features,
+            and for the packed front end it also provides `normalize_frames(frames)` on the valid frames [N, D].
+            `FeatureBatchNorm` normalizes per channel / freq
+            with the statistics of the batch's valid frames in training and with running statistics in evaluation,
+            without affine parameters.
             Defaults to "per_feature"
         n_fft (int): Length of FT window. If None, it uses the smallest power
             of 2 that is larger than n_window_size.
@@ -199,17 +199,17 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
             Defaults to 4000
         mel_norm: Normalization used for mel filterbank weights.
             Defaults to 'slaney' (area normalization)
-        mel_scale (str): Mel scale of the filterbank, 'slaney' or 'htk' as in librosa.
+        mel_scale: Mel scale of the filterbank, 'slaney' or 'htk' as in librosa.
             Defaults to 'slaney'
-        periodic_window (bool): If True, uses the periodic form of the window function,
+        periodic_window: If True, uses the periodic form of the window function,
             as the TensorFlow, SciPy and librosa STFT defaults do, instead of the symmetric form.
             Defaults to False
-        snip_edges (bool): If True, frames lie entirely inside the signal: no padding, the first
-            frame starts at the first sample, and num_frames = (audio_length - n_window_size)
-            // n_window_stride + 1, all of them valid. Cannot be combined with exact_pad.
+        snip_edges: If True, frames lie entirely inside the signal:
+            no padding, the first frame starts at the first sample,
+            and num_frames = (audio_length - n_window_size) // n_window_stride + 1, all of them valid.
+            Cannot be combined with exact_pad.
             Defaults to False
-        log_base (float): Base of the logarithm applied to the features; None for the natural
-            logarithm.
+        log_base: Base of the logarithm applied to the features; None for the natural logarithm.
             Defaults to None
         stft_exact_pad: Deprecated argument, kept for compatibility with older checkpoints.
         stft_conv: Deprecated argument, kept for compatibility with older checkpoints.

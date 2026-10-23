@@ -201,20 +201,21 @@ def make_seq_mask_like(
     return mask
 
 
-def _is_normalization_block(normalize) -> bool:
-    """Whether ``normalize`` names a module to build rather than one of the built-in normalization modes."""
-    return callable(normalize) or (isinstance(normalize, Mapping) and "_target_" in normalize)
-
-
 class FeatureBatchNorm(nn.Module):
     """Batch normalization of features over valid frames, without affine parameters.
 
     A normalization block for ``FilterbankFeatures(normalize=...)``, which supplies ``num_features``.
     Unlike ``torch.nn.BatchNorm1d``, frames beyond a sequence's length are excluded from the statistics.
-    Training normalizes with the per-feature mean and variance of the current batch's valid frames and moves
-    the running statistics towards them by ``momentum``; evaluation normalizes with the running statistics.
-    The variance is the biased estimate in both cases, so the running variance is the quantity the
-    normalization divides by.
+    Training normalizes with the mean and variance of the current batch's valid frames per feature
+    and moves the running statistics towards them by ``momentum``;
+    evaluation normalizes with the running statistics.
+    The variance is the biased estimate in both cases,
+    so the running variance is the quantity the normalization divides by.
+
+    Args:
+        num_features: Size of the feature axis D.
+        eps: Added to the variance before the square root.
+        momentum: Weight of the current batch in the update of the running statistics.
     """
 
     def __init__(self, num_features: int, eps: float = 1e-5, momentum: float = 0.1):
@@ -231,6 +232,9 @@ class FeatureBatchNorm(nn.Module):
         Args:
             x: Features with shape [B, D, T].
             seq_len: Valid frames per sequence with shape [B]; later frames do not enter the statistics.
+
+        Returns:
+            Normalized features with shape [B, D, T] and the dtype of ``x``.
         """
         if not self.training:
             return self._normalize(x, self.running_mean.unsqueeze(1), self.running_var.unsqueeze(1))
@@ -248,6 +252,9 @@ class FeatureBatchNorm(nn.Module):
 
         Args:
             frames: Features with shape [N, D], one row per valid frame of the batch.
+
+        Returns:
+            Normalized frames with shape [N, D] and the dtype of ``frames``.
         """
         if not self.training:
             return self._normalize(frames, self.running_mean, self.running_var)
@@ -470,7 +477,6 @@ class FilterbankFeatures(nn.Module):
         self.log_base = log_base
         self.norm = None
         if _is_normalization_block(normalize):
-            # A normalization module configured like the other block sections; the feature count comes from here.
             self.norm = build_module(normalize, num_features=nfilt * frame_splicing)
 
         self.use_grads = use_grads
@@ -529,8 +535,8 @@ class FilterbankFeatures(nn.Module):
 
     def get_seq_len(self, seq_len):
         if self.snip_edges:
-            # Frames that lie entirely inside the signal, all of them valid; the padded framings below report
-            # one frame fewer than their STFT produces.
+            # Frames that lie entirely inside the signal, all of them valid;
+            # the padded framings below report one frame fewer than their STFT produces.
             seq_len = torch.floor_divide(seq_len - self.win_length, self.hop_length) + 1
             return torch.clamp(seq_len, min=0).to(dtype=torch.long)
         # Assuming that center is True is stft_pad_amount = 0
@@ -541,8 +547,8 @@ class FilterbankFeatures(nn.Module):
     def _signal_padding(self) -> tuple[int, int]:
         """Zeros before and after the signal that give ``torch.stft(center=False)`` the configured framing."""
         if self.snip_edges:
-            # torch centers a window shorter than n_fft inside the frame; this offset puts the first frame's
-            # window on the first samples of the signal.
+            # torch centers a window shorter than n_fft inside the frame;
+            # this offset puts the first frame's window on the first samples of the signal.
             left = (self.n_fft - self.win_length) // 2
             return left, self.n_fft - self.win_length - left
         if self.stft_pad_amount is not None:
@@ -763,6 +769,11 @@ class FilterbankFeatures(nn.Module):
             if pad_amt != 0:
                 x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
         return x, seq_len
+
+
+def _is_normalization_block(normalize: object) -> bool:
+    """Whether ``normalize`` names a module to build rather than one of the built-in normalization modes."""
+    return callable(normalize) or (isinstance(normalize, Mapping) and "_target_" in normalize)
 
 
 def _validate_packed_waveforms(x, seq_len, cu_seqlens):
