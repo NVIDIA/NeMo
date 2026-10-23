@@ -435,6 +435,9 @@ for example to exclude embeddings, normalization layers and biases from weight d
             param_names: ["*.bias"]
             weight_decay: 0.0
 
+The rules decide the optimizer's parameter groups:
+a changed rule set changes their membership and order,
+so an optimizer state saved under other rules (a training checkpoint) does not restore onto them.
 See :meth:`nemo.core.classes.ModelPT.setup_optimizer_param_groups` and
 :func:`nemo.core.optim.param_groups.apply_param_group_rules`.
 

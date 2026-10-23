@@ -824,7 +824,9 @@ class ModelPT(LightningModule, Model):
         or by name patterns with 'optim_param_group_rules',
         which splits the groups above and sets options on the selected parameters,
         such as no weight decay for embeddings, norms and biases;
-        see :func:`nemo.core.optim.param_groups.apply_param_group_rules`:
+        see :func:`nemo.core.optim.param_groups.apply_param_group_rules`.
+        A changed rule set changes the optimizer's parameter groups,
+        so an optimizer state saved under other rules does not restore onto them:
 
         model:
             optim_param_group_rules:

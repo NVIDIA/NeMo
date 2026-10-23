@@ -191,6 +191,42 @@ class TestModelPTParamGroupRules:
         assert len(model._optimizer.param_groups) == 1
         assert len(model._optimizer.param_groups[0]['params']) == len(list(model.parameters()))
 
+    @pytest.mark.unit
+    def test_optimizer_state_restores_with_unchanged_rules(self):
+        cfg = OmegaConf.create(
+            {
+                'optim': {'name': 'adamw', 'lr': 1e-3, 'weight_decay': 0.01},
+                'optim_param_group_rules': {'no_weight_decay': dict(NO_WEIGHT_DECAY, weight_decay=0.0)},
+            }
+        )
+        model = RuledModel(cfg)
+        model.setup_optimization()
+        for param in model.parameters():
+            param.grad = torch.ones_like(param)
+        model._optimizer.step()
+        state = model._optimizer.state_dict()
+
+        # the same rules give the same groups, so a saved optimizer state restores
+        continued = RuledModel(cfg)
+        continued.setup_optimization()
+        continued._optimizer.load_state_dict(state)
+        assert [group['weight_decay'] for group in continued._optimizer.param_groups] == [0.0, 0.01]
+        assert len(continued._optimizer.state) == len(list(model.parameters()))
+
+        # other rules give other groups, and the saved state no longer fits them
+        changed = OmegaConf.create(
+            {
+                'optim': {'name': 'adamw', 'lr': 1e-3, 'weight_decay': 0.01},
+                'optim_param_group_rules': {
+                    'embedding_only': {'module_types': ['torch.nn.Embedding'], 'weight_decay': 0.0}
+                },
+            }
+        )
+        other = RuledModel(changed)
+        other.setup_optimization()
+        with pytest.raises(ValueError, match="parameter group"):
+            other._optimizer.load_state_dict(state)
+
 
 class TestConformerParamGroupRules:
     """The rules on a Conformer encoder, the module structure the rules are written for."""

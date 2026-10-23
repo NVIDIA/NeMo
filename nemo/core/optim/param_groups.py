@@ -45,6 +45,9 @@ def apply_param_group_rules(
     which carries the group's options overridden by the options of those rules in the order of ``rules``.
     Parameters keep their order, sub-groups appear in the order of their first parameter,
     and empty groups are dropped.
+    The rules decide the optimizer's parameter groups:
+    a changed rule set changes their membership and order,
+    so an optimizer state saved under other rules (a training checkpoint) does not restore onto them.
 
     Example::
 
