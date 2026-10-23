@@ -265,3 +265,17 @@ class TestMuon:
         # up to the Newton-Schulz approximation of the singular values
         assert update.pow(2).mean().sqrt().item() == pytest.approx(1 / 1024**0.5, rel=0.15)
         assert update.shape == (4096, 1024)
+
+    @pytest.mark.unit
+    def test_small_vocabulary_embedding_needs_an_explicit_exclusion(self):
+        # a 1026 x 512 embedding is below the default threshold, so the shape heuristic selects Muon for it
+        embedding = torch.nn.Embedding(1026, 512)
+        assert Muon.selects_muon(embedding.weight, use_muon=None, adam_dim_threshold=8192)
+        optimizer = Muon([{'params': [embedding.weight], 'use_muon': False, 'weight_decay': 0.0}], lr=LR)
+        embedding.weight.grad = torch.ones_like(embedding.weight)
+        optimizer.step()
+        state = optimizer.state[embedding.weight]
+        assert 'exp_avg' in state
+        assert 'momentum_buffer' not in state
+        # a wide embedding falls back by shape alone
+        assert not Muon.selects_muon(torch.empty(8192, 16), use_muon=None, adam_dim_threshold=8192)

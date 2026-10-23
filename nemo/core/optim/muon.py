@@ -19,9 +19,11 @@ Muon (Keller Jordan et al., 2024, https://kellerjordan.github.io/posts/muon/) up
 with an approximately semi-orthogonal matrix derived from the momentum-averaged gradient,
 computed with a quintic Newton-Schulz iteration in bfloat16.
 Parameters that are not matrices (biases, normalization scales, convolution filters)
-and very wide matrices (embeddings, output projections) are better served by an element-wise optimizer,
-so they are updated with AdamW at a fixed fraction of the learning rate,
-as the public reference trainings (modded-nanogpt, nanochat) do.
+and matrices with a dimension of at least ``adam_dim_threshold`` (large embeddings and output projections)
+are updated with AdamW at a fixed fraction of the learning rate,
+as the public reference trainings (modded-nanogpt, nanochat) do with their embeddings and heads.
+An embedding below the threshold is a matrix like any other and takes the Muon update
+unless its parameter group sets ``use_muon=False``, see :class:`Muon`.
 One optimizer instance handles both kinds,
 so one learning-rate schedule drives both with a fixed ratio.
 """
@@ -42,8 +44,15 @@ class Muon(Optimizer):
     Which parameters take the Muon update is decided per parameter:
     with the default ``use_muon=None`` a parameter takes it
     when it is a matrix whose larger dimension is below ``adam_dim_threshold``,
-    so biases, normalization scales, convolution filters, embeddings and output projections fall back to AdamW.
-    A parameter group can force the choice with ``use_muon=True`` or ``use_muon=False``;
+    so biases, normalization scales, convolution filters and wide embeddings or output projections fall back to AdamW.
+    The shape alone does not tell an embedding from a hidden matrix:
+    a small-vocabulary embedding (``1026 x 512``) is below the default threshold and takes the Muon update,
+    so put embeddings and tied output projections that are to stay on AdamW
+    into a parameter group with ``use_muon=False`` (and usually ``weight_decay=0.0``)::
+
+        Muon([{'params': hidden}, {'params': [embedding.weight], 'use_muon': False, 'weight_decay': 0.0}], lr=0.02)
+
+    A parameter group can force the choice either way with ``use_muon=True`` or ``use_muon=False``;
     a forced parameter with more than two dimensions (a convolution filter)
     is orthogonalized as the matrix ``(out_channels, -1)``.
 
