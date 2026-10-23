@@ -57,61 +57,148 @@ __all__ = [
 NEG_INF = float("-inf")
 
 
-def soft_collapse_repeated(
-    log_probs: torch.Tensor, lengths: torch.Tensor, threshold: float
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Merge runs of frames that share a confident argmax label into one frame.
+class TransformerAEDCTCBeamInfer(AEDBeamInfer, Typing):
+    """The joint CTC and attention-decoder beam search as the decoding engine of an AED model with a CTC head.
 
-    A frame is merged into its predecessor
-    when both have the same argmax label and both argmax probabilities are at least `threshold`;
-    the first frame of a run is kept.
-    The merged frame takes the per-class maximum over its frames and is renormalized with log-softmax,
-    so it stays a distribution.
+    `forward` needs the CTC log-probabilities of the batch next to the encoder states.
+    The hypotheses hold the emitted labels without the prompt
+    and without the tokenizer's boundary and padding ids, which the CTC head can produce as frame labels;
+    `partial_hypotheses` are not supported.
 
     Args:
-        log_probs: log-probabilities of shape (B, T, C)
-        lengths: valid frames per sequence, shape (B,)
-        threshold: probability threshold of the argmax labels
-
-    Returns:
-        The merged log-probabilities of shape (B, T', C), where T' is the longest merged sequence,
-        zero beyond each sequence's merged length, and the merged lengths of shape (B,).
-    """
-    frames = log_probs.shape[1]
-    valid = torch.arange(frames, device=log_probs.device)[None, :] < lengths[:, None]
-    argmax = log_probs.argmax(dim=-1)
-    confident = log_probs.gather(-1, argmax[..., None])[..., 0].exp() >= threshold
-    merged_into_previous = torch.zeros_like(confident)
-    merged_into_previous[:, 1:] = (argmax[:, 1:] == argmax[:, :-1]) & confident[:, 1:] & confident[:, :-1]
-    keep = ~merged_into_previous & valid
-    merged_lengths = keep.sum(dim=1)
-    # Every frame maps to the merged frame of its run; padded frames map to the last one with a -inf source.
-    index = (keep.long().cumsum(dim=1) - 1).clamp(min=0)
-    source = log_probs.masked_fill(~valid[..., None], NEG_INF)
-    merged = torch.full_like(log_probs, NEG_INF)
-    merged.scatter_reduce_(1, index[..., None].expand_as(log_probs), source, reduce="amax", include_self=False)
-    merged_frames = int(merged_lengths.max()) if merged_lengths.numel() else 0
-    merged = merged[:, :merged_frames]
-    merged_valid = torch.arange(merged_frames, device=log_probs.device)[None, :] < merged_lengths[:, None]
-    merged = torch.where(merged_valid[..., None], torch.log_softmax(merged, dim=-1), torch.zeros_like(merged))
-    return merged, merged_lengths
-
-
-@dataclass
-class AEDCTCBeamSearchResult:
-    """The beam of every sequence after the last frame, sorted by score.
-
-    Attributes:
-        labels: emitted label ids without the prompt, shape (B, beam, L), `pad` beyond each hypothesis
-        lengths: number of labels of every hypothesis, shape (B, beam)
-        scores: ranking scores, shape (B, beam); `-inf` marks a hypothesis that was recombined into another one
-        alignments: frame labels including blank, shape (B, beam, T), or None when not requested
+        transformer_decoder: a `TransformerDecoderNM` with pre-LayerNorm blocks
+        log_softmax_module: the output layer, a `TokenClassifier` returning log-probabilities
+        tokenizer: provides `bos`, `eos` and `pad`
+        search_type: unused, kept for the common engine interface
+        beam_size: hypotheses kept per sequence after every frame
+        aed_weight: scale of the decoder's label log-probabilities
+        ctc_weight: scale of the CTC frame log-probabilities
+        recombination: `max`, `sum` or None, see `AEDCTCTimeSyncBeamSearch`
+        ctc_soft_collapse_threshold: merge runs of confident repeated CTC frames before the search
+            (`soft_collapse_repeated`); None searches over all frames
+        length_normalization: exponent of the hypothesis length dividing the final scores
+        return_best_hypothesis: return the best hypothesis per sequence instead of the whole beam
+        preserve_alignments: keep the frame labels of every hypothesis in `Hypothesis.alignments`
     """
 
-    labels: torch.Tensor
-    lengths: torch.Tensor
-    scores: torch.Tensor
-    alignments: Optional[torch.Tensor]
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports."""
+        return {
+            "encoder_hidden_states": NeuralType(tuple(('B', 'T', 'D')), ChannelType()),
+            "encoder_input_mask": NeuralType(tuple(('B', 'T')), MaskType()),
+            "decoder_input_ids": NeuralType(('B', 'T'), LabelsType(), optional=True),
+            "partial_hypotheses": NeuralType(optional=True),
+            "ctc_log_probs": NeuralType(('B', 'T', 'C'), LogprobsType(), optional=True),
+        }
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports."""
+        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
+
+    def __init__(
+        self,
+        transformer_decoder: torch.nn.Module,
+        log_softmax_module: torch.nn.Module,
+        tokenizer: TokenizerSpec,
+        search_type: str = 'default',
+        beam_size: int = 4,
+        aed_weight: float = 1.0,
+        ctc_weight: float = 1.0,
+        recombination: Optional[str] = "max",
+        ctc_soft_collapse_threshold: Optional[float] = None,
+        length_normalization: float = 0.0,
+        return_best_hypothesis: bool = True,
+        preserve_alignments: bool = False,
+    ):
+        super().__init__(
+            transformer_decoder=transformer_decoder,
+            log_softmax_module=log_softmax_module,
+            tokenizer=tokenizer,
+            search_type=search_type,
+            return_best_hypothesis=return_best_hypothesis,
+            preserve_alignments=preserve_alignments,
+        )
+        self.beam_size = beam_size
+        self.ctc_soft_collapse_threshold = ctc_soft_collapse_threshold
+        self.special_ids = torch.tensor(sorted({tokenizer.bos, tokenizer.eos, tokenizer.pad}), dtype=torch.long)
+        self.beam_search = AEDCTCTimeSyncBeamSearch(
+            transformer_decoder,
+            log_softmax_module,
+            beam_size=beam_size,
+            bos=tokenizer.bos,
+            eos=tokenizer.eos,
+            pad=tokenizer.pad,
+            aed_weight=aed_weight,
+            ctc_weight=ctc_weight,
+            recombination=recombination,
+            length_normalization=length_normalization,
+        )
+
+    @typecheck()
+    def forward(
+        self,
+        encoder_hidden_states: torch.Tensor,
+        encoder_input_mask: torch.Tensor,
+        decoder_input_ids: Optional[torch.Tensor] = None,
+        partial_hypotheses: Optional[List[Hypothesis]] = None,
+        ctc_log_probs: Optional[torch.Tensor] = None,
+    ):
+        """Returns a list of hypotheses given an input batch of encoder states and CTC log-probabilities.
+
+        Args:
+            encoder_hidden_states: encoder output of shape (B, T, D)
+            encoder_input_mask: nonzero for valid frames, shape (B, T)
+            decoder_input_ids: decoder prompt of shape (B, P)
+            partial_hypotheses: not supported
+            ctc_log_probs: log-probabilities of the CTC head over the same frames, shape (B, T, C)
+
+        Returns:
+            A tuple with the list of hypotheses of the batch,
+            each a `Hypothesis` or, when the whole beam is returned, an `NBestHypotheses`.
+        """
+        if ctc_log_probs is None:
+            raise ValueError("The joint AED and CTC beam search needs the CTC log-probabilities of the batch")
+        if ctc_log_probs.shape[1] != encoder_hidden_states.shape[1]:
+            raise ValueError("The CTC log-probabilities must cover the encoder frames")
+        with torch.inference_mode():
+            self.transformer_decoder.eval()
+            self.log_softmax_module.eval()
+            lengths = encoder_input_mask.to(torch.bool).sum(dim=1)
+            if self.ctc_soft_collapse_threshold is not None:
+                ctc_log_probs, lengths = soft_collapse_repeated(
+                    ctc_log_probs, lengths, self.ctc_soft_collapse_threshold
+                )
+            result = self.beam_search(
+                encoder_hidden_states,
+                encoder_input_mask,
+                ctc_log_probs,
+                lengths,
+                decoder_input_ids,
+                return_alignments=self.preserve_alignments,
+            )
+            labels, lengths, scores = result.labels.cpu(), result.lengths.cpu(), result.scores.cpu()
+            alignments = result.alignments.cpu() if result.alignments is not None else None
+            packed_result = []
+            for b in range(labels.shape[0]):
+                hypotheses = [
+                    self._hypothesis(
+                        labels[b, k, : lengths[b, k]],
+                        float(scores[b, k]),
+                        alignments[b, k].tolist() if alignments is not None else None,
+                    )
+                    for k in range(self.beam_size)
+                    if k == 0 or torch.isfinite(scores[b, k])  # recombined-away paths carry no hypothesis
+                ]
+                packed_result.append(hypotheses[0] if self.return_best_hypothesis else NBestHypotheses(hypotheses))
+        self.transformer_decoder.train()
+        self.log_softmax_module.train()
+        return (packed_result,)
+
+    def _hypothesis(self, labels: torch.Tensor, score: float, alignment: Optional[List[int]]) -> Hypothesis:
+        labels = labels[~torch.isin(labels, self.special_ids)]
+        return Hypothesis(score=score, y_sequence=labels.long(), timestamp=[], alignments=alignment)
 
 
 @dataclass
@@ -131,6 +218,23 @@ class AEDCTCBeamInferConfig:
     length_normalization: float = 0.0
     return_best_hypothesis: bool = True
     preserve_alignments: bool = False
+
+
+@dataclass
+class AEDCTCBeamSearchResult:
+    """The beam of every sequence after the last frame, sorted by score.
+
+    Attributes:
+        labels: emitted label ids without the prompt, shape (B, beam, L), `pad` beyond each hypothesis
+        lengths: number of labels of every hypothesis, shape (B, beam)
+        scores: ranking scores, shape (B, beam); `-inf` marks a hypothesis that was recombined into another one
+        alignments: frame labels including blank, shape (B, beam, T), or None when not requested
+    """
+
+    labels: torch.Tensor
+    lengths: torch.Tensor
+    scores: torch.Tensor
+    alignments: Optional[torch.Tensor]
 
 
 class AEDCTCTimeSyncBeamSearch:
@@ -175,7 +279,7 @@ class AEDCTCTimeSyncBeamSearch:
         stack = transformer_decoder.decoder
         if not all(layer.pre_ln for layer in stack.layers):
             raise ValueError("The joint AED and CTC beam search needs pre-LayerNorm decoder blocks")
-        if not getattr(log_softmax_module, "log_softmax", True):
+        if not log_softmax_module.log_softmax:
             raise ValueError("The output layer must return log-probabilities")
         self.embedding = transformer_decoder.embedding
         self.layers = stack.layers
@@ -405,6 +509,7 @@ class AEDCTCTimeSyncBeamSearch:
             query = self._split_heads(attention.query_net(normed)) / attention.attn_scale
             key = self._split_heads(attention.key_net(normed)) / attention.attn_scale
             value = self._split_heads(attention.value_net(normed))
+            # Only attention blocks with rotary positions carry the table.
             rotary = getattr(attention, "rotary_pos_enc", None)
             if rotary is not None:
                 query, key = self._rotate(rotary, query, positions), self._rotate(rotary, key, positions)
@@ -466,145 +571,41 @@ class AEDCTCTimeSyncBeamSearch:
         return scores.view(-1), new_label.view(-1)
 
 
-class TransformerAEDCTCBeamInfer(AEDBeamInfer, Typing):
-    """The joint CTC and attention-decoder beam search as the decoding engine of an AED model with a CTC head.
+def soft_collapse_repeated(
+    log_probs: torch.Tensor, lengths: torch.Tensor, threshold: float
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Merge runs of frames that share a confident argmax label into one frame.
 
-    `forward` needs the CTC log-probabilities of the batch next to the encoder states.
-    The hypotheses hold the emitted labels without the prompt
-    and without the tokenizer's boundary and padding ids, which the CTC head can produce as frame labels;
-    `partial_hypotheses` are not supported.
+    A frame is merged into its predecessor
+    when both have the same argmax label and both argmax probabilities are at least `threshold`;
+    the first frame of a run is kept.
+    The merged frame takes the per-class maximum over its frames and is renormalized with log-softmax,
+    so it stays a distribution.
 
     Args:
-        transformer_decoder: a `TransformerDecoderNM` with pre-LayerNorm blocks
-        log_softmax_module: the output layer, a `TokenClassifier` returning log-probabilities
-        tokenizer: provides `bos`, `eos` and `pad`
-        search_type: unused, kept for the common engine interface
-        beam_size: hypotheses kept per sequence after every frame
-        aed_weight: scale of the decoder's label log-probabilities
-        ctc_weight: scale of the CTC frame log-probabilities
-        recombination: `max`, `sum` or None, see `AEDCTCTimeSyncBeamSearch`
-        ctc_soft_collapse_threshold: merge runs of confident repeated CTC frames before the search
-            (`soft_collapse_repeated`); None searches over all frames
-        length_normalization: exponent of the hypothesis length dividing the final scores
-        return_best_hypothesis: return the best hypothesis per sequence instead of the whole beam
-        preserve_alignments: keep the frame labels of every hypothesis in `Hypothesis.alignments`
+        log_probs: log-probabilities of shape (B, T, C)
+        lengths: valid frames per sequence, shape (B,)
+        threshold: probability threshold of the argmax labels
+
+    Returns:
+        The merged log-probabilities of shape (B, T', C), where T' is the longest merged sequence,
+        zero beyond each sequence's merged length, and the merged lengths of shape (B,).
     """
-
-    @property
-    def input_types(self):
-        """Returns definitions of module input ports."""
-        return {
-            "encoder_hidden_states": NeuralType(tuple(('B', 'T', 'D')), ChannelType()),
-            "encoder_input_mask": NeuralType(tuple(('B', 'T')), MaskType()),
-            "decoder_input_ids": NeuralType(('B', 'T'), LabelsType(), optional=True),
-            "partial_hypotheses": NeuralType(optional=True),
-            "ctc_log_probs": NeuralType(('B', 'T', 'C'), LogprobsType(), optional=True),
-        }
-
-    @property
-    def output_types(self):
-        """Returns definitions of module output ports."""
-        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
-
-    def __init__(
-        self,
-        transformer_decoder: torch.nn.Module,
-        log_softmax_module: torch.nn.Module,
-        tokenizer: TokenizerSpec,
-        search_type: str = 'default',
-        beam_size: int = 4,
-        aed_weight: float = 1.0,
-        ctc_weight: float = 1.0,
-        recombination: Optional[str] = "max",
-        ctc_soft_collapse_threshold: Optional[float] = None,
-        length_normalization: float = 0.0,
-        return_best_hypothesis: bool = True,
-        preserve_alignments: bool = False,
-    ):
-        super().__init__(
-            transformer_decoder=transformer_decoder,
-            log_softmax_module=log_softmax_module,
-            tokenizer=tokenizer,
-            search_type=search_type,
-            return_best_hypothesis=return_best_hypothesis,
-            preserve_alignments=preserve_alignments,
-        )
-        self.beam_size = beam_size
-        self.ctc_soft_collapse_threshold = ctc_soft_collapse_threshold
-        self.special_ids = torch.tensor(sorted({tokenizer.bos, tokenizer.eos, tokenizer.pad}), dtype=torch.long)
-        self.beam_search = AEDCTCTimeSyncBeamSearch(
-            transformer_decoder,
-            log_softmax_module,
-            beam_size=beam_size,
-            bos=tokenizer.bos,
-            eos=tokenizer.eos,
-            pad=tokenizer.pad,
-            aed_weight=aed_weight,
-            ctc_weight=ctc_weight,
-            recombination=recombination,
-            length_normalization=length_normalization,
-        )
-
-    @typecheck()
-    def forward(
-        self,
-        encoder_hidden_states: torch.Tensor,
-        encoder_input_mask: torch.Tensor,
-        decoder_input_ids: Optional[torch.Tensor] = None,
-        partial_hypotheses: Optional[List[Hypothesis]] = None,
-        ctc_log_probs: Optional[torch.Tensor] = None,
-    ):
-        """Returns a list of hypotheses given an input batch of encoder states and CTC log-probabilities.
-
-        Args:
-            encoder_hidden_states: encoder output of shape (B, T, D)
-            encoder_input_mask: nonzero for valid frames, shape (B, T)
-            decoder_input_ids: decoder prompt of shape (B, P)
-            partial_hypotheses: not supported
-            ctc_log_probs: log-probabilities of the CTC head over the same frames, shape (B, T, C)
-
-        Returns:
-            A tuple with the list of hypotheses of the batch,
-            each a `Hypothesis` or, when the whole beam is returned, an `NBestHypotheses`.
-        """
-        if ctc_log_probs is None:
-            raise ValueError("The joint AED and CTC beam search needs the CTC log-probabilities of the batch")
-        if ctc_log_probs.shape[1] != encoder_hidden_states.shape[1]:
-            raise ValueError("The CTC log-probabilities must cover the encoder frames")
-        with torch.inference_mode():
-            self.transformer_decoder.eval()
-            self.log_softmax_module.eval()
-            lengths = encoder_input_mask.to(torch.bool).sum(dim=1)
-            if self.ctc_soft_collapse_threshold is not None:
-                ctc_log_probs, lengths = soft_collapse_repeated(
-                    ctc_log_probs, lengths, self.ctc_soft_collapse_threshold
-                )
-            result = self.beam_search(
-                encoder_hidden_states,
-                encoder_input_mask,
-                ctc_log_probs,
-                lengths,
-                decoder_input_ids,
-                return_alignments=self.preserve_alignments,
-            )
-            labels, lengths, scores = result.labels.cpu(), result.lengths.cpu(), result.scores.cpu()
-            alignments = result.alignments.cpu() if result.alignments is not None else None
-            packed_result = []
-            for b in range(labels.shape[0]):
-                hypotheses = [
-                    self._hypothesis(
-                        labels[b, k, : lengths[b, k]],
-                        float(scores[b, k]),
-                        alignments[b, k].tolist() if alignments is not None else None,
-                    )
-                    for k in range(self.beam_size)
-                    if k == 0 or torch.isfinite(scores[b, k])  # recombined-away paths carry no hypothesis
-                ]
-                packed_result.append(hypotheses[0] if self.return_best_hypothesis else NBestHypotheses(hypotheses))
-        self.transformer_decoder.train()
-        self.log_softmax_module.train()
-        return (packed_result,)
-
-    def _hypothesis(self, labels: torch.Tensor, score: float, alignment: Optional[List[int]]) -> Hypothesis:
-        labels = labels[~torch.isin(labels, self.special_ids)]
-        return Hypothesis(score=score, y_sequence=labels.long(), timestamp=[], alignments=alignment)
+    frames = log_probs.shape[1]
+    valid = torch.arange(frames, device=log_probs.device)[None, :] < lengths[:, None]
+    argmax = log_probs.argmax(dim=-1)
+    confident = log_probs.gather(-1, argmax[..., None])[..., 0].exp() >= threshold
+    merged_into_previous = torch.zeros_like(confident)
+    merged_into_previous[:, 1:] = (argmax[:, 1:] == argmax[:, :-1]) & confident[:, 1:] & confident[:, :-1]
+    keep = ~merged_into_previous & valid
+    merged_lengths = keep.sum(dim=1)
+    # Every frame maps to the merged frame of its run; padded frames map to the last one with a -inf source.
+    index = (keep.long().cumsum(dim=1) - 1).clamp(min=0)
+    source = log_probs.masked_fill(~valid[..., None], NEG_INF)
+    merged = torch.full_like(log_probs, NEG_INF)
+    merged.scatter_reduce_(1, index[..., None].expand_as(log_probs), source, reduce="amax", include_self=False)
+    merged_frames = int(merged_lengths.max()) if merged_lengths.numel() else 0
+    merged = merged[:, :merged_frames]
+    merged_valid = torch.arange(merged_frames, device=log_probs.device)[None, :] < merged_lengths[:, None]
+    merged = torch.where(merged_valid[..., None], torch.log_softmax(merged, dim=-1), torch.zeros_like(merged))
+    return merged, merged_lengths
