@@ -230,6 +230,85 @@ def test_beam_decoding_beam_scores_true_with_fusion_models(inputs, nnet):
     assert xatt_scores_list[0].shape == (1, 1, 25, 5)
 
 
+class TestBeamSearchBatching:
+    """Beam search over a batch gives every source sequence the hypotheses and scores it gets alone."""
+
+    PAD, BOS, EOS, VOCAB, HIDDEN = 0, 1, 2, 12, 16
+
+    @classmethod
+    def _modules(cls):
+        torch.manual_seed(0)
+        decoder = TransformerDecoderNM(
+            vocab_size=cls.VOCAB,
+            hidden_size=cls.HIDDEN,
+            num_layers=2,
+            inner_size=24,
+            num_attention_heads=2,
+            max_sequence_length=40,
+        ).eval()
+        classifier = TokenClassifier(hidden_size=cls.HIDDEN, num_classes=cls.VOCAB, num_layers=1, log_softmax=True)
+        for parameter in list(decoder.parameters()) + list(classifier.parameters()):
+            parameter.data.normal_(0, 0.5)
+        return decoder, classifier.eval()
+
+    @classmethod
+    def _inputs(cls, prompt_length):
+        torch.manual_seed(1)
+        batch, frames = 4, 7
+        encoder_states = torch.randn(batch, frames, cls.HIDDEN)
+        encoder_mask = (torch.arange(frames)[None, :] < torch.tensor([7, 5, 6, 4])[:, None]).float()
+        prompt = torch.full((batch, prompt_length), cls.BOS, dtype=torch.long)
+        if prompt_length > 1:
+            prompt[:, 1:] = torch.randint(3, cls.VOCAB, (batch, prompt_length - 1))
+        return prompt, encoder_states, encoder_mask
+
+    @staticmethod
+    def _assert_batched_matches_single(generator, prompt, encoder_states, encoder_mask):
+        prefixes, scores, best, _ = generator(prompt, encoder_states, encoder_mask, return_beam_scores=True)
+        for i in range(prompt.shape[0]):
+            single_prefixes, single_scores, single_best, _ = generator(
+                prompt[i : i + 1], encoder_states[i : i + 1], encoder_mask[i : i + 1], return_beam_scores=True
+            )
+            assert torch.equal(best[i], single_best[0]), i
+            assert torch.equal(prefixes[i], single_prefixes[0]), i
+            torch.testing.assert_close(scores[i], single_scores[0], atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("prompt_length", [1, 3])
+    def test_beam_search_batched_matches_single_sequence(self, prompt_length):
+        decoder, classifier = self._modules()
+        generator = BeamSearchSequenceGenerator(
+            decoder.embedding,
+            decoder.decoder,
+            classifier,
+            beam_size=3,
+            len_pen=0.5,
+            bos=self.BOS,
+            pad=self.PAD,
+            eos=self.EOS,
+            max_delta_length=4,
+        )
+        self._assert_batched_matches_single(generator, *self._inputs(prompt_length))
+
+    @pytest.mark.unit
+    def test_beam_search_with_fusion_models_batched_matches_single_sequence(self):
+        decoder, classifier = self._modules()
+        generator = BeamSearchSequenceGeneratorWithFusionModels(
+            decoder.embedding,
+            decoder.decoder,
+            classifier,
+            fusion_models=[NGramGPULanguageModel.dummy_unigram_lm(vocab_size=self.VOCAB)],
+            fusion_models_alpha=[0.3],
+            beam_size=3,
+            len_pen=0.5,
+            bos=self.BOS,
+            pad=self.PAD,
+            eos=self.EOS,
+            max_delta_length=4,
+        )
+        self._assert_batched_matches_single(generator, *self._inputs(3))
+
+
 @pytest.fixture()
 def prompted_inputs():
     B, T, C = 1, 5, 2

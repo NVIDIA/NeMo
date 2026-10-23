@@ -435,8 +435,8 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
-        # repeat init target prefixes and cached memory states beam_size times, every source sequence
-        # beam_size times in a row as the prefixes and the encoder states
+        # repeat init target prefixes and cached memory states beam_size times,
+        # every source sequence beam_size times in a row, as the prefixes and the encoder states
         prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, tgt.shape[1]), prefixes), dim=1)
         for j in range(len(decoder_mems_list)):
             decoder_mems_list[j] = decoder_mems_list[j].repeat_interleave(self.beam_size, dim=0)
@@ -621,8 +621,8 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
 
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)  # [Batch*Beam, 1]
 
-        # repeat init target prefixes and cached memory states beam_size times, every source sequence
-        # beam_size times in a row as the prefixes and the encoder states
+        # repeat init target prefixes and cached memory states beam_size times,
+        # every source sequence beam_size times in a row, as the prefixes and the encoder states
         prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, tgt.shape[1]), prefixes), dim=1)
         for j in range(len(decoder_mems_list)):
             decoder_mems_list[j] = decoder_mems_list[j].repeat_interleave(self.beam_size, dim=0)
@@ -939,8 +939,8 @@ class EnsembleBeamSearchSequenceGenerator:
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
-        # repeat init target prefixes and cached memory states beam_size times, every source sequence
-        # beam_size times in a row as the prefixes and the encoder states
+        # repeat init target prefixes and cached memory states beam_size times,
+        # every source sequence beam_size times in a row, as the prefixes and the encoder states
         prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, 1), prefixes), dim=1)
         for i in range(self.num_models):
             for j in range(len(decoder_mems_lists[i])):
@@ -1185,8 +1185,8 @@ class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
-        # repeat init target prefixes and cached memory states beam_size times, every source sequence
-        # beam_size times in a row as the prefixes and the encoder states
+        # repeat init target prefixes and cached memory states beam_size times,
+        # every source sequence beam_size times in a row, as the prefixes and the encoder states
         prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, 1), prefixes), dim=1)
         for j in range(len(decoder_mems_list)):
             decoder_mems_list[j] = decoder_mems_list[j].repeat_interleave(self.beam_size, dim=0)
