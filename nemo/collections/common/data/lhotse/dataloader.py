@@ -147,8 +147,9 @@ class LhotseDataLoadingConfig:
     # supersedes token_equivalent_duration for constraints and token filters.
     audio_token_estimator: Any = None
     batch_tokens: int | None = None
-    # A second cap of a packed batch on its total output tokens (supervision tokens of cuts,
-    # answer tokens of prompted examples), besides batch_tokens. Packed sequence sampling only.
+    # A second cap of a packed batch on its total output tokens
+    # (the supervision tokens of cuts, the answer tokens of prompted examples), besides batch_tokens.
+    # Packed sequence sampling only.
     batch_output_tokens: int | None = None
     # Use sum-of-lengths rather than padded batch-size-times-maximum accounting.
     # Enable this when the encoder consumes packed sequences.

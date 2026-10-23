@@ -58,8 +58,9 @@ class MultimodalSamplingConstraint(SamplingConstraint):
     # We will use ``token_equivalent_duration`` to convert audio examples to token sizes.
     batch_tokens: int | None = None
 
-    # A second cap of a packed batch: the total number of output tokens (the supervision tokens of cuts, the
-    # answer tokens of prompted examples), enforced besides batch_tokens. Packed sequence sampling only.
+    # A second cap of a packed batch: the total number of output tokens
+    # (the supervision tokens of cuts, the answer tokens of prompted examples), enforced besides batch_tokens.
+    # Packed sequence sampling only.
     batch_output_tokens: int | None = None
 
     # When specified, this value is inversely proportional to the penalty we assign
@@ -191,10 +192,14 @@ class MultimodalSamplingConstraint(SamplingConstraint):
         return self._internal.batch_tokens is not None and self._internal.current >= self._internal.batch_tokens
 
     def measure_output_length(self, example: Any) -> int:
-        """Count the output tokens of one example for the batch_output_tokens cap.
+        """Count the output tokens of one example for the ``batch_output_tokens`` cap.
 
-        A cut contributes the token counts of its supervisions (their ``tokens`` custom field), a prompt-formatted
-        example its answer length; examples without such tokens count zero.
+        Args:
+            example: a cut, whose supervisions contribute their ``tokens`` custom field,
+                or a prompt-formatted example, which contributes its answer length.
+
+        Returns:
+            The output token count; an example without such tokens counts zero.
         """
         if isinstance(example, Cut):
             return sum(len(s.tokens) for s in example.supervisions if s.has_custom("tokens"))
@@ -308,7 +313,7 @@ class PackedTokenConstraint(SamplingConstraint):
     def add(self, example: Any) -> None:
         self.current += self.budget_length(self.measure_length(example))
         if self.batch_output_tokens is not None:
-            self.current_output += int(getattr(example, "num_output_tokens", 0) or 0)
+            self.current_output += int(example.num_output_tokens)
         self.num_examples += 1
 
     def exceeded(self) -> bool:

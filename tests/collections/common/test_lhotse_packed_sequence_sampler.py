@@ -711,12 +711,15 @@ def test_packed_sequence_sampler_rejects_single_example_over_output_cap(tmp_path
 
 
 def test_fit_output_cap_drops_largest_then_backfills():
-    budgets, outputs = [5, 5, 3, 2], [6, 6, 1, 1]
-    caps = dict(budget_capacity=10, output_capacity=8)
+    # the anchor at index 0 leaves 10 budget and 8 output tokens for the tail
+    budgets, outputs = [4, 5, 5, 3, 2], [2, 6, 6, 1, 1]
+    caps = dict(batch_tokens=14, output_cap=10)
     # the later of two equally large outputs is dropped, then the small candidates fill both budgets
     assert _fit_output_cap([0, 1], budgets, outputs, max_items=None, **caps) == [0, 2, 3]
     assert _fit_output_cap([0, 1], budgets, outputs, max_items=2, **caps) == [0, 2]
-    assert _fit_output_cap([0], [5, 3], [4, 4], budget_capacity=10, output_capacity=20, max_items=None) == [0, 1]
+    assert _fit_output_cap([0], [4, 5, 3], [2, 4, 4], batch_tokens=14, output_cap=22, max_items=None) == [0, 1]
+    with pytest.raises(ValueError, match="exceed batch_output_tokens=5"):
+        _fit_output_cap([], [4], [6], batch_tokens=14, output_cap=5, max_items=None)
 
 
 def test_packed_token_constraint_tracks_output_tokens():

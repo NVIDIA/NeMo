@@ -86,21 +86,33 @@ def _select_best_fit_indices(lengths: Sequence[int], capacity: int, max_items: i
 
 
 def _fit_output_cap(
-    selected: Sequence[int],
+    tail: Sequence[int],
     budget_lengths: Sequence[int],
     output_lengths: Sequence[int],
     *,
-    budget_capacity: int,
-    output_capacity: int,
+    batch_tokens: int,
+    output_cap: int,
     max_items: int | None,
 ) -> list[int]:
-    """Keep a best-fit selection within a second, output-token cap.
+    """Keep the best-fit tail selection of a pool within the output-token cap.
 
-    The best fit is exact for the primary budget; the output cap is secondary: the selected items with the largest
-    output lengths are dropped until the cap holds, then the remaining candidates are backfilled first-fit under
-    both limits.
+    ``budget_lengths`` and ``output_lengths`` cover the whole pool with the anchor at index 0;
+    ``tail`` indexes the pool without the anchor, as ``_select_best_fit_indices`` returns it.
+    The best fit stays exact for ``batch_tokens``:
+    the selected items with the largest output lengths are dropped until the cap holds,
+    then the remaining candidates are backfilled first-fit under both limits.
+    The anchor is never dropped; an anchor above the cap raises.
     """
-    kept = list(selected)
+    if output_lengths[0] > output_cap:
+        raise ValueError(
+            f"An individual example's output tokens ({output_lengths[0]}) exceed batch_output_tokens={output_cap}; "
+            "filter it with max_tokens or raise the cap."
+        )
+    budget_capacity = batch_tokens - budget_lengths[0]
+    output_capacity = output_cap - output_lengths[0]
+    budget_lengths = budget_lengths[1:]
+    output_lengths = output_lengths[1:]
+    kept = list(tail)
     total_output = sum(output_lengths[index] for index in kept)
     while kept and total_output > output_capacity:
         # on ties the later candidate goes, so the selection keeps favoring earlier examples
@@ -244,17 +256,12 @@ class ExactTokenBatcher(DurationBatcher):
         output_cap = _output_cap(self.constraint)
         if output_cap is not None:
             output_lengths = [_measure_output_length(self.constraint, self._measured_example(ex)) for ex in pool]
-            if output_lengths[0] > output_cap:
-                raise ValueError(
-                    f"An individual example's output tokens ({output_lengths[0]}) exceed "
-                    f"batch_output_tokens={output_cap}; filter it with max_tokens or raise the cap."
-                )
             tail_indices = _fit_output_cap(
                 tail_indices,
-                budget_lengths[1:],
-                output_lengths[1:],
-                budget_capacity=batch_tokens - anchor_budget,
-                output_capacity=output_cap - output_lengths[0],
+                budget_lengths,
+                output_lengths,
+                batch_tokens=batch_tokens,
+                output_cap=output_cap,
                 max_items=remaining_items,
             )
         selected_indices = {0, *(index + 1 for index in tail_indices)}
@@ -396,17 +403,12 @@ class PackedSequenceDynamicBucketer(DynamicBucketer):
         output_cap = _output_cap(self.constraint)
         if output_cap is not None:
             output_lengths = [_measure_output_length(self.constraint, self._measured_example(ex)) for ex in candidates]
-            if output_lengths[0] > output_cap:
-                raise ValueError(
-                    f"An individual example's output tokens ({output_lengths[0]}) exceed "
-                    f"batch_output_tokens={output_cap}; filter it with max_tokens or raise the cap."
-                )
             tail_selection = _fit_output_cap(
                 tail_selection,
-                budget_lengths[1:],
-                output_lengths[1:],
-                budget_capacity=batch_tokens - budget_lengths[0],
-                output_capacity=output_cap - output_lengths[0],
+                budget_lengths,
+                output_lengths,
+                batch_tokens=batch_tokens,
+                output_cap=output_cap,
                 max_items=remaining_items,
             )
         selected_positions = [0, *(index + 1 for index in tail_selection)]
