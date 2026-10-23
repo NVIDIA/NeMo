@@ -201,81 +201,6 @@ def make_seq_mask_like(
     return mask
 
 
-class FeatureBatchNorm(nn.Module):
-    """Batch normalization of features over valid frames, without affine parameters.
-
-    A normalization block for ``FilterbankFeatures(normalize=...)``, which supplies ``num_features``.
-    Unlike ``torch.nn.BatchNorm1d``, frames beyond a sequence's length are excluded from the statistics.
-    Training normalizes with the mean and variance of the current batch's valid frames per feature
-    and moves the running statistics towards them by ``momentum``;
-    evaluation normalizes with the running statistics.
-    The variance is the biased estimate in both cases,
-    so the running variance is the quantity the normalization divides by.
-
-    Args:
-        num_features: Size of the feature axis D.
-        eps: Added to the variance before the square root.
-        momentum: Weight of the current batch in the update of the running statistics.
-    """
-
-    def __init__(self, num_features: int, eps: float = 1e-5, momentum: float = 0.1):
-        super().__init__()
-        self.num_features = num_features
-        self.eps = eps
-        self.momentum = momentum
-        self.register_buffer("running_mean", torch.zeros(num_features))
-        self.register_buffer("running_var", torch.ones(num_features))
-
-    def forward(self, x: torch.Tensor, seq_len: torch.Tensor) -> torch.Tensor:
-        """Normalize padded features.
-
-        Args:
-            x: Features with shape [B, D, T].
-            seq_len: Valid frames per sequence with shape [B]; later frames do not enter the statistics.
-
-        Returns:
-            Normalized features with shape [B, D, T] and the dtype of ``x``.
-        """
-        if not self.training:
-            return self._normalize(x, self.running_mean.unsqueeze(1), self.running_var.unsqueeze(1))
-        mask = make_seq_mask_like(seq_len, x)
-        values = x.float()
-        count = mask.sum()
-        mean = torch.where(mask, values, 0.0).sum(dim=(0, 2)) / count
-        centered = torch.where(mask, values - mean.unsqueeze(1), 0.0)
-        var = centered.square().sum(dim=(0, 2)) / count
-        self._update_running_statistics(mean, var, count > 0)
-        return self._normalize(x, mean.unsqueeze(1), var.unsqueeze(1))
-
-    def normalize_frames(self, frames: torch.Tensor) -> torch.Tensor:
-        """Normalize valid frames only, as the packed front end holds them.
-
-        Args:
-            frames: Features with shape [N, D], one row per valid frame of the batch.
-
-        Returns:
-            Normalized frames with shape [N, D] and the dtype of ``frames``.
-        """
-        if not self.training:
-            return self._normalize(frames, self.running_mean, self.running_var)
-        values = frames.float()
-        mean = values.mean(dim=0)
-        var = (values - mean).square().mean(dim=0)
-        valid = torch.full((), frames.shape[0] > 0, dtype=torch.bool, device=frames.device)
-        self._update_running_statistics(mean, var, valid)
-        return self._normalize(frames, mean, var)
-
-    def _normalize(self, x: torch.Tensor, mean: torch.Tensor, var: torch.Tensor) -> torch.Tensor:
-        return ((x.float() - mean) * torch.rsqrt(var + self.eps)).to(x.dtype)
-
-    @torch.no_grad()
-    def _update_running_statistics(self, mean: torch.Tensor, var: torch.Tensor, valid: torch.Tensor) -> None:
-        # A batch without valid frames has undefined statistics; the running values stay as they are then.
-        # No .item() here, so the update also runs under CUDA graph capture.
-        self.running_mean += torch.where(valid, (mean - self.running_mean) * self.momentum, 0.0)
-        self.running_var += torch.where(valid, (var - self.running_var) * self.momentum, 0.0)
-
-
 class WaveformFeaturizer(object):
     def __init__(self, sample_rate=16000, int_values=False, augmentor=None):
         self.augmentor = augmentor if augmentor is not None else AudioAugmentor()
@@ -781,6 +706,81 @@ class FilterbankFeatures(nn.Module):
             if pad_amt != 0:
                 x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
         return x, seq_len
+
+
+class FeatureBatchNorm(nn.Module):
+    """Batch normalization of features over valid frames, without affine parameters.
+
+    A normalization block for ``FilterbankFeatures(normalize=...)``, which supplies ``num_features``.
+    Unlike ``torch.nn.BatchNorm1d``, frames beyond a sequence's length are excluded from the statistics.
+    Training normalizes with the mean and variance of the current batch's valid frames per feature
+    and moves the running statistics towards them by ``momentum``;
+    evaluation normalizes with the running statistics.
+    The variance is the biased estimate in both cases,
+    so the running variance is the quantity the normalization divides by.
+
+    Args:
+        num_features: Size of the feature axis D.
+        eps: Added to the variance before the square root.
+        momentum: Weight of the current batch in the update of the running statistics.
+    """
+
+    def __init__(self, num_features: int, eps: float = 1e-5, momentum: float = 0.1):
+        super().__init__()
+        self.num_features = num_features
+        self.eps = eps
+        self.momentum = momentum
+        self.register_buffer("running_mean", torch.zeros(num_features))
+        self.register_buffer("running_var", torch.ones(num_features))
+
+    def forward(self, x: torch.Tensor, seq_len: torch.Tensor) -> torch.Tensor:
+        """Normalize padded features.
+
+        Args:
+            x: Features with shape [B, D, T].
+            seq_len: Valid frames per sequence with shape [B]; later frames do not enter the statistics.
+
+        Returns:
+            Normalized features with shape [B, D, T] and the dtype of ``x``.
+        """
+        if not self.training:
+            return self._normalize(x, self.running_mean.unsqueeze(1), self.running_var.unsqueeze(1))
+        mask = make_seq_mask_like(seq_len, x)
+        values = x.float()
+        count = mask.sum()
+        mean = torch.where(mask, values, 0.0).sum(dim=(0, 2)) / count
+        centered = torch.where(mask, values - mean.unsqueeze(1), 0.0)
+        var = centered.square().sum(dim=(0, 2)) / count
+        self._update_running_statistics(mean, var, count > 0)
+        return self._normalize(x, mean.unsqueeze(1), var.unsqueeze(1))
+
+    def normalize_frames(self, frames: torch.Tensor) -> torch.Tensor:
+        """Normalize valid frames only, as the packed front end holds them.
+
+        Args:
+            frames: Features with shape [N, D], one row per valid frame of the batch.
+
+        Returns:
+            Normalized frames with shape [N, D] and the dtype of ``frames``.
+        """
+        if not self.training:
+            return self._normalize(frames, self.running_mean, self.running_var)
+        values = frames.float()
+        mean = values.mean(dim=0)
+        var = (values - mean).square().mean(dim=0)
+        valid = torch.full((), frames.shape[0] > 0, dtype=torch.bool, device=frames.device)
+        self._update_running_statistics(mean, var, valid)
+        return self._normalize(frames, mean, var)
+
+    def _normalize(self, x: torch.Tensor, mean: torch.Tensor, var: torch.Tensor) -> torch.Tensor:
+        return ((x.float() - mean) * torch.rsqrt(var + self.eps)).to(x.dtype)
+
+    @torch.no_grad()
+    def _update_running_statistics(self, mean: torch.Tensor, var: torch.Tensor, valid: torch.Tensor) -> None:
+        # A batch without valid frames has undefined statistics; the running values stay as they are then.
+        # No .item() here, so the update also runs under CUDA graph capture.
+        self.running_mean += torch.where(valid, (mean - self.running_mean) * self.momentum, 0.0)
+        self.running_var += torch.where(valid, (var - self.running_var) * self.momentum, 0.0)
 
 
 def _validate_packed_waveforms(x, seq_len, cu_seqlens):
