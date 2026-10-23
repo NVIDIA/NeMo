@@ -12,12 +12,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import tempfile
+
+import onnx
 import pytest
 import torch
+from omegaconf import ListConfig
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.submodules import subsampling as subsampling_module
-from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, SubsamplingReductionModule
+from nemo.collections.asr.parts.submodules.subsampling import (
+    ConvSubsampling,
+    SubsamplingReductionModule,
+    _layer_padding,
+)
 
 
 class TestASRSubsamplingConvChunking:
@@ -216,3 +225,147 @@ class TestSubsamplingReductionModulePooling:
         assert out_lengths[0].item() == out.shape[1]
         expected = torch.div(lengths - reduction_factor, reduction_factor, rounding_mode='floor') + 1
         assert out_lengths.tolist() == expected.tolist()
+
+
+def _build_strided_conv_subsampling(**overrides):
+    """A tiny striding ConvSubsampling with per-stage time strides and a frequency pool."""
+    options = dict(
+        subsampling="striding",
+        subsampling_factor=6,
+        feat_in=8,
+        feat_out=16,
+        conv_channels=[2, 3, 3],
+        conv_strides=[1, 3, 2],
+        freq_pools=[2, 1, 1],
+        out_bias=False,
+    )
+    options.update(overrides)
+    return ConvSubsampling(**options).eval()
+
+
+class TestConvSubsamplingStrides:
+    @pytest.mark.unit
+    def test_lengths_shapes_and_padding_invariance(self):
+        torch.manual_seed(0)
+        module = _build_strided_conv_subsampling()
+        features = torch.randn(2, 50, 8)
+        lengths = torch.tensor([50, 31])
+        with torch.no_grad():
+            out, out_lengths = module(x=features, lengths=lengths)
+            alone, alone_lengths = module(x=features[1:, :31], lengths=lengths[1:])
+        # time strides 1, 3, 2 with kernel 3 and padding 1: ceil(ceil(T / 3) / 2)
+        assert out.shape == (2, 9, 16)
+        assert out_lengths.tolist() == [9, 6] and alone_lengths.tolist() == [6]
+        assert module.out.bias is None
+        # the frequency axis is halved once by the pool, so the projection sees 3 channels x 4 bins
+        assert module.out.weight.shape == (16, 12)
+        torch.testing.assert_close(out[1, :6], alone[0, :6], atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.unit
+    def test_channels_as_omegaconf_list(self):
+        module = _build_strided_conv_subsampling(conv_channels=ListConfig([2, 3, 3]), freq_pools=ListConfig([2, 1, 1]))
+        assert module.out.weight.shape == (16, 12)
+
+    @pytest.mark.unit
+    def test_validation(self):
+        with pytest.raises(ValueError, match="product of conv_strides"):
+            ConvSubsampling("striding", 4, 8, 16, [2, 2], conv_strides=[1, 3])
+        with pytest.raises(ValueError, match="only supported with subsampling='striding'"):
+            ConvSubsampling("dw_striding", 6, 8, 16, [2, 2, 2], conv_strides=[1, 3, 2])
+        with pytest.raises(ValueError, match="one entry per stride"):
+            ConvSubsampling("striding", 6, 8, 16, [2, 2], conv_strides=[1, 3, 2])
+        with pytest.raises(ValueError, match="needs conv_strides"):
+            ConvSubsampling("striding", 4, 8, 16, [2, 3])
+        with pytest.raises(ValueError, match="conv_strides must be positive integers"):
+            ConvSubsampling("striding", 6, 8, 16, 4, conv_strides=[-1, -3, 2])
+        with pytest.raises(ValueError, match="freq_pools must be positive integers"):
+            ConvSubsampling("striding", 6, 8, 16, 4, conv_strides=[1, 3, 2], freq_pools=[0, 1, 1])
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("batch_size", [4, 1])
+    def test_batch_chunking_matches_unchunked(self, batch_size):
+        torch.manual_seed(0)
+        module = _build_strided_conv_subsampling()
+        features = torch.randn(batch_size, 50, 8)
+        lengths = torch.tensor([50, 31, 50, 12][:batch_size])
+        with torch.no_grad():
+            reference, reference_lengths = module(x=features, lengths=lengths)
+            # a factor above 1 always splits by batch; a batch of one falls back to the unsplit convolution
+            module.change_subsampling_conv_chunking_factor(2)
+            out, out_lengths = module(x=features, lengths=lengths)
+        torch.testing.assert_close(out, reference, atol=1e-5, rtol=1e-5)
+        assert out_lengths.tolist() == reference_lengths.tolist()
+
+    @pytest.mark.unit
+    def test_export_to_onnx(self):
+        torch.manual_seed(0)
+        module = _build_strided_conv_subsampling()
+        features = torch.randn(2, 50, 8)
+        lengths = torch.tensor([50, 31])
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'subsampling.onnx')
+            torch.onnx.export(
+                module,
+                (features, lengths),
+                filename,
+                input_names=['features', 'lengths'],
+                output_names=['outputs', 'out_lengths'],
+                dynamic_axes={
+                    'features': {0: 'batch', 1: 'time'},
+                    'lengths': {0: 'batch'},
+                    'outputs': {0: 'batch', 1: 'time'},
+                    'out_lengths': {0: 'batch'},
+                },
+                opset_version=17,
+                dynamo=False,
+            )
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert [node.name for node in onnx_model.graph.input] == ['features', 'lengths']
+            try:
+                import onnxruntime
+            except ImportError:
+                return
+            session = onnxruntime.InferenceSession(filename, providers=['CPUExecutionProvider'])
+            outputs, out_lengths = session.run(None, {'features': features.numpy(), 'lengths': lengths.numpy()})
+        with torch.no_grad():
+            reference, reference_lengths = module(x=features, lengths=lengths)
+        torch.testing.assert_close(torch.from_numpy(outputs), reference, atol=1e-5, rtol=1e-5)
+        assert out_lengths.tolist() == reference_lengths.tolist()
+
+    @pytest.mark.unit
+    def test_production_configuration(self):
+        # 80 mel features, channels 32, 64, 64, time strides 1, 3, 2 and one frequency pool of 2
+        module = _build_strided_conv_subsampling(feat_in=80, feat_out=256, conv_channels=[32, 64, 64])
+        features = torch.randn(3, 101, 80)
+        lengths = torch.tensor([101, 67, 13])
+        with torch.no_grad():
+            out, out_lengths = module(x=features, lengths=lengths)
+        assert out.shape == (3, 17, 256) and out_lengths.tolist() == [17, 12, 3]
+        assert module.out.weight.shape == (256, 64 * 40)
+        # the 32-bit indexing guard counts the first convolution's output elements
+        assert module._first_conv_output_numel(features) == module.conv[0](features.unsqueeze(1)).numel()
+
+    @pytest.mark.unit
+    def test_defaults_unchanged(self):
+        module = ConvSubsampling("striding", 4, 8, 16, 4)
+        assert module.out.bias is not None and module.out.weight.shape == (16, 8)
+        features = torch.randn(1, 20, 8)
+        out, out_lengths = module(x=features, lengths=torch.tensor([20]))
+        assert out.shape == (1, 5, 16) and out_lengths.tolist() == [5]
+
+    @pytest.mark.unit
+    def test_reset_parameters_without_output_bias(self):
+        # reset_parameters re-initializes the dw_striding stages and the projection; no bias to draw without out_bias
+        module = ConvSubsampling("dw_striding", 4, 8, 16, 4, out_bias=False)
+        assert module.out.bias is None
+        module.reset_parameters()
+        with_bias = ConvSubsampling("dw_striding", 4, 8, 16, 4)
+        torch.nn.init.zeros_(with_bias.out.bias)
+        with_bias.reset_parameters()
+        assert with_bias.out.bias.abs().sum() > 0
+
+    @pytest.mark.unit
+    def test_layer_padding_of_pooling_layers(self):
+        assert _layer_padding(torch.nn.MaxPool2d(kernel_size=(1, 2), stride=(1, 2))) == (0, 0)
+        assert _layer_padding(torch.nn.Conv2d(1, 1, kernel_size=3, padding=1)) == (1, 1)
