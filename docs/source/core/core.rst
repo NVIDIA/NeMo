@@ -445,6 +445,38 @@ Optimizers
     name: rmsprop opt: <class 'torch.optim.rmsprop.RMSprop'>
     name: rprop opt: <class 'torch.optim.rprop.Rprop'>
     name: novograd opt: <class 'nemo.core.optim.novograd.Novograd'>
+    name: muon opt: <class 'nemo.core.optim.muon.Muon'>
+
+``muon`` (Muon with an AdamW fallback) decides per parameter by shape:
+a matrix below ``adam_dim_threshold`` in both dimensions takes the Muon update, every other parameter AdamW.
+The shape alone does not tell an embedding from a hidden matrix,
+so exclude small-vocabulary embeddings and tied output projections explicitly with ``use_muon`` on their parameter group,
+in Python or, for a model attribute, through ``optim_param_groups``:
+
+.. code-block:: python
+
+    from nemo.core.optim import Muon
+
+    optimizer = Muon(
+        [
+            {"params": hidden_matrices},
+            {"params": [model.embedding.weight], "use_muon": False, "weight_decay": 0.0},
+        ],
+        lr=0.02,
+        weight_decay=0.01,
+    )
+
+.. code-block:: yaml
+
+    model:
+        optim:
+            name: muon
+            lr: 0.02
+            weight_decay: 0.01
+        optim_param_groups:
+            embedding:
+                use_muon: false
+                weight_decay: 0.0
 
 Optimizer Params
 ~~~~~~~~~~~~~~~~
