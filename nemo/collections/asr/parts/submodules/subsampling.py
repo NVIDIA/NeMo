@@ -14,12 +14,19 @@
 # limitations under the License.
 
 import math
+from collections.abc import Sequence
 
 import torch
 import torch.nn as nn
 from torch.nn import LayerNorm
 
-from nemo.collections.asr.parts.packed_sequence import PackedEncoderActivations, _new_packed_encoder_activations
+from nemo.collections.asr.parts.packed_sequence import (
+    PackedEncoderActivations,
+    PackedSlotLayout,
+    _lengths_to_cu_seqlens,
+    _new_packed_encoder_activations,
+    packed_slot_layout,
+)
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D, CausalConv2D
 from nemo.core.utils.optional_libs import TRITON_AVAILABLE, triton_required
 from nemo.utils import logging
@@ -177,8 +184,15 @@ class ConvSubsampling(torch.nn.Module):
         1 (auto) or a power of 2. Default is 1
         feat_in (int): size of the input features
         feat_out (int): size of the output features
-        conv_channels (int): Number of channels for the convolution layers.
+        conv_channels (int or list[int]): Number of channels for the convolution layers, one value for all
+            stages or one per stage with conv_strides.
         activation (Module): activation function, default is nn.ReLU()
+        conv_strides (list[int], Optional): for "striding", the time stride of each 3x3 stage instead of
+            stride 2 on both axes; the frequency axis is then reduced only by freq_pools. The product of the
+            strides must equal subsampling_factor.
+        freq_pools (list[int], Optional): with conv_strides, a max-pool over the frequency axis after each
+            stage (1 for none).
+        out_bias (bool): bias of the output projection, default True.
     """
 
     def __init__(
@@ -192,16 +206,36 @@ class ConvSubsampling(torch.nn.Module):
         activation=nn.ReLU(),
         is_causal=False,
         use_triton: bool | None = None,
+        conv_strides: Sequence[int] | None = None,
+        freq_pools: Sequence[int] | None = None,
+        out_bias: bool = True,
     ):
         super(ConvSubsampling, self).__init__()
         self._subsampling = subsampling
-        self._conv_channels = conv_channels
+        # per-stage channel lists arrive as plain lists or as OmegaConf sequences from Hydra instantiation
+        channels_per_stage = isinstance(conv_channels, Sequence) and not isinstance(conv_channels, str)
+        self._conv_channels = max(conv_channels) if channels_per_stage else conv_channels
         self._feat_in = feat_in
         self._feat_out = feat_out
+        self._time_strides = list(conv_strides) if conv_strides is not None else None
+        self._freq_pools = list(freq_pools) if freq_pools is not None else None
 
-        if subsampling_factor % 2 != 0:
-            raise ValueError("Sampling factor should be a multiply of 2!")
-        self._sampling_num = int(math.log(subsampling_factor, 2))
+        if self._time_strides is not None:
+            if subsampling != 'striding':
+                raise ValueError("conv_strides is only supported with subsampling='striding'")
+            if is_causal:
+                raise ValueError("conv_strides is not supported with causal subsampling")
+            if math.prod(self._time_strides) != subsampling_factor:
+                raise ValueError(
+                    f"The product of conv_strides {self._time_strides} must equal subsampling_factor {subsampling_factor}"
+                )
+            self._sampling_num = len(self._time_strides)
+            if self._freq_pools is None:
+                self._freq_pools = [1] * self._sampling_num
+        else:
+            if subsampling_factor % 2 != 0:
+                raise ValueError("Sampling factor should be a multiply of 2!")
+            self._sampling_num = int(math.log(subsampling_factor, 2))
         self.subsampling_factor = subsampling_factor
         self.is_causal = is_causal
 
@@ -321,6 +355,31 @@ class ConvSubsampling(torch.nn.Module):
                 )
                 layers.append(activation)
                 in_channels = conv_channels
+
+        elif subsampling == 'striding' and self._time_strides is not None:
+            self._stride = max(self._time_strides)
+            self._kernel_size = 3
+            self._ceil_mode = False
+            self._left_padding = 1
+            self._right_padding = 1
+            self._max_cache_len = 0
+            channels = list(conv_channels) if channels_per_stage else [conv_channels] * self._sampling_num
+            if len(channels) != self._sampling_num or len(self._freq_pools) != self._sampling_num:
+                raise ValueError("conv_channels and freq_pools need one entry per stride")
+            for out_channels, stride, pool in zip(channels, self._time_strides, self._freq_pools):
+                layers.append(
+                    torch.nn.Conv2d(
+                        in_channels=in_channels,
+                        out_channels=out_channels,
+                        kernel_size=self._kernel_size,
+                        stride=(stride, 1),
+                        padding=self._left_padding,
+                    )
+                )
+                layers.append(activation)
+                if pool > 1:
+                    layers.append(torch.nn.MaxPool2d(kernel_size=(1, pool), stride=(1, pool)))
+                in_channels = out_channels
 
         elif subsampling == 'striding':
             self._stride = 2
@@ -463,7 +522,14 @@ class ConvSubsampling(torch.nn.Module):
         else:
             raise ValueError(f"Not valid sub-sampling: {subsampling}!")
 
-        if subsampling in ["vggnet", "dw_striding", "striding"]:
+        if subsampling == "striding" and self._time_strides is not None:
+            # the strided stages keep the frequency axis; only the pools reduce it
+            freq = feat_in
+            for pool in self._freq_pools:
+                freq //= pool
+            self.out = torch.nn.Linear(in_channels * freq, feat_out, bias=out_bias)
+            self.conv2d_subsampling = True
+        elif subsampling in ["vggnet", "dw_striding", "striding"]:
 
             in_length = torch.tensor(feat_in, dtype=torch.float)
             out_length = calc_length(
@@ -474,7 +540,7 @@ class ConvSubsampling(torch.nn.Module):
                 ceil_mode=self._ceil_mode,
                 repeat_num=self._sampling_num,
             )
-            self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
+            self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out, bias=out_bias)
             self.conv2d_subsampling = True
         elif subsampling in ["striding_conv1d", "dw_striding_conv1d"]:
             self.out = None
@@ -514,8 +580,20 @@ class ConvSubsampling(torch.nn.Module):
         out_f = calculate_conv_output_size(f, self._kernel_size, self._stride, pad)
         return b * self._conv_channels * out_t * out_f
 
-    def forward(self, x, lengths):
-        out_lengths = calc_length(
+    def output_lengths(self, lengths: torch.Tensor) -> torch.Tensor:
+        """The number of output frames for every input length."""
+        if self._time_strides is not None:
+            out_lengths = lengths
+            for stride in self._time_strides:
+                out_lengths = calc_length(
+                    out_lengths,
+                    all_paddings=self._left_padding + self._right_padding,
+                    kernel_size=self._kernel_size,
+                    stride=stride,
+                    ceil_mode=self._ceil_mode,
+                )
+            return out_lengths
+        return calc_length(
             lengths,
             all_paddings=self._left_padding + self._right_padding,
             kernel_size=self._kernel_size,
@@ -523,6 +601,131 @@ class ConvSubsampling(torch.nn.Module):
             ceil_mode=self._ceil_mode,
             repeat_num=self._sampling_num,
         )
+
+    def forward_packed(self, packed: PackedEncoderActivations) -> PackedEncoderActivations:
+        """Subsample token-flat features to token-flat outputs.
+
+        The utterances are laid out on one gapped time axis (``PackedSlotLayout``):
+        every slot starts at a multiple of the subsampling factor
+        and keeps at least one empty frame after the utterance at every stage,
+        and the frames outside the utterances are zeroed before every layer as the padded forward masks them.
+        The strided convolutions therefore keep their stride phase per utterance and read zeros beyond it,
+        and the result equals ``forward`` on the padded batch at the valid frames.
+        Only the two-dimensional, non-causal convolution stacks are supported.
+
+        Args:
+            packed: features of all utterances, data of shape ``(sum(T_i), feat_in)``.
+
+        Returns:
+            The subsampled features, data of shape ``(sum(T'_i), feat_out)``.
+        """
+        if not self.conv2d_subsampling:
+            raise NotImplementedError(f"subsampling={self._subsampling!r} has no sequence-packed form.")
+        if self.is_causal:
+            raise NotImplementedError("Causal subsampling has no sequence-packed form.")
+        if packed.data.shape[1] != self._feat_in:
+            raise ValueError(f"Packed features must have width {self._feat_in}, got {packed.data.shape[1]}.")
+        layout = packed_slot_layout(packed, alignment=self.subsampling_factor, gap=self.subsampling_factor)
+        outputs = []
+        lengths = []
+        for first, last in self._packed_sequence_groups(layout):
+            group_slots = int((layout.slot_offsets[last - 1] + layout.slot_lengths[last - 1]).item()) - int(
+                layout.slot_offsets[first].item()
+            )
+            start, end = int(packed.cu_seqlens[first].item()), int(packed.cu_seqlens[last].item())
+            data, out_lengths = self._forward_packed_group(
+                packed.data[start:end],
+                packed.lengths[first:last],
+                layout.slot_offsets[first:last] - layout.slot_offsets[first],
+                layout.token_slots[start:end] - layout.slot_offsets[first],
+                group_slots,
+            )
+            outputs.append(data)
+            lengths.append(out_lengths)
+        out_lengths = torch.cat(lengths).to(torch.int64)
+        max_seqlen = int(out_lengths.max().item()) if out_lengths.numel() else 0
+        return _new_packed_encoder_activations(
+            torch.cat(outputs), out_lengths, _lengths_to_cu_seqlens(out_lengths), max_seqlen
+        )
+
+    def _packed_sequence_groups(self, layout: PackedSlotLayout) -> list[tuple[int, int]]:
+        """Split the utterances into groups whose convolution activations stay below the indexing limit.
+
+        The padded forward splits the batch for the same reason (``subsampling_conv_chunking_factor``);
+        here a group is a run of utterances, and a group boundary is exact because the slots are independent.
+        """
+        batch_size = layout.slot_lengths.numel()
+        if batch_size == 0:
+            return []
+        if self.subsampling_conv_chunking_factor == -1:
+            return [(0, batch_size)]
+        if self.subsampling_conv_chunking_factor > 1:
+            group_count = min(self.subsampling_conv_chunking_factor, batch_size)
+            bounds = [round(index * batch_size / group_count) for index in range(group_count + 1)]
+            return [
+                (bounds[index], bounds[index + 1]) for index in range(group_count) if bounds[index + 1] > bounds[index]
+            ]
+        # the widest activation of the stack must stay indexable, see https://github.com/pytorch/pytorch/issues/80020
+        channels = max(layer.out_channels for layer in self.conv if isinstance(layer, nn.Conv2d))
+        slot_limit = max(1, (2**31 - 1) // (channels * self._feat_in))
+        if layout.total_slots <= slot_limit:
+            return [(0, batch_size)]
+        groups = []
+        first = 0
+        slot_lengths = layout.slot_lengths.tolist()
+        current = 0
+        for index, slots in enumerate(slot_lengths):
+            if current and current + slots > slot_limit:
+                groups.append((first, index))
+                first, current = index, 0
+            current += slots
+        groups.append((first, batch_size))
+        return groups
+
+    def _forward_packed_group(
+        self,
+        data: torch.Tensor,
+        lengths: torch.Tensor,
+        slot_offsets: torch.Tensor,
+        token_slots: torch.Tensor,
+        total_slots: int,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """The convolution stack over one gapped time axis; returns the valid output frames and their lengths."""
+        x = data.new_zeros((total_slots, data.shape[1])).index_copy(0, token_slots, data)
+        x = x.view(1, 1, total_slots, -1)
+        current_lengths = lengths.to(torch.int64)
+        current_offsets = slot_offsets
+        for layer in self.conv:
+            x = x * self._packed_stage_mask(x, current_offsets, current_lengths)
+            x = layer(x)
+            if hasattr(layer, 'stride') and layer.stride != (1, 1):
+                current_lengths = calculate_conv_output_size(
+                    current_lengths, layer.kernel_size[0], layer.stride[0], _layer_padding(layer)
+                )
+                current_offsets = torch.div(current_offsets, layer.stride[0], rounding_mode='floor')
+        x = x * self._packed_stage_mask(x, current_offsets, current_lengths)
+
+        total_out = int(current_lengths.sum().item())
+        out_sequence_ids = torch.repeat_interleave(
+            torch.arange(current_lengths.numel(), device=x.device), current_lengths, output_size=total_out
+        )
+        out_starts = torch.cumsum(current_lengths, dim=0) - current_lengths
+        out_positions = torch.arange(total_out, device=x.device) - out_starts[out_sequence_ids]
+        out_slots = current_offsets[out_sequence_ids] + out_positions
+        # the padded forward flattens channels before frequency bins
+        x = x.squeeze(0).permute(1, 0, 2).reshape(x.shape[2], -1).index_select(0, out_slots)
+        return self.out(x), current_lengths
+
+    @staticmethod
+    def _packed_stage_mask(x: torch.Tensor, slot_offsets: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        """One for the slots inside an utterance's valid frames at this stage, zero elsewhere; shape (1, 1, S, 1)."""
+        positions = torch.arange(x.shape[2], device=x.device)
+        sequence_ids = torch.bucketize(positions, slot_offsets[1:], right=True)
+        valid = positions - slot_offsets[sequence_ids] < lengths[sequence_ids]
+        return valid.to(x.dtype).view(1, 1, -1, 1)
+
+    def forward(self, x, lengths):
+        out_lengths = self.output_lengths(lengths)
 
         # Transpose to Channel First mode
         if not self.conv2d_subsampling:
@@ -902,6 +1105,8 @@ def _layer_padding(layer):
     """
     if hasattr(layer, "_left_padding"):
         return layer._left_padding, layer._right_padding
+    if isinstance(layer.padding, int):  # pooling layers keep one value for both axes
+        return layer.padding, layer.padding
     return layer.padding[0], layer.padding[0]
 
 

@@ -14,10 +14,16 @@
 # limitations under the License.
 import pytest
 import torch
+from omegaconf import ListConfig
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.parts.packed_sequence import pack_encoder_output
 from nemo.collections.asr.parts.submodules import subsampling as subsampling_module
-from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, SubsamplingReductionModule
+from nemo.collections.asr.parts.submodules.subsampling import (
+    ConvSubsampling,
+    SubsamplingReductionModule,
+    _layer_padding,
+)
 
 
 class TestASRSubsamplingConvChunking:
@@ -216,3 +222,138 @@ class TestSubsamplingReductionModulePooling:
         assert out_lengths[0].item() == out.shape[1]
         expected = torch.div(lengths - reduction_factor, reduction_factor, rounding_mode='floor') + 1
         assert out_lengths.tolist() == expected.tolist()
+
+
+def _build_strided_conv_subsampling(**overrides):
+    """A tiny striding ConvSubsampling with per-stage time strides and a frequency pool."""
+    options = dict(
+        subsampling="striding",
+        subsampling_factor=6,
+        feat_in=8,
+        feat_out=16,
+        conv_channels=[2, 3, 3],
+        conv_strides=[1, 3, 2],
+        freq_pools=[2, 1, 1],
+        out_bias=False,
+    )
+    options.update(overrides)
+    return ConvSubsampling(**options).eval()
+
+
+class TestConvSubsamplingStrides:
+    @pytest.mark.unit
+    def test_lengths_shapes_and_padding_invariance(self):
+        torch.manual_seed(0)
+        module = _build_strided_conv_subsampling()
+        features = torch.randn(2, 50, 8)
+        lengths = torch.tensor([50, 31])
+        with torch.no_grad():
+            out, out_lengths = module(x=features, lengths=lengths)
+            alone, alone_lengths = module(x=features[1:, :31], lengths=lengths[1:])
+        # time strides 1, 3, 2 with kernel 3 and padding 1: ceil(ceil(T / 3) / 2)
+        assert out.shape == (2, 9, 16)
+        assert out_lengths.tolist() == [9, 6] and alone_lengths.tolist() == [6]
+        assert module.out.bias is None
+        # the frequency axis is halved once by the pool, so the projection sees 3 channels x 4 bins
+        assert module.out.weight.shape == (16, 12)
+        torch.testing.assert_close(out[1, :6], alone[0, :6], atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.unit
+    def test_channels_as_omegaconf_list(self):
+        module = _build_strided_conv_subsampling(conv_channels=ListConfig([2, 3, 3]), freq_pools=ListConfig([2, 1, 1]))
+        assert module.out.weight.shape == (16, 12)
+
+    @pytest.mark.unit
+    def test_validation(self):
+        with pytest.raises(ValueError, match="product of conv_strides"):
+            ConvSubsampling("striding", 4, 8, 16, [2, 2], conv_strides=[1, 3])
+        with pytest.raises(ValueError, match="only supported with subsampling='striding'"):
+            ConvSubsampling("dw_striding", 6, 8, 16, [2, 2, 2], conv_strides=[1, 3, 2])
+        with pytest.raises(ValueError, match="one entry per stride"):
+            ConvSubsampling("striding", 6, 8, 16, [2, 2], conv_strides=[1, 3, 2])
+
+    @pytest.mark.unit
+    def test_defaults_unchanged(self):
+        module = ConvSubsampling("striding", 4, 8, 16, 4)
+        assert module.out.bias is not None and module.out.weight.shape == (16, 8)
+        features = torch.randn(1, 20, 8)
+        out, out_lengths = module(x=features, lengths=torch.tensor([20]))
+        assert out.shape == (1, 5, 16) and out_lengths.tolist() == [5]
+
+    @pytest.mark.unit
+    def test_layer_padding_of_pooling_layers(self):
+        assert _layer_padding(torch.nn.MaxPool2d(kernel_size=(1, 2), stride=(1, 2))) == (0, 0)
+        assert _layer_padding(torch.nn.Conv2d(1, 1, kernel_size=3, padding=1)) == (1, 1)
+
+
+def _valid_frames(padded, lengths):
+    """Rows of a padded (B, T, D) batch inside the lengths, in packing order."""
+    mask = torch.arange(padded.shape[1], device=padded.device)[None, :] < lengths[:, None]
+    return padded[mask]
+
+
+def _strided_subsampling():
+    return ConvSubsampling(
+        subsampling="striding",
+        subsampling_factor=6,
+        feat_in=8,
+        feat_out=12,
+        conv_channels=[2, 3, 3],
+        conv_strides=[1, 3, 2],
+        freq_pools=[2, 1, 1],
+        out_bias=False,
+    )
+
+
+def _packed_test_features(lengths, feat_in=8):
+    torch.manual_seed(0)
+    return torch.randn(len(lengths), int(max(lengths)), feat_in, dtype=torch.float64)
+
+
+class TestPackedConvSubsampling:
+    """forward_packed against forward at the valid frames: outputs, lengths and gradients."""
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "module",
+        [
+            _strided_subsampling,
+            lambda: ConvSubsampling("striding", 4, 8, 12, 4),
+            lambda: ConvSubsampling("dw_striding", 8, 8, 12, 4),
+        ],
+        ids=["strides_1_3_2_pool", "striding_4", "dw_striding_8"],
+    )
+    def test_matches_padded_outputs_lengths_and_gradients(self, module):
+        module = module().double()
+        lengths = torch.tensor([37, 1, 12, 36, 6])
+        features = _packed_test_features(lengths).requires_grad_()
+        padded_out, padded_lengths = module(x=features, lengths=lengths)
+        packed_features = features.detach().clone().requires_grad_()
+        packed_out = module.forward_packed(pack_encoder_output(packed_features, lengths))
+
+        assert packed_out.lengths.tolist() == padded_lengths.tolist()
+        assert packed_out.data.shape == (int(padded_lengths.sum()), 12)
+        torch.testing.assert_close(packed_out.data, _valid_frames(padded_out, padded_lengths))
+
+        _valid_frames(padded_out, padded_lengths).square().sum().backward()
+        packed_out.data.square().sum().backward()
+        torch.testing.assert_close(_valid_frames(packed_features.grad, lengths), _valid_frames(features.grad, lengths))
+
+    @pytest.mark.unit
+    def test_sequence_groups_match_one_group(self):
+        module = _strided_subsampling().double()
+        lengths = torch.tensor([37, 1, 12, 36, 6])
+        packed = pack_encoder_output(_packed_test_features(lengths), lengths)
+        whole = module.forward_packed(packed)
+        module.subsampling_conv_chunking_factor = 2
+        grouped = module.forward_packed(packed)
+        torch.testing.assert_close(grouped.data, whole.data)
+        assert grouped.lengths.tolist() == whole.lengths.tolist()
+
+    @pytest.mark.unit
+    def test_rejects_unsupported_stacks(self):
+        packed = pack_encoder_output(torch.randn(1, 10, 8), torch.tensor([10]))
+        with pytest.raises(NotImplementedError):
+            ConvSubsampling("striding_conv1d", 4, 8, 12, 4).forward_packed(packed)
+        with pytest.raises(NotImplementedError):
+            ConvSubsampling("striding", 4, 8, 12, 4, is_causal=True).forward_packed(packed)
