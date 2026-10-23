@@ -15,6 +15,7 @@
 # pylint: disable=missing-function-docstring,missing-class-docstring
 
 import functools
+import inspect
 import logging
 import math
 import os
@@ -62,31 +63,64 @@ def build_module(block: ModuleBlock, **defaults: Any) -> nn.Module:
             (what Hydra creates for a config section with ``_target_`` and ``_partial_: true``),
             or such a config section itself, resolved through ``safe_instantiate``.
         defaults: the arguments the parent supplies, such as sizes and dropout rates;
-            arguments bound in the partial or the section take precedence,
+            arguments bound in the partial or the section take precedence, by keyword or by position,
             so a section only names what deviates from the parent's defaults.
 
     Returns:
         The instantiated module.
     """
     if isinstance(block, Mapping):
-        # imported here: nemo.core.classes.common imports this module
-        from nemo.core.classes.common import safe_instantiate
-
-        section = dict(block)
-        section.setdefault('_partial_', True)
-        block = safe_instantiate(DictConfig(section))
+        block = _section_partial(block)
     if isinstance(block, functools.partial):
-        return block.func(*block.args, **{**defaults, **block.keywords})
+        positional = _positional_names(block)
+        keywords = {name: value for name, value in defaults.items() if name not in positional}
+        keywords.update(block.keywords)
+        return block.func(*block.args, **keywords)
     return block(**defaults)
 
 
 def block_binds(block: ModuleBlock | None, name: str) -> bool:
-    """Whether a block section or partial fixes the argument ``name`` itself."""
-    if isinstance(block, functools.partial):
-        return name in block.keywords
+    """Whether a block section or partial fixes the argument ``name`` itself, by keyword or by position."""
     if isinstance(block, Mapping):
-        return name in block
+        if '_args_' not in block:
+            return name in block
+        block = _section_partial(block)
+    if isinstance(block, functools.partial):
+        return name in block.keywords or name in _positional_names(block)
     return False
+
+
+def _section_partial(section: Mapping) -> functools.partial:
+    """The partial of a config section with ``_target_``, resolved through ``safe_instantiate``.
+
+    An existing ``DictConfig`` is passed on as it is, so interpolations inside it still resolve against its root;
+    a plain mapping becomes one.
+    ``_partial_`` defaults to true without being written into the caller's section.
+    """
+    # imported here: nemo.core.classes.common imports this module
+    from nemo.core.classes.common import safe_instantiate
+
+    config = section if isinstance(section, DictConfig) else DictConfig(dict(section))
+    return safe_instantiate(config, _partial_=config.get('_partial_', True))
+
+
+def _positional_names(block: functools.partial) -> frozenset[str]:
+    """The parameter names a partial's positional arguments occupy.
+
+    Arguments taken by a variadic ``*args`` occupy no name.
+    For a target without an inspectable signature the result is empty:
+    the positional arguments pass through unchanged and the parent's defaults all stay.
+    """
+    if not block.args:
+        return frozenset()
+    try:
+        signature = inspect.signature(block.func)
+        bound = signature.bind_partial(*block.args)
+    except (TypeError, ValueError):
+        return frozenset()
+    return frozenset(
+        name for name in bound.arguments if signature.parameters[name].kind is not inspect.Parameter.VAR_POSITIONAL
+    )
 
 
 def if_exist(outfold: str, files: List[str]):
