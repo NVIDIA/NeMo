@@ -2834,9 +2834,36 @@ def _assert_states_match(states, ref_states):
         assert torch.equal(got_lengths, ref_lengths), name
         for i, n in enumerate(ref_lengths.tolist()):
             got, ref = getattr(states, name)[i], getattr(ref_states, name)[i]
+            # Batch shapes can change FP32 results across a BF16/FP16 rounding boundary.
+            # Allow one storage-precision epsilon, keeping FP32 states and boolean labels strict.
+            rtol = torch.finfo(got.dtype).eps if got.dtype in (torch.bfloat16, torch.float16) else 1e-5
             torch.testing.assert_close(
-                got.narrow(time_axis - 1, 0, n), ref.narrow(time_axis - 1, 0, n), rtol=1e-5, atol=2e-5, msg=name
+                got.narrow(time_axis - 1, 0, n), ref.narrow(time_axis - 1, 0, n), rtol=rtol, atol=2e-5, msg=name
             )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "dtype,delta,matches",
+    [(torch.bfloat16, 1 / 256, True), (torch.bfloat16, 1 / 32, False), (torch.float32, 1 / 256, False)],
+)
+def test_timestamp_state_comparison_respects_storage_precision(dtype, delta, matches):
+    def states(value):
+        return CTCTimestampInputs(
+            asr_encoded=torch.full((1, 1, 1), value, dtype=dtype),
+            asr_encoded_lengths=torch.tensor([1]),
+            sortformer_sigmoids=torch.zeros(1, 1, 1),
+            sortformer_lengths=torch.tensor([1]),
+            diarization_labels=torch.zeros(1, 1, 1, dtype=torch.bool),
+            diarization_lengths=torch.tensor([1]),
+        )
+
+    # Adjacent BF16 values can straddle a rounding boundary after an FP32 batch-shape change.
+    if matches:
+        _assert_states_match(states(0.75), states(0.75 + delta))
+    else:
+        with pytest.raises(AssertionError, match="asr_encoded"):
+            _assert_states_match(states(0.75), states(0.75 + delta))
 
 
 @pytest.mark.unit
