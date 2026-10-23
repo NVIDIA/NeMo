@@ -62,9 +62,10 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
         return_xattn_scores: Bool flag which indicates whether to keep and return the cross-attention scores
             during greedy/beam search decoding. When set to true, the results will contain additional List of tensors.
         use_kv_cache: decode over the decoder's bounded key-value cache (``TransformerDecoder.create_kv_cache``)
-            instead of recomputing the attention over the cached layer inputs; the encoder projections are
-            computed once per batch. The hypotheses are the same. Requires encoder states and a decoder that
-            accepts ``kv_cache``.
+            instead of recomputing the attention over the cached layer inputs;
+            the encoder projections are computed once per batch.
+            The hypotheses are the same.
+            Requires encoder states and a decoder that accepts ``kv_cache``.
         confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-step
             confidence scores.
             name: The method name (str).
@@ -111,7 +112,7 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
         preserve_step_confidence=False,
         return_xattn_scores=False,
         confidence_method_cfg: Optional[DictConfig] = None,
-        use_kv_cache=False,
+        use_kv_cache: bool = False,
     ):
         super().__init__()
         self.embedding = embedding
@@ -151,8 +152,9 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
                 mode (e.g., language modeling)
             encoder_input_mask: input mask used in the encoder
             decoder_mems_list: list of size num_layers with cached activations
-                of sequence (x[1], ..., x[k-1]) for fast generation of x[k]; with ``use_kv_cache`` the
-                decoder's key-value cache, created here for the maximum sequence length when None
+                of sequence (x[1], ..., x[k-1]) for fast generation of x[k];
+                with ``use_kv_cache`` the decoder's key-value cache,
+                created here for the maximum sequence length when None
             pos: starting position in positional encoding (can be a tensor for asynchronius decoding)
         """
 
@@ -160,7 +162,8 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
         decoder_input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
 
         if self.use_kv_cache:
-            # the memory slot holds the key-value cache; _forward creates it with the capacity of the search
+            # the memory slot holds the key-value cache;
+            # _forward creates it with the capacity of the search
             if decoder_mems_list is None:
                 decoder_mems_list = self.decoder.create_kv_cache(
                     encoder_hidden_states, encoder_input_mask, capacity=self.max_seq_length
