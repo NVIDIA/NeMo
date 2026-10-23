@@ -404,7 +404,9 @@ class TestBuildModule:
         )
         assert build_module(cfg.block).normalized_shape == (4,)
         assert "_partial_" not in cfg.block
-        scalar = OmegaConf.create({"width": 4, "block": {"_target_": "torch.nn.LayerNorm", "normalized_shape": "${width}"}})
+        scalar = OmegaConf.create(
+            {"width": 4, "block": {"_target_": "torch.nn.LayerNorm", "normalized_shape": "${width}"}}
+        )
         assert build_module(scalar.block).normalized_shape == (4,)
 
     @pytest.mark.unit
