@@ -13,14 +13,16 @@
 # limitations under the License.
 
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
-from lhotse import CutSet
+from lhotse import CutSet, SupervisionSegment
 from lhotse.dataset import DynamicBucketingSampler, DynamicCutSampler
 from lhotse.dataset.iterable_dataset import IdentityDataset, IterableDatasetWrapper
 from lhotse.indexing import create_jsonl_index
 from lhotse.lazy import LazyIndexedManifestIterator
 from lhotse.testing.dummies import dummy_cut
+from lhotse.utils import fastcopy
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse.audio_token_estimator import AudioTokenEstimator
@@ -32,13 +34,30 @@ from nemo.collections.common.data.lhotse.dataloader import (
 from nemo.collections.common.data.lhotse.packed_sequence_sampler import (
     PackedSequenceDynamicBucketingSampler,
     PackedSequenceDynamicCutSampler,
+    _fit_output_cap,
     _select_best_fit_indices,
 )
-from nemo.collections.common.data.lhotse.sampling import MultimodalSamplingConstraint
+from nemo.collections.common.data.lhotse.sampling import MultimodalSamplingConstraint, PackedTokenConstraint
 
 
 def _make_cuts(durations=(7.0, 4.0, 6.0, 3.0)):
     return CutSet.from_cuts(dummy_cut(index, duration=duration) for index, duration in enumerate(durations))
+
+
+def _make_cuts_with_tokens(durations, token_counts):
+    """Cuts whose single supervision carries ``token_counts[i]`` tokens in its ``tokens`` custom field."""
+    cuts = []
+    for index, (duration, count) in enumerate(zip(durations, token_counts)):
+        cut = dummy_cut(index, duration=duration)
+        supervision = SupervisionSegment(
+            id=f"sup-{index}",
+            recording_id=cut.recording_id,
+            start=0.0,
+            duration=duration,
+            custom={"tokens": list(range(count))},
+        )
+        cuts.append(fastcopy(cut, supervisions=[supervision]))
+    return CutSet.from_cuts(cuts)
 
 
 def _make_sampler(
@@ -47,6 +66,7 @@ def _make_sampler(
     batch_size=None,
     quadratic_factor=None,
     packing_buffer_size=4,
+    batch_output_tokens=None,
 ):
     return PackedSequenceDynamicCutSampler(
         *cuts,
@@ -65,6 +85,7 @@ def _make_sampler(
             ),
             batch_size=batch_size,
             batch_tokens=batch_tokens,
+            batch_output_tokens=batch_output_tokens,
             quadratic_factor=quadratic_factor,
             measure_total_length=False,
             use_packed_sequence_sampling=True,
@@ -90,6 +111,7 @@ def _make_bucketed_sampler(
     duration_bins=(100,),
     bucket_batch_size=None,
     concurrent=False,
+    batch_output_tokens=None,
 ):
     return PackedSequenceDynamicBucketingSampler(
         *cuts,
@@ -108,6 +130,7 @@ def _make_bucketed_sampler(
             ),
             batch_size=batch_size,
             batch_tokens=batch_tokens,
+            batch_output_tokens=batch_output_tokens,
             quadratic_factor=quadratic_factor,
             measure_total_length=False,
             use_packed_sequence_sampling=True,
@@ -631,6 +654,117 @@ def test_packed_sequence_sampler_backfills_and_enforces_exact_token_cap(tmp_path
     ]
     assert [sum(cut.num_tokens for cut in batch) for batch in batches] == [10, 10]
     assert all(sum(cut.num_tokens for cut in batch) <= 10 for batch in batches)
+
+
+def test_packed_sequence_sampler_enforces_output_token_cap(tmp_path):
+    cuts_path = tmp_path / "cuts.jsonl"
+    _make_cuts_with_tokens((7.0, 4.0, 6.0, 3.0), (8, 2, 2, 2)).to_file(cuts_path)
+
+    # the best fit on the audio budget pairs the anchor with the last cut, which the output cap forbids
+    batches = list(_make_sampler(CutSet.from_jsonl_lazy(cuts_path), batch_output_tokens=9))
+    assert _batch_ids(batches) == [
+        ["dummy-mono-cut-0000"],
+        ["dummy-mono-cut-0001", "dummy-mono-cut-0002"],
+        ["dummy-mono-cut-0003"],
+    ]
+    assert all(sum(cut.num_output_tokens for cut in batch) <= 9 for batch in batches)
+    assert all(sum(cut.num_tokens for cut in batch) <= 10 for batch in batches)
+
+    without_cap = list(_make_sampler(CutSet.from_jsonl_lazy(cuts_path)))
+    assert _batch_ids(without_cap)[0] == ["dummy-mono-cut-0000", "dummy-mono-cut-0003"]
+
+
+def test_packed_sequence_sampler_backfills_within_output_cap(tmp_path):
+    cuts_path = tmp_path / "cuts.jsonl"
+    _make_cuts_with_tokens((5.0, 5.0, 3.0, 2.0), (6, 6, 1, 1)).to_file(cuts_path)
+
+    batches = list(_make_sampler(CutSet.from_jsonl_lazy(cuts_path), batch_output_tokens=8))
+
+    # the exact fit [0, 1] has 12 output tokens; cut 1 is dropped and the two small cuts fill both budgets exactly
+    assert _batch_ids(batches) == [
+        ["dummy-mono-cut-0000", "dummy-mono-cut-0002", "dummy-mono-cut-0003"],
+        ["dummy-mono-cut-0001"],
+    ]
+    assert [sum(cut.num_tokens for cut in batch) for batch in batches] == [10, 5]
+    assert [sum(cut.num_output_tokens for cut in batch) for batch in batches] == [8, 6]
+
+
+def test_bucketed_packed_sampler_enforces_output_token_cap(tmp_path):
+    cuts_path = tmp_path / "cuts.jsonl"
+    _make_cuts_with_tokens((7.0, 4.0, 6.0, 3.0), (8, 2, 2, 2)).to_file(cuts_path)
+
+    batches = _drain(iter(_make_bucketed_sampler(CutSet.from_jsonl_lazy(cuts_path), batch_output_tokens=9)))
+
+    assert _batch_ids(batches) == [
+        ["dummy-mono-cut-0000"],
+        ["dummy-mono-cut-0001", "dummy-mono-cut-0002"],
+        ["dummy-mono-cut-0003"],
+    ]
+
+
+def test_packed_sequence_sampler_rejects_single_example_over_output_cap(tmp_path):
+    cuts_path = tmp_path / "cuts.jsonl"
+    _make_cuts_with_tokens((4.0, 4.0), (12, 2)).to_file(cuts_path)
+
+    with pytest.raises(ValueError, match="output tokens.*exceed batch_output_tokens=10"):
+        list(_make_sampler(CutSet.from_jsonl_lazy(cuts_path), batch_output_tokens=10))
+
+
+def test_fit_output_cap_drops_largest_then_backfills():
+    budgets, outputs = [5, 5, 3, 2], [6, 6, 1, 1]
+    caps = dict(budget_capacity=10, output_capacity=8)
+    # the later of two equally large outputs is dropped, then the small candidates fill both budgets
+    assert _fit_output_cap([0, 1], budgets, outputs, max_items=None, **caps) == [0, 2, 3]
+    assert _fit_output_cap([0, 1], budgets, outputs, max_items=2, **caps) == [0, 2]
+    assert _fit_output_cap([0], [5, 3], [4, 4], budget_capacity=10, output_capacity=20, max_items=None) == [0, 1]
+
+
+def test_packed_token_constraint_tracks_output_tokens():
+    constraint = PackedTokenConstraint(batch_tokens=100, batch_output_tokens=10)
+    example = SimpleNamespace(num_tokens=5, num_output_tokens=6)
+    constraint.add(example)
+    assert not constraint.exceeded() and constraint.close_to_exceeding()
+    constraint.add(example)
+    assert constraint.exceeded()
+    constraint.reset()
+    assert constraint.current_output == 0 and not constraint.exceeded()
+    with pytest.raises(ValueError, match="batch_output_tokens"):
+        PackedTokenConstraint(batch_tokens=100, batch_output_tokens=0)
+    with pytest.raises(ValueError, match="requires use_packed_sequence_sampling"):
+        MultimodalSamplingConstraint(token_equivalent_duration=1.0, batch_tokens=10, batch_output_tokens=5)
+
+
+def test_packed_sequence_config_accepts_output_token_cap(tmp_path):
+    cuts_path = tmp_path / "cuts.jsonl"
+    _make_cuts().to_file(cuts_path)
+    config = make_structured_with_schema_warnings(
+        OmegaConf.create(
+            {
+                "cuts_path": str(cuts_path),
+                "force_finite": True,
+                "shuffle": False,
+                "num_workers": 0,
+                "use_multimodal_sampling": True,
+                "pretokenize": False,
+                "batch_tokens": 10,
+                "batch_output_tokens": 20,
+                "token_equivalent_duration": 1.0,
+                "audio_token_estimator": {
+                    "preprocessor": {"n_fft": 16000, "hop_length": 16000, "stft_pad_amount": 8000},
+                    "subsampling": [],
+                },
+                "use_packed_sequence_sampling": True,
+                "measure_total_length": False,
+                "seed": 0,
+                "shard_seed": 0,
+            }
+        )
+    )
+
+    sampler, _ = get_lhotse_sampler_from_config(config, global_rank=0, world_size=1, tokenizer=object())
+
+    assert sampler.constraint.batch_output_tokens == 20
+    assert sampler.constraint._internal.batch_output_tokens == 20
 
 
 def test_packed_sequence_sampler_squeezes_around_large_next_candidate(tmp_path):
