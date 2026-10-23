@@ -26,11 +26,11 @@ from lhotse.utils import fastcopy
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse.audio_token_estimator import AudioTokenEstimator
-from nemo.collections.common.data.lhotse.dataloader import tokenize_with_prompt
 from nemo.collections.common.data.lhotse.dataloader import (
     _auto_detect_bucketing_and_validate_batch_size,
     get_lhotse_sampler_from_config,
     make_structured_with_schema_warnings,
+    tokenize_with_prompt,
 )
 from nemo.collections.common.data.lhotse.packed_sequence_sampler import (
     PackedSequenceDynamicBucketingSampler,
