@@ -1537,12 +1537,15 @@ class SALMAutomodel(LightningModule, HFHubMixin):
             # HF/vLLM exports describe physical layers. A repeated MTP head has one
             # physical layer even when it performs multiple logical prediction steps.
             physical_depth = 1 if use_repeated_layer else requested_depth
-            automodel_kwargs["mtp_config_overrides"] = {
-                "num_nextn_predict_layers": physical_depth,
-                "mtp_hybrid_override_pattern": str(mtp_cfg.get("hybrid_override_pattern", "*")),
-                "mtp_layers_block_type": None,
-            }
-            automodel_kwargs["replace_mtp_config"] = bool(mtp_cfg.get("replace_existing_head", False))
+            if mtp_requested:
+                # Retention preserves the checkpoint's head or its absence; only
+                # auxiliary MTP training may create or replace a head.
+                automodel_kwargs["mtp_config_overrides"] = {
+                    "num_nextn_predict_layers": physical_depth,
+                    "mtp_hybrid_override_pattern": str(mtp_cfg.get("hybrid_override_pattern", "*")),
+                    "mtp_layers_block_type": None,
+                }
+                automodel_kwargs["replace_mtp_config"] = bool(mtp_cfg.get("replace_existing_head", False))
             automodel_kwargs["mtp_loss_scaling_factor"] = self._mtp_loss_scaling_factor
             if use_repeated_layer:
                 # HF exports contain the physical depth so their state dict has the

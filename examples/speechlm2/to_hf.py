@@ -223,9 +223,7 @@ def _hf_export_config(model: torch.nn.Module, dtype: str | torch.dtype) -> dict[
     llm = getattr(model, "llm", None)
     text_config = getattr(llm, "config", None)
     if config.pop("retain_native_mtp", False):
-        if getattr(llm, "mtp", None) is None:
-            raise ValueError("Native MTP retention requested but no MTP head exists for export")
-        config["mtp"] = {**(config.get("mtp") or {}), "enabled": True}
+        config["mtp"] = {**(config.get("mtp") or {}), "enabled": getattr(llm, "mtp", None) is not None}
     explicit_mtp = config.get("mtp")
     mtp_enabled = (
         bool(explicit_mtp.get("enabled", True))

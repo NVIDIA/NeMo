@@ -298,7 +298,7 @@ Native NeMo-RL checkpoints
 The canonical ``examples/speechlm2/to_hf.py`` exporter accepts
 ``checkpoint_format=nemo_rl`` for flat DCP checkpoints saved by NeMo-RL.
 Point ``ckpt_path`` at ``policy/weights/model`` and ``ckpt_config`` at the
-SpeechLM model configuration. The exporter retains the native frozen MTP head
+SpeechLM model configuration. The exporter retains any native frozen MTP head
 without enabling auxiliary MTP training, and uses the model's canonical HF
 dtype mapping so intrinsically FP32 weights and router buffers are preserved.
 Empty Transformer Engine bookkeeping entries are omitted by the canonical
@@ -316,8 +316,9 @@ mixed-precision policy selects compute and reduction dtypes and reduces frozen
 storage before sharding. ``perception_mixed_precision`` supplies that policy for
 the speech encoder and projection. These policies apply before checkpoint loading
 and wrapping.
-``retain_native_mtp: true`` preserves native MTP topology while ``mtp.enabled``
-remains false. These options do not change existing training defaults.
+``retain_native_mtp: true`` preserves native MTP topology, including the absence
+of a head, while ``mtp.enabled`` remains false during training. It never creates
+or replaces a head. These options do not change existing training defaults.
 
 The vLLM SpeechLM model requires a complete initial PE/dual-encoder state.
 After successful initialization, normal ``load_weights`` calls can update only
