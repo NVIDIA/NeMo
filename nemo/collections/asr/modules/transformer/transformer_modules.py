@@ -23,6 +23,7 @@ from torch import nn
 from torch.nn.functional import gelu
 
 from nemo.collections.asr.parts.submodules.multi_head_attention import RotaryPositionalEncoding
+from nemo.collections.asr.parts.submodules.packed_attention import packed_cross_attention
 from nemo.collections.common.parts import form_attention_mask
 
 __all__ = ["TransformerEmbedding", "AttentionBridge", "RMSNorm"]
@@ -196,6 +197,26 @@ class TransformerEmbedding(nn.Module):
 
         return embeddings
 
+    def forward_packed(self, input_ids, position_ids, token_type_ids=None):
+        """Embed token-flat ids with explicit positions.
+
+        Args:
+            input_ids: ids of all sequences, shape (U_total,)
+            position_ids: position of every id within its sequence, shape (U_total,)
+            token_type_ids: optional token types, shape (U_total,)
+        Returns:
+            embeddings of shape (U_total, hidden_size)
+        """
+        token_embeddings = self.token_embedding(input_ids)
+        if self.embedding_scale is not None:
+            token_embeddings = token_embeddings * self.embedding_scale
+        embeddings = token_embeddings + self.position_embedding(position_ids)
+        if token_type_ids is not None:
+            embeddings = embeddings + self.token_type_embedding(token_type_ids)
+        if self.layer_norm is not None:
+            embeddings = self.layer_norm(embeddings)
+        return self.dropout(embeddings)
+
 
 class MultiHeadAttention(nn.Module):
     """
@@ -290,6 +311,49 @@ class MultiHeadAttention(nn.Module):
             extra_output['xatt_scores'] = attention_probs
 
         return output_states, extra_output
+
+    def forward_packed(self, queries, keys, values, query_context, key_context, causal=False):
+        """Attention over token-flat queries and keys with explicit sequence boundaries instead of masks.
+
+        Args:
+            queries: (Q_total, hidden_size); keys, values: (K_total, hidden_size), packed in the same sequence order
+            query_context, key_context (PackedAttentionContext): boundaries and positions of the two packings; the
+                same object for self-attention
+            causal: let every query see only the keys at its position or before (self-attention)
+        Returns:
+            output_states (Q_total, hidden_size) and an empty extra_output: the attention weights that the padded
+            forward returns with return_xatt_scores are not formed by the fused kernels
+        """
+        heads, head_size = self.num_attention_heads, self.attn_head_size
+        query = self.query_net(queries).view(-1, heads, head_size) / self.attn_scale
+        key = self.key_net(keys).view(-1, heads, head_size) / self.attn_scale
+        value = self.value_net(values).view(-1, heads, head_size)
+        if self.rotary_pos_enc is not None:
+            rotary = self.rotary_pos_enc
+            rotary.extend_pe(max(query_context.max_seqlen, key_context.max_seqlen), key.device, key.dtype)
+            query = rotary._apply_rotary(
+                query,
+                rotary.cos.index_select(0, query_context.position_ids).unsqueeze(1).to(query.dtype),
+                rotary.sin.index_select(0, query_context.position_ids).unsqueeze(1).to(query.dtype),
+            )
+            key = rotary._apply_rotary(
+                key,
+                rotary.cos.index_select(0, key_context.position_ids).unsqueeze(1).to(key.dtype),
+                rotary.sin.index_select(0, key_context.position_ids).unsqueeze(1).to(key.dtype),
+            )
+        # the scores are already scaled by the two divisions above
+        context = packed_cross_attention(
+            query,
+            key,
+            value,
+            query_context,
+            key_context,
+            causal=causal,
+            dropout_p=self.attn_dropout.p if self.training else 0.0,
+            scale=1.0,
+        )
+        output_states = self.out_projection(context.reshape(-1, heads * head_size))
+        return self.layer_dropout(output_states), {}
 
 
 class PositionWiseFF(nn.Module):

@@ -265,6 +265,15 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             decoder_hidden_states = torch.transpose(decoder_hidden_states, 0, 1)
         return decoder_hidden_states
 
+    def forward_packed(self, input_ids, decoder_context, encoder_states, encoder_context):
+        """Decoder hidden states (U_total, hidden_size) for token-flat input ids (U_total,).
+
+        ``decoder_context`` carries the boundaries and positions of the ids, ``encoder_states`` (T_total,
+        hidden_size) and ``encoder_context`` the packed encoder output; see TransformerDecoder.forward_packed.
+        """
+        decoder_embeddings = self._embedding.forward_packed(input_ids, decoder_context.position_ids)
+        return self._decoder.forward_packed(decoder_embeddings, decoder_context, encoder_states, encoder_context)
+
     @property
     def hidden_size(self):
         return self._hidden_size

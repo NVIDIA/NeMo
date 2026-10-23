@@ -184,6 +184,44 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         else:
             return self.forward_postln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
 
+    def forward_packed(self, decoder_states, decoder_context, encoder_states, encoder_context):
+        """The block over token-flat decoder states attending token-flat encoder states, see TransformerDecoder.
+
+        Args:
+            decoder_states: (U_total, hidden_size)
+            decoder_context (PackedAttentionContext): boundaries and positions of the decoder tokens
+            encoder_states: (T_total, hidden_size), in the same sequence order
+            encoder_context (PackedAttentionContext): boundaries of the encoder tokens
+        Returns:
+            output states (U_total, hidden_size)
+        """
+        if self.is_adapter_available():
+            raise NotImplementedError("Adapters are not supported in the sequence-packed decoder block.")
+        if self.pre_ln:
+            residual = decoder_states
+            normed = self.layer_norm_1(decoder_states)
+            attended, _ = self.first_sub_layer.forward_packed(
+                normed, normed, normed, decoder_context, decoder_context, causal=True
+            )
+            decoder_states = attended + residual
+            residual = decoder_states
+            normed = self.layer_norm_2(decoder_states)
+            attended, _ = self.second_sub_layer.forward_packed(
+                normed, encoder_states, encoder_states, decoder_context, encoder_context
+            )
+            decoder_states = attended + residual
+            return self.third_sub_layer(self.layer_norm_3(decoder_states)) + decoder_states
+
+        attended, _ = self.first_sub_layer.forward_packed(
+            decoder_states, decoder_states, decoder_states, decoder_context, decoder_context, causal=True
+        )
+        decoder_states = self.layer_norm_1(attended + decoder_states)
+        attended, _ = self.second_sub_layer.forward_packed(
+            decoder_states, encoder_states, encoder_states, decoder_context, encoder_context
+        )
+        decoder_states = self.layer_norm_2(attended + decoder_states)
+        return self.layer_norm_3(self.third_sub_layer(decoder_states) + decoder_states)
+
     def get_accepted_adapter_types(self) -> Set[type]:
         types = super().get_accepted_adapter_types()
 
@@ -316,6 +354,30 @@ class TransformerDecoder(nn.Module):
             return cached_mems_list, xatt_scores_list
         else:
             return memory_states, xatt_scores_list
+
+    def forward_packed(self, decoder_states, decoder_context, encoder_states, encoder_context):
+        """Teacher-forced decoding over sequence-packed inputs, the training-time counterpart of forward.
+
+        Args:
+            decoder_states: embedded decoder inputs of all sequences, shape (U_total, hidden_size)
+            decoder_context (PackedAttentionContext): boundaries and positions of the decoder tokens
+            encoder_states: encoder outputs of all sequences, shape (T_total, hidden_size), in the same order
+            encoder_context (PackedAttentionContext): boundaries of the encoder tokens
+        Returns:
+            decoder hidden states (U_total, hidden_size), after the final norm when configured
+
+        The decoder and encoder masks of forward are replaced by the two packings: no padded position is computed,
+        self-attention is causal within every sequence (the mask of diagonal 0) and the cross-attention of a
+        sequence sees only its own encoder states. The cached memory lists of incremental decoding, the
+        cross-attention scores and adapters are not provided in this form.
+        """
+        if self.diagonal != 0:
+            raise NotImplementedError("forward_packed implements the causal mask of diagonal 0.")
+        for layer in self.layers:
+            decoder_states = layer.forward_packed(decoder_states, decoder_context, encoder_states, encoder_context)
+        if self.final_layer_norm is not None:
+            decoder_states = self.final_layer_norm(decoder_states)
+        return decoder_states
 
     def input_example(self, max_batch=1, max_dim=256):
         """
