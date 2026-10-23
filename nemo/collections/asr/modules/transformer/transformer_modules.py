@@ -252,22 +252,37 @@ class MultiHeadAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def project_queries(self, queries, positions=None):
-        """Query heads (batch, head, time, head_size), pre-divided by sqrt(sqrt(d)) for numerical stability.
+    def project_queries(self, queries: torch.Tensor, positions: torch.Tensor | None = None) -> torch.Tensor:
+        """Query heads, pre-divided by ``sqrt(sqrt(d))`` for numerical stability.
 
-        With a rotary position embedding, ``positions`` (time,) are the absolute positions to rotate at;
-        None leaves the rotation to the caller (``forward`` rotates queries and keys together).
+        Args:
+            queries: (B, T, hidden_size)
+            positions: absolute positions (T,) to rotate at with a rotary position embedding;
+                None leaves the rotation to the caller, as ``forward`` rotates queries and keys together
+
+        Returns:
+            query heads (B, H, T, head_size)
         """
         query = self.transpose_for_scores(self.query_net(queries)) / self.attn_scale
         if positions is not None and self.rotary_pos_enc is not None:
             query = self.rotary_pos_enc.rotate(query, positions)
         return query
 
-    def project_keys_values(self, keys, values, positions=None):
-        """Key and value heads (batch, head, time, head_size); the keys are pre-divided like the queries.
+    def project_keys_values(
+        self, keys: torch.Tensor, values: torch.Tensor, positions: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Key and value heads; the keys are pre-divided like the queries.
 
-        ``positions`` as in ``project_queries``. The projections of a fixed sequence, such as encoder states
-        under cross-attention, can be computed once and reused for every query.
+        The projections of a fixed sequence, such as encoder states under cross-attention,
+        can be computed once and reused for every query.
+
+        Args:
+            keys: (B, T, hidden_size)
+            values: (B, T, hidden_size)
+            positions: as in ``project_queries``
+
+        Returns:
+            key heads and value heads, each (B, H, T, head_size)
         """
         key = self.transpose_for_scores(self.key_net(keys)) / self.attn_scale
         value = self.transpose_for_scores(self.value_net(values))
@@ -275,14 +290,19 @@ class MultiHeadAttention(nn.Module):
             key = self.rotary_pos_enc.rotate(key, positions)
         return key, value
 
-    def attend(self, query, key, value, attention_mask):
+    def attend(
+        self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, attention_mask: torch.Tensor | None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Scaled dot-product attention over projected heads, followed by the output projection.
 
         Args:
-            query, key, value: as returned by ``project_queries`` and ``project_keys_values``
-            attention_mask: additive mask broadcastable to (batch, head, time1, time2), or None
+            query: (B, H, T1, head_size) from ``project_queries``
+            key: (B, H, T2, head_size) from ``project_keys_values``
+            value: (B, H, T2, head_size) from ``project_keys_values``
+            attention_mask: additive mask broadcastable to (B, H, T1, T2), or None
+
         Returns:
-            output states (batch, time1, hidden_size) and the attention probabilities (batch, head, time1, time2)
+            output states (B, T1, hidden_size) and the attention probabilities (B, H, T1, T2)
         """
         attention_scores = torch.matmul(query, key.transpose(-1, -2))
         if attention_mask is not None:
