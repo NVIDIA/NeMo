@@ -250,3 +250,18 @@ class TestMuon:
         # the first step ran at the warmup learning rate 1/5
         torch.testing.assert_close(parameters['hidden'], initial['hidden'] * (1 - 0.2 * 0.5))
         torch.testing.assert_close(parameters['bias'], initial['bias'] * (1 - 0.02 * 0.5))
+
+    @pytest.mark.unit
+    def test_production_shape_update_rms(self):
+        # the first feed-forward matrix of a width-1024 Conformer, in torch's (out, in) layout
+        matrix = torch.nn.Parameter(torch.randn(4096, 1024, generator=torch.Generator().manual_seed(5)))
+        assert Muon.selects_muon(matrix, use_muon=None, adam_dim_threshold=8192)
+        initial = matrix.detach().clone()
+        optimizer = Muon([matrix], lr=1.0)
+        matrix.grad = torch.randn(matrix.shape, generator=torch.Generator().manual_seed(6))
+        optimizer.step()
+        update = initial - matrix.detach()
+        # fan_in: the update of an (out, in) matrix has root mean square 1 / sqrt(fan_in),
+        # up to the Newton-Schulz approximation of the singular values
+        assert update.pow(2).mean().sqrt().item() == pytest.approx(1 / 1024**0.5, rel=0.15)
+        assert update.shape == (4096, 1024)

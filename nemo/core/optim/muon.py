@@ -15,16 +15,18 @@
 
 """Muon optimizer (MomentUm Orthogonalized by Newton-Schulz) with an AdamW fallback.
 
-Muon (Keller Jordan et al., 2024, https://kellerjordan.github.io/posts/muon/) updates a weight matrix with an
-approximately semi-orthogonal matrix derived from the momentum-averaged gradient, computed with a quintic
-Newton-Schulz iteration in bfloat16.
-Parameters that are not matrices (biases, normalization scales, convolution filters) and very wide matrices
-(embeddings, output projections) are better served by an element-wise optimizer, so they are updated with AdamW at
-a fixed fraction of the learning rate, as the public reference trainings (modded-nanogpt, nanochat) do.
-One optimizer instance handles both kinds, so one learning-rate schedule drives both with a fixed ratio.
+Muon (Keller Jordan et al., 2024, https://kellerjordan.github.io/posts/muon/) updates a weight matrix
+with an approximately semi-orthogonal matrix derived from the momentum-averaged gradient,
+computed with a quintic Newton-Schulz iteration in bfloat16.
+Parameters that are not matrices (biases, normalization scales, convolution filters)
+and very wide matrices (embeddings, output projections) are better served by an element-wise optimizer,
+so they are updated with AdamW at a fixed fraction of the learning rate,
+as the public reference trainings (modded-nanogpt, nanochat) do.
+One optimizer instance handles both kinds,
+so one learning-rate schedule drives both with a fixed ratio.
 """
 
-from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
 
 import torch
 from torch.optim.optimizer import Optimizer
@@ -37,15 +39,20 @@ SCALE_MODES = ('fan_in', 'fan_out', 'none')
 def zeropower_via_newtonschulz5(grad: torch.Tensor, steps: int = 5) -> torch.Tensor:
     """Approximate the orthogonal factor of a matrix with a quintic Newton-Schulz iteration.
 
-    For the singular value decomposition ``grad = U S V^T`` the result approximates ``U V^T``: the iteration pushes
-    the singular values towards one, not exactly onto it, with the modded-nanogpt coefficients, which are tuned for
-    a fast start of the iteration rather than for convergence to exactly orthogonal factors.
-    The iteration runs in bfloat16 on the wide orientation of the matrix (rows <= columns), so transposing the input
-    transposes the result exactly; the result has the dtype of the input.
+    For the singular value decomposition ``grad = U S V^T`` the result approximates ``U V^T``:
+    the iteration pushes the singular values towards one, not exactly onto it,
+    with the modded-nanogpt coefficients,
+    which are tuned for a fast start of the iteration rather than for convergence to exactly orthogonal factors.
+    The iteration runs in bfloat16 on the wide orientation of the matrix (rows <= columns),
+    so transposing the input transposes the result;
+    the result has the dtype of the input.
 
     Args:
-        grad: a matrix (two dimensions)
+        grad: a matrix of shape (rows, columns), any float dtype
         steps: number of Newton-Schulz iterations
+
+    Returns:
+        the approximately semi-orthogonal matrix, same shape and dtype as ``grad``
     """
     if grad.ndim != 2:
         raise ValueError(f"Expected a matrix, got a tensor of shape {tuple(grad.shape)}")
@@ -65,7 +72,15 @@ def zeropower_via_newtonschulz5(grad: torch.Tensor, steps: int = 5) -> torch.Ten
 
 
 def update_scale(shape: Sequence[int], scale_mode: str) -> float:
-    """Factor on the orthogonalized update of a ``(rows, columns)`` matrix, see :class:`Muon` for the modes."""
+    """Factor on the orthogonalized update of a ``(rows, columns)`` matrix.
+
+    Args:
+        shape: the two dimensions of the matrix
+        scale_mode: ``'fan_in'``, ``'fan_out'`` or ``'none'``, see :class:`Muon`
+
+    Returns:
+        the factor
+    """
     rows, columns = shape
     if scale_mode == 'fan_in':
         return max(1.0, rows / columns) ** 0.5
@@ -79,24 +94,29 @@ def update_scale(shape: Sequence[int], scale_mode: str) -> float:
 class Muon(Optimizer):
     """Muon for weight matrices with an AdamW fallback for the other parameters, see the module docstring.
 
-    Which parameters take the Muon update is decided per parameter: with the default ``use_muon=None`` a parameter
-    takes it when it is a matrix whose larger dimension is below ``adam_dim_threshold``, so biases, normalization
-    scales, convolution filters, embeddings and output projections fall back to AdamW.
-    A parameter group can force the choice with ``use_muon=True`` or ``use_muon=False``; a forced parameter with more
-    than two dimensions (a convolution filter) is orthogonalized as the matrix ``(out_channels, -1)``.
+    Which parameters take the Muon update is decided per parameter:
+    with the default ``use_muon=None`` a parameter takes it
+    when it is a matrix whose larger dimension is below ``adam_dim_threshold``,
+    so biases, normalization scales, convolution filters, embeddings and output projections fall back to AdamW.
+    A parameter group can force the choice with ``use_muon=True`` or ``use_muon=False``;
+    a forced parameter with more than two dimensions (a convolution filter)
+    is orthogonalized as the matrix ``(out_channels, -1)``.
 
-    The orthogonalized update of a ``(rows, columns)`` matrix is multiplied by a shape-dependent factor:
-    ``scale_mode='fan_in'`` (the default) uses ``sqrt(max(1, rows / columns))``, which for the ``(out, in)`` layout
-    of ``torch.nn.Linear`` gives every update the root mean square ``1 / sqrt(fan_in)`` (the modded-nanogpt
-    convention); ``'fan_out'`` uses ``sqrt(max(1, columns / rows))``, the root mean square ``1 / sqrt(fan_out)``,
-    which is the same rule applied to the transposed ``(in, out)`` layout of other frameworks; ``'none'`` applies no
-    factor.
-    The same matrix in the two layouts receives the same update, transposed, when the two modes are paired, up to
-    the bfloat16 rounding of the Newton-Schulz iteration.
+    The orthogonalized update of a ``(rows, columns)`` matrix is multiplied by a shape-dependent factor.
+    ``scale_mode='fan_in'`` (the default) uses ``sqrt(max(1, rows / columns))``,
+    which for the ``(out, in)`` layout of ``torch.nn.Linear``
+    gives every update the root mean square ``1 / sqrt(fan_in)`` (the modded-nanogpt convention).
+    ``'fan_out'`` uses ``sqrt(max(1, columns / rows))``, the root mean square ``1 / sqrt(fan_out)``,
+    which is the same rule applied to the transposed ``(in, out)`` layout of other frameworks.
+    ``'none'`` applies no factor.
+    The same matrix in the two layouts receives the same update, transposed, when the two modes are paired,
+    up to the bfloat16 rounding of the Newton-Schulz iteration.
 
-    Weight decay is decoupled and multiplies the parameter by ``1 - lr * weight_decay`` for Muon parameters and by
-    ``1 - lr * adam_lr_ratio * weight_decay`` for AdamW parameters, so the relative decay per step is the same
-    fraction of the respective learning rate; set ``weight_decay: 0.0`` on a parameter group to exclude it.
+    Weight decay is decoupled:
+    it multiplies the parameter by ``1 - lr * weight_decay`` for Muon parameters
+    and by ``1 - lr * adam_lr_ratio * weight_decay`` for AdamW parameters,
+    so the relative decay per step is the same fraction of the respective learning rate;
+    set ``weight_decay: 0.0`` on a parameter group to exclude it.
 
     Args:
         params: iterable of parameters or of parameter-group dicts
@@ -127,7 +147,7 @@ class Muon(Optimizer):
         adam_lr_ratio: float = 0.025,
         adam_dim_threshold: int = 8192,
         use_muon: Optional[bool] = None,
-    ):
+    ) -> None:
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
         if not 0.0 <= momentum < 1.0:
@@ -167,19 +187,35 @@ class Muon(Optimizer):
                 for param in group['params']:
                     if param.ndim < 2:
                         raise ValueError(
-                            f"use_muon=True needs at least two dimensions, got a parameter of shape {tuple(param.shape)}"
+                            f"use_muon=True needs at least two dimensions, got shape {tuple(param.shape)}"
                         )
 
     @staticmethod
     def selects_muon(param: torch.Tensor, *, use_muon: Optional[bool], adam_dim_threshold: int) -> bool:
-        """Whether ``param`` takes the Muon update under the given group options (see the class docstring)."""
+        """Whether ``param`` takes the Muon update under the given group options.
+
+        Args:
+            param: the parameter
+            use_muon: the group's ``use_muon`` option, see the class docstring
+            adam_dim_threshold: the group's ``adam_dim_threshold`` option
+
+        Returns:
+            True for the Muon update, False for the AdamW fallback
+        """
         if use_muon is not None:
             return bool(use_muon)
         return param.ndim == 2 and max(param.shape) < adam_dim_threshold
 
     @torch.no_grad()
-    def step(self, closure=None):
-        """Performs a single optimization step."""
+    def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
+        """Performs a single optimization step.
+
+        Args:
+            closure: re-evaluates the model and returns the loss
+
+        Returns:
+            the loss returned by ``closure``, or None
+        """
         loss = None
         if closure is not None:
             with torch.enable_grad():
