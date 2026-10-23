@@ -45,6 +45,7 @@ from nemo.collections.asr.parts.submodules.subsampling import (
 )
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.asr.parts.utils.regularization_utils import compute_stochastic_depth_drop_probs
+from nemo.collections.common.parts.utils import ModuleBlock, block_binds, build_module
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
@@ -193,6 +194,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             positional encoding buffers on all GPUs. Disabling this setting may help with deadlocks in certain
             scenarios such as model parallelism, or generally when this module is not being ran on some GPUs
             as a part of the training step.
+        pre_encode (block, Optional): a configurable subsampling block (class, callable or Hydra partial with
+            ``_target_`` and ``_partial_: true``) built with feat_in and feat_out=d_model, replacing the
+            subsampling options; its subsampling_factor, if it has one, becomes the encoder's.
+        feed_forward, conv, self_attn, norm (block, Optional): configurable blocks of every ConformerLayer,
+            see ConformerLayer; the layer supplies sizes, dropouts and the options above, the block names
+            what deviates (for example an even conv kernel or a different norm eps).
     """
 
     def input_example(self, max_batch=1, max_dim=256):
@@ -350,6 +357,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         rope_base: float = 10000.0,
         rotary_fraction: float = 1.0,
         use_triton: bool | None = None,
+        pre_encode: ModuleBlock | None = None,
+        feed_forward: ModuleBlock | None = None,
+        conv: ModuleBlock | None = None,
+        self_attn: ModuleBlock | None = None,
+        norm: ModuleBlock | None = None,
     ):
         super().__init__()
         d_ff = d_model * ff_expansion_factor
@@ -408,7 +420,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         # Subsampling
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = d_model
-        if subsampling and subsampling_factor > 1:
+        if pre_encode is not None:
+            # a configured block; the encoder supplies the feature sizes
+            self.pre_encode = build_module(pre_encode, feat_in=feat_in, feat_out=d_model)
+            self.subsampling_factor = getattr(self.pre_encode, 'subsampling_factor', subsampling_factor)
+        elif subsampling and subsampling_factor > 1:
             if subsampling in ['stacking', 'stacking_norm']:
                 # stacking_norm has an extra layer norm after stacking comparing to stacking
                 self.pre_encode = StackingSubsampling(
@@ -519,8 +535,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 use_pytorch_sdpa=self.use_pytorch_sdpa,
                 use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                 pos_enc=layer_pos_enc,
+                feed_forward=feed_forward,
+                conv=conv,
+                self_attn=self_attn,
+                norm=norm,
             )
             self.layers.append(layer)
+        if block_binds(conv, 'kernel_size') and self.layers:
+            # the conv block decides the kernel; keep the streaming context consistent with it
+            self.conv_kernel_size = self.layers[0].conv.kernel_size
+            if not block_binds(conv, 'conv_context_size'):
+                self.conv_context_size = [(self.conv_kernel_size - 1) // 2, self.conv_kernel_size // 2]
 
         if feat_out > 0 and feat_out != self._feat_out:
             self.out_proj = nn.Linear(self._feat_out, feat_out)
@@ -987,7 +1012,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 if conv_context_size[0] + conv_context_size[1] + 1 != conv_kernel_size:
                     raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
         else:
-            conv_context_size = [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]
+            # symmetric for odd kernels; an even kernel gets one more frame of right context
+            conv_context_size = [(conv_kernel_size - 1) // 2, conv_kernel_size // 2]
         return att_context_size_all, att_context_size_all[0], att_context_probs, conv_context_size
 
     def set_default_att_context_size(self, att_context_size):
