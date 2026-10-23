@@ -85,6 +85,8 @@ def label_smoothed_log_prob_gradient(
 
 
 class _LabelSmoothedLogProbGradient(torch.autograd.Function):
+    """Identity in the forward pass, label-smoothed gradient in the backward pass."""
+
     @staticmethod
     def forward(
         ctx,
@@ -94,6 +96,7 @@ class _LabelSmoothedLogProbGradient(torch.autograd.Function):
         keep: Optional[torch.Tensor],
         dim: int,
     ) -> torch.Tensor:
+        """Returns ``log_probs`` and keeps the smoothing factors for the backward pass."""
         ctx.factor = factor
         ctx.floor = floor
         ctx.keep = keep
@@ -102,6 +105,7 @@ class _LabelSmoothedLogProbGradient(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad: torch.Tensor) -> Tuple[torch.Tensor, None, None, None, None]:
+        """Scales the gradient and shifts it by the floor times the redistributed mass."""
         # The incoming gradient is minus a (scaled) distribution,
         # so its absolute sum over the included labels is the mass to redistribute.
         mass = grad.abs() if ctx.keep is None else grad.abs() * ctx.keep
