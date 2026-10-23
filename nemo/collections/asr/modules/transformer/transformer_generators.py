@@ -862,7 +862,7 @@ class EnsembleBeamSearchSequenceGenerator:
         decoder_input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
 
         if encoder_hidden_states is not None:
-            decoder_mems_list = self.decoders[ensemble_index].forward(
+            decoder_mems_list, _ = self.decoders[ensemble_index].forward(
                 decoder_hidden_states,
                 decoder_input_mask,
                 encoder_hidden_states,
@@ -871,7 +871,7 @@ class EnsembleBeamSearchSequenceGenerator:
                 return_mems=True,
             )
         else:
-            decoder_mems_list = self.decoders[ensemble_index].forward(
+            decoder_mems_list, _ = self.decoders[ensemble_index].forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
         log_probs = self.log_softmaxes[ensemble_index].forward(hidden_states=decoder_mems_list[-1][:, -1:])
