@@ -44,9 +44,10 @@ class SmoothedCrossEntropyLoss(Loss):
             (proportional to the number of context tokens)
         pad_id (int): padding id
         eps (float): the small eps number to avoid division buy zero
-        label_smoothing_gradient_only (bool): apply the label smoothing to the gradient of the log-probabilities
-            only (see :func:`label_smoothed_log_prob_gradient`). The returned loss is then the unsmoothed
-            negative log-likelihood, while its gradient equals the gradient of the label-smoothed loss.
+        label_smoothing_gradient_only: apply the label smoothing to the gradient of the log-probabilities only
+            (see :func:`label_smoothed_log_prob_gradient`);
+            the returned loss is then the unsmoothed negative log-likelihood,
+            while its gradient equals the gradient of the label-smoothed loss
     """
 
     @property
@@ -99,9 +100,8 @@ class SmoothedCrossEntropyLoss(Loss):
 
         batch_size, seq_len, vocab_size = log_probs.size()
         if self._label_smoothing_gradient_only:
-            # The smoothed targets reach the parameters through the gradient; the loss stays the plain likelihood.
             log_probs = label_smoothed_log_prob_gradient(log_probs, self._label_smoothing)
-            smoothing = 0.0
+            smoothing = 0.0  # the value stays the plain negative log-likelihood
         else:
             smoothing = vocab_size * self._label_smoothing / (vocab_size - 1)
         target_log_probs = log_probs.gather(2, labels.unsqueeze(2)).squeeze(2)
