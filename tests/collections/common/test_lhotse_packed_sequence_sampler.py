@@ -26,6 +26,7 @@ from lhotse.utils import fastcopy
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse.audio_token_estimator import AudioTokenEstimator
+from nemo.collections.common.data.lhotse.dataloader import tokenize_with_prompt
 from nemo.collections.common.data.lhotse.dataloader import (
     _auto_detect_bucketing_and_validate_batch_size,
     get_lhotse_sampler_from_config,
@@ -38,6 +39,7 @@ from nemo.collections.common.data.lhotse.packed_sequence_sampler import (
     _select_best_fit_indices,
 )
 from nemo.collections.common.data.lhotse.sampling import MultimodalSamplingConstraint, PackedTokenConstraint
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 
 def _make_cuts(durations=(7.0, 4.0, 6.0, 3.0)):
@@ -768,6 +770,96 @@ def test_packed_sequence_config_accepts_output_token_cap(tmp_path):
 
     assert sampler.constraint.batch_output_tokens == 20
     assert sampler.constraint._internal.batch_output_tokens == 20
+
+
+def _make_cuts_with_text(durations, texts):
+    """Cuts whose single supervision carries ``texts[i]``, for tokenization with a prompt format."""
+    cuts = []
+    for index, (duration, text) in enumerate(zip(durations, texts)):
+        cut = dummy_cut(index, duration=duration)
+        supervision = SupervisionSegment(
+            id=f"sup-{index}", recording_id=cut.recording_id, start=0.0, duration=duration, text=text
+        )
+        cuts.append(fastcopy(cut, supervisions=[supervision]))
+    return CutSet.from_cuts(cuts)
+
+
+@pytest.fixture(scope="module")
+def plain_tokenizer(tmp_path_factory):
+    tmpdir = tmp_path_factory.mktemp("packed_sampler_tokenizer")
+    text_path = tmpdir / "text.txt"
+    text_path.write_text("a short answer\na much longer answer with many more words in it\n" * 4)
+    create_spt_model(
+        str(text_path),
+        vocab_size=64,
+        sample_size=-1,
+        do_lower_case=False,
+        output_dir=str(tmpdir),
+        remove_extra_whitespaces=True,
+        bos=True,
+        eos=True,
+    )
+    return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
+
+
+def _prompted_packed_config(cuts_path, *, batch_output_tokens, bucketing):
+    options = {
+        "cuts_path": str(cuts_path),
+        "force_finite": True,
+        "shuffle": False,
+        "num_workers": 0,
+        "use_multimodal_sampling": True,
+        "pretokenize": True,
+        "prompt_format": "plain",
+        "batch_tokens": 10,
+        "batch_output_tokens": batch_output_tokens,
+        "token_equivalent_duration": 1.0,
+        "audio_token_estimator": {
+            "preprocessor": {"n_fft": 16000, "hop_length": 16000, "stft_pad_amount": 8000},
+            "subsampling": [],
+        },
+        "use_packed_sequence_sampling": True,
+        "measure_total_length": False,
+        "seed": 0,
+        "shard_seed": 0,
+    }
+    if bucketing:
+        options.update(
+            {"use_bucketing": True, "num_buckets": 2, "bucket_duration_bins": [100], "concurrent_bucketing": False}
+        )
+    return make_structured_with_schema_warnings(OmegaConf.create(options))
+
+
+@pytest.mark.parametrize("bucketing", [False, True])
+def test_output_token_cap_counts_prompted_answer_tokens(tmp_path, plain_tokenizer, bucketing):
+    durations = (7.0, 4.0, 6.0, 3.0)
+    long_answer = "a much longer answer with many more words in it " * 3
+    texts = (long_answer, "a short answer", "a short answer", long_answer)
+    cuts_path = tmp_path / "cuts.jsonl"
+    _make_cuts_with_text(durations, texts).to_file(cuts_path)
+    # the answer lengths the prompt formatter produces: the cuts the audio budget would pair (0 and 3) exceed the cap
+    answer_lengths = [
+        len(tokenize_with_prompt(cut, plain_tokenizer, "plain").answer_ids)
+        for cut in _make_cuts_with_text(durations, texts)
+    ]
+    cap = answer_lengths[0] + answer_lengths[3] - 1
+    assert answer_lengths[1] + answer_lengths[2] <= cap
+
+    config = _prompted_packed_config(cuts_path, batch_output_tokens=cap, bucketing=bucketing)
+    sampler, _ = get_lhotse_sampler_from_config(config, global_rank=0, world_size=1, tokenizer=plain_tokenizer)
+    batches = _drain(iter(sampler))
+
+    assert sorted(cut.id for batch in batches for cut in batch) == sorted(f"dummy-mono-cut-{i:04d}" for i in range(4))
+    assert all(sum(len(cut.answer_ids) for cut in batch) <= cap for batch in batches)
+    assert all(sum(cut.num_tokens for cut in batch) <= 10 for batch in batches)
+    assert not any({"dummy-mono-cut-0000", "dummy-mono-cut-0003"} <= set(cut.id for cut in batch) for batch in batches)
+
+
+def test_output_token_cap_rejects_untokenized_cuts(tmp_path):
+    cuts_path = tmp_path / "cuts.jsonl"
+    _make_cuts().to_file(cuts_path)
+    with pytest.raises(ValueError, match="batch_output_tokens needs tokenized examples"):
+        list(_make_sampler(CutSet.from_jsonl_lazy(cuts_path), batch_output_tokens=9))
 
 
 def test_packed_sequence_sampler_squeezes_around_large_next_candidate(tmp_path):

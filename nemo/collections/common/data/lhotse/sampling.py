@@ -195,17 +195,33 @@ class MultimodalSamplingConstraint(SamplingConstraint):
         """Count the output tokens of one example for the ``batch_output_tokens`` cap.
 
         Args:
-            example: a cut, whose supervisions contribute their ``tokens`` custom field,
-                or a prompt-formatted example, which contributes its answer length.
+            example: a cut tokenized with a prompt format, which contributes its ``answer_ids``;
+                a cut tokenized without one, whose supervisions contribute their ``tokens``;
+                or a prompt-formatted text example, which contributes its answer length.
 
         Returns:
-            The output token count; an example without such tokens counts zero.
+            The output token count.
+
+        Raises:
+            ValueError: for an untokenized example, since the cap cannot be enforced without the tokens.
         """
         if isinstance(example, Cut):
-            return sum(len(s.tokens) for s in example.supervisions if s.has_custom("tokens"))
+            if example.has_custom("answer_ids"):
+                return len(example.answer_ids)
+            if any(s.has_custom("tokens") for s in example.supervisions):
+                return sum(len(s.tokens) for s in example.supervisions if s.has_custom("tokens"))
+            raise ValueError(
+                f"batch_output_tokens needs tokenized examples, but cut {example.id!r} has neither answer_ids "
+                "(a tokenizer with prompt_format) nor supervision tokens (a tokenizer with pretokenize=True)."
+            )
         if isinstance(example, Formattable):
             length = measure_formattable_length(example, "output", audio_token_estimator=self.audio_token_estimator)
-            return int(length) if length is not None else 0
+            if length is None:
+                raise ValueError(
+                    f"batch_output_tokens needs the output length of every example, "
+                    f"but a {type(example).__name__} example has none."
+                )
+            return int(length)
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
     def measure_packing_length(self, example: Any) -> int:
