@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 import torch
@@ -31,6 +31,7 @@ from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDe
 from nemo.collections.asr.parts.submodules.multitask_greedy_decoding import TransformerAEDGreedyInfer
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
+from nemo.utils import logging
 
 
 @pytest.fixture()
@@ -362,11 +363,13 @@ def test_multitask_decoding_beam_len_pen_from_dict_config(decoder_nm, nnet, toke
 
 
 def test_multitask_decoding_beam_length_penalty_alias(decoder_nm, nnet, tokenizer):
-    # configs that worked around the old lookup with `length_penalty` keep their penalty
+    # configs that worked around the old lookup with `length_penalty` keep their penalty, with a removal notice
     *_, classifier = nnet
     cfg = OmegaConf.create({"strategy": "beam", "beam": {"beam_size": 2, "length_penalty": 0.3}})
-    decoding = MultiTaskDecoding(cfg, decoder_nm, classifier, tokenizer)
+    with patch.object(logging, "warning") as warning:
+        decoding = MultiTaskDecoding(cfg, decoder_nm, classifier, tokenizer)
     assert decoding.decoding.beam_search.len_pen == 0.3
+    assert "`beam.length_penalty` is deprecated and will be removed in the next release" in warning.call_args.args[0]
 
 
 def test_multitask_decoding_beam_len_pen_default_is_zero(decoder_nm, nnet, tokenizer):

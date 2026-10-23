@@ -196,7 +196,11 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
             len_pen = self.cfg.beam.get('len_pen', 0.0)
             if 'length_penalty' in self.cfg.beam:
                 # the lookup used this name before it read the config field `len_pen`; keep such configs working
-                logging.warning("`beam.length_penalty` is deprecated, set `beam.len_pen` instead.")
+                # TODO(albertz): remove the `length_penalty` alias in the next release (NeMo 3.2)
+                logging.warning(
+                    "`beam.length_penalty` is deprecated and will be removed in the next release. "
+                    "Please use `beam.len_pen` instead."
+                )
                 len_pen = self.cfg.beam.length_penalty
 
             self.decoding = TransformerAEDBeamInfer(
