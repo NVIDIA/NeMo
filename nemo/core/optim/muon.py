@@ -36,61 +36,6 @@ __all__ = ['Muon', 'update_scale', 'zeropower_via_newtonschulz5']
 SCALE_MODES = ('fan_in', 'fan_out', 'none')
 
 
-def zeropower_via_newtonschulz5(grad: torch.Tensor, steps: int = 5) -> torch.Tensor:
-    """Approximate the orthogonal factor of a matrix with a quintic Newton-Schulz iteration.
-
-    For the singular value decomposition ``grad = U S V^T`` the result approximates ``U V^T``:
-    the iteration pushes the singular values towards one, not exactly onto it,
-    with the modded-nanogpt coefficients,
-    which are tuned for a fast start of the iteration rather than for convergence to exactly orthogonal factors.
-    The iteration runs in bfloat16 on the wide orientation of the matrix (rows <= columns),
-    so transposing the input transposes the result;
-    the result has the dtype of the input.
-
-    Args:
-        grad: a matrix of shape (rows, columns), any float dtype
-        steps: number of Newton-Schulz iterations
-
-    Returns:
-        the approximately semi-orthogonal matrix, same shape and dtype as ``grad``
-    """
-    if grad.ndim != 2:
-        raise ValueError(f"Expected a matrix, got a tensor of shape {tuple(grad.shape)}")
-    a, b, c = 3.4445, -4.7750, 2.0315
-    x = grad.bfloat16()
-    transpose = grad.size(0) > grad.size(1)
-    if transpose:
-        x = x.T
-    x = x / (x.norm() + 1e-7)
-    for _ in range(steps):
-        aa = x @ x.T
-        bb = b * aa + c * (aa @ aa)
-        x = a * x + bb @ x
-    if transpose:
-        x = x.T
-    return x.to(grad.dtype)
-
-
-def update_scale(shape: Sequence[int], scale_mode: str) -> float:
-    """Factor on the orthogonalized update of a ``(rows, columns)`` matrix.
-
-    Args:
-        shape: the two dimensions of the matrix
-        scale_mode: ``'fan_in'``, ``'fan_out'`` or ``'none'``, see :class:`Muon`
-
-    Returns:
-        the factor
-    """
-    rows, columns = shape
-    if scale_mode == 'fan_in':
-        return max(1.0, rows / columns) ** 0.5
-    if scale_mode == 'fan_out':
-        return max(1.0, columns / rows) ** 0.5
-    if scale_mode == 'none':
-        return 1.0
-    raise ValueError(f"Unknown scale_mode {scale_mode!r}, expected one of {SCALE_MODES}")
-
-
 class Muon(Optimizer):
     """Muon for weight matrices with an AdamW fallback for the other parameters, see the module docstring.
 
@@ -251,6 +196,61 @@ class Muon(Optimizer):
                         weight_decay=group['weight_decay'],
                     )
         return loss
+
+
+def zeropower_via_newtonschulz5(grad: torch.Tensor, steps: int = 5) -> torch.Tensor:
+    """Approximate the orthogonal factor of a matrix with a quintic Newton-Schulz iteration.
+
+    For the singular value decomposition ``grad = U S V^T`` the result approximates ``U V^T``:
+    the iteration pushes the singular values towards one, not exactly onto it,
+    with the modded-nanogpt coefficients,
+    which are tuned for a fast start of the iteration rather than for convergence to exactly orthogonal factors.
+    The iteration runs in bfloat16 on the wide orientation of the matrix (rows <= columns),
+    so transposing the input transposes the result;
+    the result has the dtype of the input.
+
+    Args:
+        grad: a matrix of shape (rows, columns), any float dtype
+        steps: number of Newton-Schulz iterations
+
+    Returns:
+        the approximately semi-orthogonal matrix, same shape and dtype as ``grad``
+    """
+    if grad.ndim != 2:
+        raise ValueError(f"Expected a matrix, got a tensor of shape {tuple(grad.shape)}")
+    a, b, c = 3.4445, -4.7750, 2.0315
+    x = grad.bfloat16()
+    transpose = grad.size(0) > grad.size(1)
+    if transpose:
+        x = x.T
+    x = x / (x.norm() + 1e-7)
+    for _ in range(steps):
+        aa = x @ x.T
+        bb = b * aa + c * (aa @ aa)
+        x = a * x + bb @ x
+    if transpose:
+        x = x.T
+    return x.to(grad.dtype)
+
+
+def update_scale(shape: Sequence[int], scale_mode: str) -> float:
+    """Factor on the orthogonalized update of a ``(rows, columns)`` matrix.
+
+    Args:
+        shape: the two dimensions of the matrix
+        scale_mode: ``'fan_in'``, ``'fan_out'`` or ``'none'``, see :class:`Muon`
+
+    Returns:
+        the factor
+    """
+    rows, columns = shape
+    if scale_mode == 'fan_in':
+        return max(1.0, rows / columns) ** 0.5
+    if scale_mode == 'fan_out':
+        return max(1.0, columns / rows) ** 0.5
+    if scale_mode == 'none':
+        return 1.0
+    raise ValueError(f"Unknown scale_mode {scale_mode!r}, expected one of {SCALE_MODES}")
 
 
 def _muon_update(
