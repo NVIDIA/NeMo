@@ -24,6 +24,7 @@ from nemo.collections.asr.modules.transformer.transformer_modules import MultiHe
 from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.common.parts import form_attention_mask
+from nemo.collections.common.parts.utils import ModuleBlock, build_module
 from nemo.core.classes.mixins import adapter_mixins
 
 __all__ = ["TransformerDecoder"]
@@ -43,6 +44,10 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
             attention layers, but before layer normalization
         ffn_dropout: probability of dropout applied to FFN output
         hidden_act: activation function used between two linear layers in FFN
+        norm, self_attn, cross_attn, feed_forward: configurable blocks, each a class, a callable or a Hydra
+            partial (``_target_`` with ``_partial_: true``) built from the arguments the block supplies
+            (sizes, dropouts, hidden_act); a block section only names what deviates. Defaults to
+            LayerNorm, MultiHeadAttention (both attentions) and PositionWiseFF.
     """
 
     def __init__(
@@ -55,23 +60,34 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
         pre_ln: bool = False,
+        norm: ModuleBlock | None = None,
+        self_attn: ModuleBlock | None = None,
+        cross_attn: ModuleBlock | None = None,
+        feed_forward: ModuleBlock | None = None,
     ):
         super().__init__()
         self.pre_ln = pre_ln
-        self.layer_norm_1 = nn.LayerNorm(hidden_size, eps=1e-5)
-        self.first_sub_layer = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
+        norm = norm or nn.LayerNorm
+        attention_defaults = dict(
+            hidden_size=hidden_size,
+            num_attention_heads=num_attention_heads,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
         )
-        self.layer_norm_2 = nn.LayerNorm(hidden_size, eps=1e-5)
-        self.second_sub_layer = MultiHeadAttention(
-            hidden_size,
-            num_attention_heads,
-            attn_score_dropout,
-            attn_layer_dropout,
-            return_xatt_scores=True,
+        self.layer_norm_1 = build_module(norm, normalized_shape=hidden_size)
+        self.first_sub_layer = build_module(self_attn or MultiHeadAttention, **attention_defaults)
+        self.layer_norm_2 = build_module(norm, normalized_shape=hidden_size)
+        self.second_sub_layer = build_module(
+            cross_attn or MultiHeadAttention, return_xatt_scores=True, **attention_defaults
         )
-        self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
-        self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
+        self.layer_norm_3 = build_module(norm, normalized_shape=hidden_size)
+        self.third_sub_layer = build_module(
+            feed_forward or PositionWiseFF,
+            hidden_size=hidden_size,
+            inner_size=inner_size,
+            ffn_dropout=ffn_dropout,
+            hidden_act=hidden_act,
+        )
 
         # Information for the adapter module mixin
         self.self_attention_model = "transf_abs"
@@ -195,11 +211,20 @@ class TransformerDecoder(nn.Module):
         hidden_act: str = "relu",
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
+        norm: ModuleBlock | None = None,
+        self_attn: ModuleBlock | None = None,
+        cross_attn: ModuleBlock | None = None,
+        feed_forward: ModuleBlock | None = None,
     ):
+        """
+        Args:
+            norm, self_attn, cross_attn, feed_forward: configurable blocks of every TransformerDecoderBlock
+                and of the final norm, see TransformerDecoderBlock
+        """
         super().__init__()
 
         if pre_ln and pre_ln_final_layer_norm:
-            self.final_layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
+            self.final_layer_norm = build_module(norm or nn.LayerNorm, normalized_shape=hidden_size)
         else:
             self.final_layer_norm = None
 
@@ -214,6 +239,10 @@ class TransformerDecoder(nn.Module):
             ffn_dropout,
             hidden_act,
             pre_ln,
+            norm=norm,
+            self_attn=self_attn,
+            cross_attn=cross_attn,
+            feed_forward=feed_forward,
         )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
         self.diagonal = 0
