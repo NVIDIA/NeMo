@@ -92,8 +92,27 @@ class TestLabelSmoothedLogProbGradient:
         # the excluded label as target keeps its full gradient and spreads nothing
         torch.testing.assert_close(grad[1, blank], torch.tensor(-1.0))
         assert torch.equal(grad[1, :blank], torch.zeros(blank))
-        with pytest.raises(ValueError):
+
+    @pytest.mark.unit
+    def test_invalid_inputs_are_rejected(self):
+        log_probs = torch.zeros(2, NUM_LABELS)
+        with pytest.raises(ValueError, match=r"smoothing must be in \[0, 1\]"):
+            label_smoothed_log_prob_gradient(log_probs, 1.5)
+        with pytest.raises(ValueError, match=r"smoothing must be in \[0, 1\]"):
+            label_smoothed_log_prob_gradient(log_probs, -0.1)
+        with pytest.raises(ValueError, match="scalar tensor"):
+            label_smoothed_log_prob_gradient(log_probs, torch.tensor([SMOOTHING, SMOOTHING]))
+        with pytest.raises(ValueError, match="at least two labels"):
+            label_smoothed_log_prob_gradient(torch.zeros(2, 1), SMOOTHING)
+        with pytest.raises(ValueError, match=r"exclude_labels must be in \[0, 7\)"):
+            label_smoothed_log_prob_gradient(log_probs, SMOOTHING, exclude_labels=[NUM_LABELS])
+        with pytest.raises(ValueError, match=r"exclude_labels must be in \[0, 7\)"):
+            label_smoothed_log_prob_gradient(log_probs, SMOOTHING, exclude_labels=[-1])
+        with pytest.raises(ValueError, match="at least two participating labels"):
             label_smoothed_log_prob_gradient(log_probs, SMOOTHING, exclude_labels=list(range(NUM_LABELS - 1)))
+        # the boundaries of the smoothing range are valid
+        assert label_smoothed_log_prob_gradient(log_probs, 0.0) is log_probs
+        assert torch.equal(label_smoothed_log_prob_gradient(log_probs, 1.0), log_probs)
 
     @pytest.mark.unit
     def test_tensor_smoothing_and_label_dimension(self):

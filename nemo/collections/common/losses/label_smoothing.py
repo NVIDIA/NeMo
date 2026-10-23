@@ -52,7 +52,8 @@ def label_smoothed_log_prob_gradient(
 
     Args:
         log_probs: log-probabilities of any shape with the label dimension ``dim``
-        smoothing: label smoothing weight, a float or a scalar tensor (for a scheduled value)
+        smoothing: label smoothing weight in ``[0, 1]``, a float or a scalar tensor (for a scheduled value);
+            a tensor value is not range-checked, which would synchronize with the device
         dim: the label dimension
         exclude_labels: labels that receive no smoothing mass and keep their gradient, such as a blank label;
             the mass of the other labels is then smoothed among those ``C - len(exclude_labels)`` labels,
@@ -61,17 +62,29 @@ def label_smoothed_log_prob_gradient(
     Returns:
         ``log_probs``, with the smoothed gradient attached
     """
-    if not isinstance(smoothing, torch.Tensor) and smoothing == 0:
+    if isinstance(smoothing, torch.Tensor):
+        if smoothing.dim() != 0:
+            raise ValueError(f"smoothing must be a scalar tensor, got shape {tuple(smoothing.shape)}")
+    elif not 0.0 <= smoothing <= 1.0:
+        raise ValueError(f"smoothing must be in [0, 1], got {smoothing!r}")
+    elif smoothing == 0:
         return log_probs
     num_labels = log_probs.shape[dim]
     keep = None
     if not exclude_labels:
+        if num_labels < 2:
+            raise ValueError(f"Label smoothing needs at least two labels, got {num_labels}")
         floor = smoothing / (num_labels - 1)
         factor = 1.0 - num_labels * floor
     else:
         excluded = sorted(set(int(label) for label in exclude_labels))
+        if excluded[0] < 0 or excluded[-1] >= num_labels:
+            raise ValueError(f"exclude_labels must be in [0, {num_labels}), got {excluded}")
         if len(excluded) >= num_labels - 1:
-            raise ValueError(f"Cannot exclude {len(excluded)} of {num_labels} labels from label smoothing")
+            raise ValueError(
+                f"Label smoothing needs at least two participating labels, "
+                f"got {num_labels} labels with {len(excluded)} excluded"
+            )
         floor = smoothing / (num_labels - len(excluded) - 1)
         factor = 1.0 - (num_labels - len(excluded)) * floor
         keep = torch.ones(num_labels, dtype=log_probs.dtype, device=log_probs.device)
