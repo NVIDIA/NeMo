@@ -505,6 +505,19 @@ Learning rate schedulers can be optionally configured under the ``optim.sched`` 
     name: ReduceLROnPlateau, schedule: <class 'torch.optim.lr_scheduler.ReduceLROnPlateau'>
     name: CyclicLR, schedule: <class 'torch.optim.lr_scheduler.CyclicLR'>
 
+A scheduler whose shape comes from the configuration, such as ``PiecewiseLinear``, takes its points under ``optim.sched`` as well.
+Here a warmup over the first 45% of the training, a decay to 90% and a final decay, with relative boundaries that follow ``max_steps``:
+
+.. code-block:: yaml
+
+    optim:
+        lr: 1.0
+        sched:
+            name: PiecewiseLinear
+            relative: true
+            boundaries: [0.0, 0.45, 0.9, 1.0]
+            values: [1e-5, 4e-3, 1e-5, 1e-6]
+
 Scheduler Params
 ~~~~~~~~~~~~~~~~
 

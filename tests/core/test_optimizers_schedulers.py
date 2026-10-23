@@ -1290,8 +1290,15 @@ class TestPiecewiseLinear:
             PiecewiseLinear(_sgd_with_group_lrs(1.0), boundaries=[], values=[])
         with pytest.raises(ValueError, match="strictly increasing"):
             PiecewiseLinear(_sgd_with_group_lrs(1.0), boundaries=[0, 1, 1], values=[1.0, 1.0, 1.0])
-        with pytest.raises(ValueError, match="need `max_steps`"):
-            PiecewiseLinear(_sgd_with_group_lrs(1.0), boundaries=[0, 1], values=[1.0, 1.0], relative=True)
+        for max_steps in (None, 0, -5):
+            with pytest.raises(ValueError, match="positive `max_steps`"):
+                PiecewiseLinear(
+                    _sgd_with_group_lrs(1.0), boundaries=[0, 1], values=[1.0, 1.0], relative=True, max_steps=max_steps
+                )
+        with pytest.raises(ValueError, match="finite"):
+            PiecewiseLinear(_sgd_with_group_lrs(1.0), boundaries=[0, float('nan')], values=[1.0, 1.0])
+        with pytest.raises(ValueError, match="finite"):
+            PiecewiseLinear(_sgd_with_group_lrs(1.0), boundaries=[0, 1], values=[1.0, float('inf')])
 
     @pytest.mark.unit
     def test_production_schedule(self):
