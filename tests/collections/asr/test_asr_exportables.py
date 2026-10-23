@@ -630,14 +630,18 @@ def conformer_model():
     return conformer_model
 
 
+def _small_transformer_decoder():
+    return TransformerDecoderNM(
+        vocab_size=8, hidden_size=16, num_layers=1, inner_size=24, num_attention_heads=2, max_sequence_length=32
+    ).eval()
+
+
 class TestTransformerDecoderExportInputs:
     """Export example inputs of TransformerDecoderNM stay within the vocabulary and the positional table."""
 
     @pytest.mark.unit
     def test_input_example_is_bounded(self):
-        decoder = TransformerDecoderNM(
-            vocab_size=8, hidden_size=16, num_layers=1, inner_size=24, num_attention_heads=2, max_sequence_length=32
-        ).eval()
+        decoder = _small_transformer_decoder()
         input_ids, decoder_mask, encoder_states, encoder_mask, decoder_mems = decoder.input_example(
             max_batch=2, max_dim=64
         )
@@ -656,11 +660,37 @@ class TestTransformerDecoderExportInputs:
 
     @pytest.mark.unit
     def test_tensor_start_position(self):
-        decoder = TransformerDecoderNM(
-            vocab_size=8, hidden_size=16, num_layers=1, inner_size=24, num_attention_heads=2, max_sequence_length=32
-        ).eval()
+        decoder = _small_transformer_decoder()
         input_ids = torch.tensor([[3, 4]])
         with torch.no_grad():
             from_int = decoder.embedding(input_ids, start_pos=5)
             from_tensor = decoder.embedding(input_ids, start_pos=torch.tensor(5))
         torch.testing.assert_close(from_int, from_tensor)
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_tensor_start_position_on_cuda(self):
+        # under tracing the start position derived from the input shape is a CPU tensor while the ids are on the GPU
+        decoder = _small_transformer_decoder().cuda()
+        input_ids = torch.tensor([[3, 4]], device='cuda')
+        with torch.no_grad():
+            from_int = decoder.embedding(input_ids, start_pos=5)
+            from_tensor = decoder.embedding(input_ids, start_pos=torch.tensor(5))
+        torch.testing.assert_close(from_int, from_tensor)
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_export_with_decoder_mems_on_cuda(self):
+        decoder = _small_transformer_decoder().cuda()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'decoder.onnx')
+            decoder.export(output=filename, check_trace=True)
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert [node.name for node in onnx_model.graph.input] == [
+                'input_ids',
+                'decoder_mask',
+                'encoder_embeddings',
+                'encoder_mask',
+                'decoder_mems',
+            ]
