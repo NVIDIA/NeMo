@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""label_smoothed_log_prob_gradient: label smoothing through the gradient of the log-probabilities."""
-
 import pytest
 import torch
 
@@ -38,11 +36,14 @@ class TestLabelSmoothedLogProbGradient:
         assert torch.equal(label_smoothed_log_prob_gradient(log_probs, SMOOTHING), log_probs)
 
     @pytest.mark.unit
-    def test_gradient_equals_the_smoothed_cross_entropy_gradient(self):
+    @pytest.mark.parametrize("batch,time,num_labels", [(2, 5, NUM_LABELS), (3, 17, 1026)])
+    def test_gradient_equals_the_smoothed_cross_entropy_gradient(self, batch, time, num_labels):
+        """The decoder shape of a 1,024-piece vocabulary with boundary labels is the second case."""
         torch.manual_seed(0)
-        logits = torch.randn(2, 5, NUM_LABELS)
-        labels = torch.randint(NUM_LABELS, (2, 5))
-        weights = torch.rand(2, 5)  # per-position loss scales, as a normalization would apply
+        logits = torch.randn(batch, time, num_labels)
+        labels = torch.randint(num_labels, (batch, time))
+        weights = torch.rand(batch, time)  # per-position loss scales, as a normalization would apply
+        weights[:, time // 2 :] *= torch.arange(batch)[:, None] > 0  # one sequence shorter than the others
 
         plain = logits.clone().requires_grad_()
         log_probs = label_smoothed_log_prob_gradient(plain.log_softmax(-1), SMOOTHING)
@@ -50,7 +51,7 @@ class TestLabelSmoothedLogProbGradient:
         nll.backward()
 
         smoothed = logits.clone().requires_grad_()
-        targets = smoothed_targets(labels, NUM_LABELS, SMOOTHING)
+        targets = smoothed_targets(labels, num_labels, SMOOTHING)
         ce = -((targets * smoothed.log_softmax(-1)).sum(-1) * weights).sum()
         ce.backward()
 
