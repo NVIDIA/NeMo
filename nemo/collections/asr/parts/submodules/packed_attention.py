@@ -257,19 +257,21 @@ def packed_cross_attention(
 ) -> Tensor:
     """Attend from token-flat queries to the token-flat keys of the same sequence, without a position bias.
 
+    On CUDA in half precision this runs variable-length FlashAttention;
+    otherwise the sequences are attended one at a time with dense attention.
+
     Args:
-        q: shape ``(Q_total, H, d_k)``; k, v: shape ``(K_total, H, d_k)``, packed in the same sequence order.
-        query_context, key_context: packing metadata of the queries and of the keys; the same object for
-            self-attention.
+        q: queries, shape ``(Q_total, H, d_k)``.
+        k: keys, shape ``(K_total, H, d_k)``, packed in the same sequence order as the queries.
+        v: values, shape ``(K_total, H, d_k)``.
+        query_context: packing metadata of the queries.
+        key_context: packing metadata of the keys; the same object as ``query_context`` in self-attention.
         causal: let every query see only the keys at its position or before; needs equal query and key lengths.
         dropout_p: dropout on the attention weights.
         scale: score scale, ``1 / sqrt(d_k)`` by default.
 
     Returns:
         Context vectors of shape ``(Q_total, H, d_k)``.
-
-    On CUDA in half precision this runs variable-length FlashAttention; otherwise the sequences are attended one at a
-    time with dense attention.
     """
     if scale is None:
         scale = 1.0 / math.sqrt(q.shape[-1])
@@ -298,7 +300,17 @@ def packed_cross_attention(
     )
 
 
-def _reference_packed_cross_attention(q, k, v, query_context, key_context, *, causal, dropout_p, scale):
+def _reference_packed_cross_attention(
+    q: Tensor,
+    k: Tensor,
+    v: Tensor,
+    query_context: PackedAttentionContext,
+    key_context: PackedAttentionContext,
+    *,
+    causal: bool,
+    dropout_p: float,
+    scale: float,
+) -> Tensor:
     """Dense attention one sequence at a time from its queries to its keys."""
     outputs = []
     for (q_start, q_end), (k_start, k_end) in zip(query_context.sequence_slices, key_context.sequence_slices):
@@ -315,7 +327,7 @@ def _reference_packed_cross_attention(q, k, v, query_context, key_context, *, ca
             if q_end - q_start != k_end - k_start:
                 raise ValueError("causal packed attention needs equal query and key lengths per sequence.")
             visible = torch.ones(q_end - q_start, k_end - k_start, dtype=torch.bool, device=q.device).tril()
-            scores = scores.masked_fill(~visible, float('-inf'))
+            scores = scores.masked_fill(~visible, float("-inf"))
         weights = torch.softmax(scores, dim=-1)
         if dropout_p > 0.0:
             weights = torch.nn.functional.dropout(weights, p=dropout_p, training=True)

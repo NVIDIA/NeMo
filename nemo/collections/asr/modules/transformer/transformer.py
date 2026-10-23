@@ -24,6 +24,7 @@ from nemo.collections.asr.modules.transformer.encoder_module import EncoderModul
 from nemo.collections.asr.modules.transformer.transformer_decoders import TransformerDecoder, TransformerDecoderAdapter
 from nemo.collections.asr.modules.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.asr.modules.transformer.transformer_modules import TransformerEmbedding
+from nemo.collections.asr.parts.submodules.packed_attention import PackedAttentionContext
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.common.parts.utils import ModuleBlock, build_module
 from nemo.core.classes.common import typecheck
@@ -265,11 +266,23 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             decoder_hidden_states = torch.transpose(decoder_hidden_states, 0, 1)
         return decoder_hidden_states
 
-    def forward_packed(self, input_ids, decoder_context, encoder_states, encoder_context):
-        """Decoder hidden states (U_total, hidden_size) for token-flat input ids (U_total,).
+    def forward_packed(
+        self,
+        input_ids: torch.Tensor,
+        decoder_context: PackedAttentionContext,
+        encoder_states: torch.Tensor,
+        encoder_context: PackedAttentionContext,
+    ) -> torch.Tensor:
+        """Decoder hidden states for token-flat input ids, see ``TransformerDecoder.forward_packed``.
 
-        ``decoder_context`` carries the boundaries and positions of the ids, ``encoder_states`` (T_total,
-        hidden_size) and ``encoder_context`` the packed encoder output; see TransformerDecoder.forward_packed.
+        Args:
+            input_ids: token ids of all sequences, shape ``(U_total,)``.
+            decoder_context: boundaries and positions of the ids.
+            encoder_states: packed encoder output, shape ``(T_total, hidden_size)``.
+            encoder_context: boundaries of the encoder output.
+
+        Returns:
+            The decoder hidden states, shape ``(U_total, hidden_size)``.
         """
         decoder_embeddings = self._embedding.forward_packed(input_ids, decoder_context.position_ids)
         return self._decoder.forward_packed(decoder_embeddings, decoder_context, encoder_states, encoder_context)

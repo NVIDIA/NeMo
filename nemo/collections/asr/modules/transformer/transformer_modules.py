@@ -23,7 +23,7 @@ from torch import nn
 from torch.nn.functional import gelu
 
 from nemo.collections.asr.parts.submodules.multi_head_attention import RotaryPositionalEncoding
-from nemo.collections.asr.parts.submodules.packed_attention import packed_cross_attention
+from nemo.collections.asr.parts.submodules.packed_attention import PackedAttentionContext, packed_cross_attention
 from nemo.collections.common.parts import form_attention_mask
 
 __all__ = ["TransformerEmbedding", "AttentionBridge", "RMSNorm"]
@@ -197,15 +197,18 @@ class TransformerEmbedding(nn.Module):
 
         return embeddings
 
-    def forward_packed(self, input_ids, position_ids, token_type_ids=None):
+    def forward_packed(
+        self, input_ids: torch.Tensor, position_ids: torch.Tensor, token_type_ids: torch.Tensor | None = None
+    ) -> torch.Tensor:
         """Embed token-flat ids with explicit positions.
 
         Args:
-            input_ids: ids of all sequences, shape (U_total,)
-            position_ids: position of every id within its sequence, shape (U_total,)
-            token_type_ids: optional token types, shape (U_total,)
+            input_ids: ids of all sequences, shape ``(U_total,)``.
+            position_ids: position of every id within its sequence, shape ``(U_total,)``.
+            token_type_ids: optional token types, shape ``(U_total,)``.
+
         Returns:
-            embeddings of shape (U_total, hidden_size)
+            The embeddings, shape ``(U_total, hidden_size)``.
         """
         token_embeddings = self.token_embedding(input_ids)
         if self.embedding_scale is not None:
@@ -312,35 +315,42 @@ class MultiHeadAttention(nn.Module):
 
         return output_states, extra_output
 
-    def forward_packed(self, queries, keys, values, query_context, key_context, causal=False):
+    def forward_packed(
+        self,
+        queries: torch.Tensor,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        query_context: PackedAttentionContext,
+        key_context: PackedAttentionContext,
+        causal: bool = False,
+    ) -> tuple[torch.Tensor, dict]:
         """Attention over token-flat queries and keys with explicit sequence boundaries instead of masks.
 
         Args:
-            queries: (Q_total, hidden_size); keys, values: (K_total, hidden_size), packed in the same sequence order
-            query_context, key_context (PackedAttentionContext): boundaries and positions of the two packings; the
-                same object for self-attention
-            causal: let every query see only the keys at its position or before (self-attention)
+            queries: shape ``(Q_total, hidden_size)``.
+            keys: shape ``(K_total, hidden_size)``, packed in the same sequence order as the queries.
+            values: shape ``(K_total, hidden_size)``.
+            query_context: boundaries and positions of the queries.
+            key_context: boundaries and positions of the keys; the same object as ``query_context`` in self-attention.
+            causal: let every query see only the keys at its position or before (self-attention).
+
         Returns:
-            output_states (Q_total, hidden_size) and an empty extra_output: the attention weights that the padded
-            forward returns with return_xatt_scores are not formed by the fused kernels
+            The output states, shape ``(Q_total, hidden_size)``, and an empty ``extra_output``:
+            the attention weights that the padded forward returns with ``return_xatt_scores``
+            are not formed by the fused kernels.
         """
         heads, head_size = self.num_attention_heads, self.attn_head_size
         query = self.query_net(queries).view(-1, heads, head_size) / self.attn_scale
         key = self.key_net(keys).view(-1, heads, head_size) / self.attn_scale
         value = self.value_net(values).view(-1, heads, head_size)
         if self.rotary_pos_enc is not None:
-            rotary = self.rotary_pos_enc
-            rotary.extend_pe(max(query_context.max_seqlen, key_context.max_seqlen), key.device, key.dtype)
-            query = rotary._apply_rotary(
-                query,
-                rotary.cos.index_select(0, query_context.position_ids).unsqueeze(1).to(query.dtype),
-                rotary.sin.index_select(0, query_context.position_ids).unsqueeze(1).to(query.dtype),
-            )
-            key = rotary._apply_rotary(
-                key,
-                rotary.cos.index_select(0, key_context.position_ids).unsqueeze(1).to(key.dtype),
-                rotary.sin.index_select(0, key_context.position_ids).unsqueeze(1).to(key.dtype),
-            )
+            # a function-level import: the modules package initializes the encoders, which import this module
+            from nemo.collections.asr.modules.transformer_encoder_utils import _apply_packed_rope
+
+            if query_context is not key_context:
+                raise NotImplementedError("The rotary position embedding applies to self-attention only.")
+            self.rotary_pos_enc.extend_pe(query_context.max_seqlen, key.device, key.dtype)
+            query, key = _apply_packed_rope(self.rotary_pos_enc, query, key, query_context.position_ids)
         # the scores are already scaled by the two divisions above
         context = packed_cross_attention(
             query,

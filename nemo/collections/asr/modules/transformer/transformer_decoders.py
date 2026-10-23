@@ -22,6 +22,7 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.modules.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
 from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
+from nemo.collections.asr.parts.submodules.packed_attention import PackedAttentionContext
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.common.parts.utils import ModuleBlock, build_module
@@ -184,16 +185,25 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         else:
             return self.forward_postln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
 
-    def forward_packed(self, decoder_states, decoder_context, encoder_states, encoder_context):
-        """The block over token-flat decoder states attending token-flat encoder states, see TransformerDecoder.
+    def forward_packed(
+        self,
+        decoder_states: torch.Tensor,
+        decoder_context: PackedAttentionContext,
+        encoder_states: torch.Tensor,
+        encoder_context: PackedAttentionContext,
+    ) -> torch.Tensor:
+        """The block over token-flat decoder states attending token-flat encoder states.
+
+        See ``TransformerDecoder.forward_packed`` for the contract.
 
         Args:
-            decoder_states: (U_total, hidden_size)
-            decoder_context (PackedAttentionContext): boundaries and positions of the decoder tokens
-            encoder_states: (T_total, hidden_size), in the same sequence order
-            encoder_context (PackedAttentionContext): boundaries of the encoder tokens
+            decoder_states: shape ``(U_total, hidden_size)``.
+            decoder_context: boundaries and positions of the decoder tokens.
+            encoder_states: shape ``(T_total, hidden_size)``, in the same sequence order.
+            encoder_context: boundaries of the encoder tokens.
+
         Returns:
-            output states (U_total, hidden_size)
+            The output states, shape ``(U_total, hidden_size)``.
         """
         if self.is_adapter_available():
             raise NotImplementedError("Adapters are not supported in the sequence-packed decoder block.")
@@ -355,21 +365,30 @@ class TransformerDecoder(nn.Module):
         else:
             return memory_states, xatt_scores_list
 
-    def forward_packed(self, decoder_states, decoder_context, encoder_states, encoder_context):
-        """Teacher-forced decoding over sequence-packed inputs, the training-time counterpart of forward.
+    def forward_packed(
+        self,
+        decoder_states: torch.Tensor,
+        decoder_context: PackedAttentionContext,
+        encoder_states: torch.Tensor,
+        encoder_context: PackedAttentionContext,
+    ) -> torch.Tensor:
+        """Teacher-forced decoding over sequence-packed inputs, the training-time counterpart of ``forward``.
+
+        The decoder and encoder masks of ``forward`` are replaced by the two packings:
+        no padded position is computed,
+        self-attention is causal within every sequence (the mask of diagonal 0)
+        and the cross-attention of a sequence sees only its own encoder states.
+        The cached memory lists of incremental decoding, the cross-attention scores and adapters
+        are not provided in this form.
 
         Args:
-            decoder_states: embedded decoder inputs of all sequences, shape (U_total, hidden_size)
-            decoder_context (PackedAttentionContext): boundaries and positions of the decoder tokens
-            encoder_states: encoder outputs of all sequences, shape (T_total, hidden_size), in the same order
-            encoder_context (PackedAttentionContext): boundaries of the encoder tokens
-        Returns:
-            decoder hidden states (U_total, hidden_size), after the final norm when configured
+            decoder_states: embedded decoder inputs of all sequences, shape ``(U_total, hidden_size)``.
+            decoder_context: boundaries and positions of the decoder tokens.
+            encoder_states: encoder outputs of all sequences, shape ``(T_total, hidden_size)``, in the same order.
+            encoder_context: boundaries of the encoder tokens.
 
-        The decoder and encoder masks of forward are replaced by the two packings: no padded position is computed,
-        self-attention is causal within every sequence (the mask of diagonal 0) and the cross-attention of a
-        sequence sees only its own encoder states. The cached memory lists of incremental decoding, the
-        cross-attention scores and adapters are not provided in this form.
+        Returns:
+            The decoder hidden states, shape ``(U_total, hidden_size)``, after the final norm when configured.
         """
         if self.diagonal != 0:
             raise NotImplementedError("forward_packed implements the causal mask of diagonal 0.")

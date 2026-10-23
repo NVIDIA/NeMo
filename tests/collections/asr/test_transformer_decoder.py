@@ -15,7 +15,6 @@
 
 """Transformer decoder modules: configurable blocks (embedding, norm, self- and cross-attention, feed-forward)."""
 
-import copy
 import functools
 import math
 
