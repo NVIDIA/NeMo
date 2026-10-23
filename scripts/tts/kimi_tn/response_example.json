@@ -1,0 +1,23 @@
+{
+  "score_1_to_5": 5,
+  "verdict": "PASS",
+  "checks": {
+    "values_and_entities": "PASS",
+    "claims_and_relationships": "PASS",
+    "content_coverage": "PASS"
+  },
+  "categories_checked": [
+    "Units",
+    "Titles",
+    "Negation"
+  ],
+  "meaning_errors": [],
+  "review_reasons": [],
+  "wording_notes": [
+    "Digit/word formatting, title expansion and contraction expansion preserve the same meaning."
+  ],
+  "observability_limits": [],
+  "error_attribution": "UNDETERMINED_FROM_TEXT",
+  "audio_assessed": false,
+  "summary": "The person, quantities, route-change negation and complete factual content agree."
+}

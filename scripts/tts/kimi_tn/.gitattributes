@@ -1,0 +1,2 @@
+# Preserve the exact judge prompt bytes and its provenance hash on every platform.
+system_prompt.txt -text whitespace=cr-at-eol
