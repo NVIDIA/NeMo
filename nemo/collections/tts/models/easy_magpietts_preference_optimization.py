@@ -13,11 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import atexit
 import copy
 import os
 import random
-import shutil
 import time
 from typing import Dict, List, Optional
 
@@ -455,8 +453,10 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
 
     def _get_audio_dir(self) -> str:
         """Return (and create if needed) the directory used to store intermediate waveforms during PO."""
-        ## As discussed, commenting out /dev/shm section for now
-        
+        # As discussed, commenting out /dev/shm section for now
+
+        # import atexit
+        # import shutil
         # if not self.cfg.get('save_reward_audios', True):
         #     if not hasattr(self, '_tmp_reward_audio_dir'):
         #         job_id = os.environ.get('SLURM_JOB_ID', 'local')
