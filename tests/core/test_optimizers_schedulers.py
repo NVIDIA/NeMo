@@ -1292,3 +1292,26 @@ class TestPiecewiseLinear:
             PiecewiseLinear(_sgd_with_group_lrs(1.0), boundaries=[0, 1, 1], values=[1.0, 1.0, 1.0])
         with pytest.raises(ValueError, match="need `max_steps`"):
             PiecewiseLinear(_sgd_with_group_lrs(1.0), boundaries=[0, 1], values=[1.0, 1.0], relative=True)
+
+    @pytest.mark.unit
+    def test_production_schedule(self):
+        # a training of 88,004 steps with a warmup to 45%, a decay to 90% and a final decay,
+        # as a trainer with `max_steps` and relative boundaries configures it
+        max_steps = 88_004
+        optimizer = _sgd_with_group_lrs(1.0)
+        scheduler = PiecewiseLinear(
+            optimizer,
+            boundaries=[0.0, 0.45, 0.9, 1.0],
+            values=[1e-5, 4e-3, 1e-5, 1e-6],
+            relative=True,
+            max_steps=max_steps,
+        )
+        rates = _learning_rates_per_step(scheduler, optimizer, steps=max_steps + 1)
+        assert rates[0] == 1e-5
+        assert rates[-1] == pytest.approx(1e-6)
+        peak = max(range(len(rates)), key=rates.__getitem__)
+        assert peak in (39601, 39602)  # 0.45 * 88004 = 39601.8
+        assert rates[peak] == pytest.approx(4e-3, rel=1e-4)
+        assert all(later >= earlier for earlier, later in zip(rates[:peak], rates[1 : peak + 1]))
+        assert all(later <= earlier for earlier, later in zip(rates[peak:], rates[peak + 1 :]))
+        assert rates[79204] == pytest.approx(1e-5, rel=1e-3)  # 0.9 * 88004 = 79203.6

@@ -24,7 +24,7 @@ import inspect
 import math
 import warnings
 from functools import partial
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import torch.optim as optim
 import torch.optim.lr_scheduler as pt_scheduler
@@ -717,12 +717,14 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
 class PiecewiseLinear(_LRScheduler):
     """Learning rate interpolated linearly between given values at given points of the training.
 
-    ``boundaries`` are increasing positions in the training and ``values`` the learning-rate multipliers at those
-    positions; between two boundaries the multiplier is interpolated linearly, before the first and after the last
-    boundary it stays at the nearest value.
-    Positions are optimizer steps, or fractions of ``max_steps`` with ``relative=True``, so that one configuration
-    describes the schedule for any training length.
-    The multipliers scale the learning rate of each parameter group; with ``lr: 1.0`` they are the learning rates.
+    ``boundaries`` are increasing positions in the training
+    and ``values`` the learning-rate multipliers at those positions;
+    between two boundaries the multiplier is interpolated linearly,
+    before the first and after the last boundary it stays at the nearest value.
+    Positions are optimizer steps, or fractions of ``max_steps`` with ``relative=True``,
+    so that one configuration describes the schedule for any training length.
+    The multipliers scale the learning rate of each parameter group;
+    with ``lr: 1.0`` they are the learning rates.
 
     Example, a warmup over the first 45% of the training and a decay to the end:
 
@@ -735,13 +737,24 @@ class PiecewiseLinear(_LRScheduler):
           values: [1e-5, 4e-3, 1e-5, 1e-6]
 
     Args:
+        optimizer: the wrapped optimizer
         boundaries: increasing positions, in optimizer steps or (``relative``) in fractions of ``max_steps``
         values: learning-rate multiplier at each boundary, one per boundary
         relative: interpret ``boundaries`` as fractions of ``max_steps``
         max_steps: total number of optimizer steps, required when ``relative`` is set
+        last_epoch: the index of the last optimizer step, -1 for a fresh schedule
     """
 
-    def __init__(self, optimizer, *, boundaries=None, values=None, relative=False, max_steps=None, last_epoch=-1):
+    def __init__(
+        self,
+        optimizer: optim.Optimizer,
+        *,
+        boundaries: Optional[Sequence[float]] = None,
+        values: Optional[Sequence[float]] = None,
+        relative: bool = False,
+        max_steps: Optional[int] = None,
+        last_epoch: int = -1,
+    ) -> None:
         if boundaries is None or values is None:
             raise ValueError("PiecewiseLinear needs `boundaries` and `values`")
         boundaries = [float(boundary) for boundary in boundaries]
@@ -758,8 +771,15 @@ class PiecewiseLinear(_LRScheduler):
         self.max_steps = max_steps
         super().__init__(optimizer, last_epoch)
 
-    def multiplier(self, position):
-        """The interpolated multiplier at ``position``, a step or (``relative``) a fraction of ``max_steps``."""
+    def multiplier(self, position: float) -> float:
+        """The interpolated multiplier at ``position``, a step or (``relative``) a fraction of ``max_steps``.
+
+        Args:
+            position: the position in the training
+
+        Returns:
+            the multiplier of the base learning rate
+        """
         index = bisect.bisect_right(self.boundaries, position)
         if index == 0:
             return self.values[0]
@@ -769,7 +789,7 @@ class PiecewiseLinear(_LRScheduler):
         y0, y1 = self.values[index - 1], self.values[index]
         return (y1 - y0) / (x1 - x0) * (position - x0) + y0
 
-    def get_lr(self):
+    def get_lr(self) -> List[float]:
         if not self._get_lr_called_within_step:
             warnings.warn(
                 "To get the last learning rate computed by the scheduler, please use `get_last_lr()`.", UserWarning
