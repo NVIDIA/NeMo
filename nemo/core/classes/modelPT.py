@@ -35,6 +35,7 @@ from nemo.core.classes.common import Model, safe_instantiate
 from nemo.core.classes.module import NeuralModule
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import prepare_lr_scheduler
+from nemo.core.optim.param_groups import apply_param_group_rules
 from nemo.lightning.callback_group import CallbackGroup
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
@@ -818,6 +819,21 @@ class ModelPT(LightningModule, Model):
             optim:
                 lr: 3e-3
                 momentum: 0.9
+
+        Parameters can further be selected by the type of the module that owns them
+        or by name patterns with 'optim_param_group_rules',
+        which splits the groups above and sets options on the selected parameters,
+        such as no weight decay for embeddings, norms and biases;
+        see :func:`nemo.core.optim.param_groups.apply_param_group_rules`.
+        A changed rule set changes the optimizer's parameter groups,
+        so an optimizer state saved under other rules does not restore onto them:
+
+        model:
+            optim_param_group_rules:
+                no_weight_decay:
+                    module_types: [torch.nn.Embedding, torch.nn.LayerNorm]
+                    param_names: ["*.bias"]
+                    weight_decay: 0.0
         """
         if not hasattr(self, "parameters"):
             self._optimizer_param_groups = None
@@ -853,6 +869,10 @@ class ModelPT(LightningModule, Model):
                 param_groups = [{"params": other_params}] + param_groups
         else:
             param_groups = [{"params": list(self.parameters())}]
+
+        if "optim_param_group_rules" in self.cfg and self.cfg.optim_param_group_rules:
+            rules = OmegaConf.to_container(self.cfg.optim_param_group_rules, resolve=True)
+            param_groups = apply_param_group_rules(self, param_groups, rules)
 
         self._optimizer_param_groups = param_groups
 
