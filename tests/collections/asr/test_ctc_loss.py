@@ -231,6 +231,35 @@ class TestPackedCTCLossKernel:
         torch.testing.assert_close(flat.grad, dense.grad)
 
     @pytest.mark.unit
+    def test_over_allocated_targets_and_filler_utterances(self):
+        # the static-shape regime of a captured step: the targets buffer is far wider than the longest target
+        # and holds junk beyond each length, and the batch is padded with zero-length utterances at the end;
+        # loss and gradient must not depend on any of it
+        from nemo.collections.asr.parts.triton.ctc_loss import packed_ctc_loss
+
+        torch.manual_seed(17)
+        lengths = torch.tensor([9, 7, 4], device="cuda")
+        target_lengths = torch.tensor([4, 3, 2], device="cuda")
+        targets = torch.randint(0, 5, (3, 4), device="cuda")
+        log_probs = torch.randn(20, 6, device="cuda").log_softmax(-1)
+        cu_seqlens = torch.tensor([0, 9, 16, 20], dtype=torch.int32, device="cuda")
+        tight = log_probs.detach().clone().requires_grad_()
+        loss_tight = packed_ctc_loss(tight, cu_seqlens, lengths, targets, target_lengths, blank=5)
+        loss_tight.sum().backward()
+
+        wide_targets = torch.randint(0, 5, (5, 32), device="cuda")
+        wide_targets[:3, :4] = targets
+        wide_lengths = torch.cat([lengths, lengths.new_zeros(2)])
+        wide_target_lengths = torch.cat([target_lengths, target_lengths.new_zeros(2)])
+        wide_cu_seqlens = torch.tensor([0, 9, 16, 20, 20, 20], dtype=torch.int32, device="cuda")
+        wide = log_probs.detach().clone().requires_grad_()
+        loss_wide = packed_ctc_loss(wide, wide_cu_seqlens, wide_lengths, wide_targets, wide_target_lengths, blank=5)
+        loss_wide.sum().backward()
+        torch.testing.assert_close(loss_wide[:3], loss_tight)
+        assert loss_wide[3:].abs().sum().item() == 0.0
+        torch.testing.assert_close(wide.grad, tight.grad)
+
+    @pytest.mark.unit
     def test_rejects_target_lengths_beyond_width(self):
         logits, lengths, targets, target_lengths = self._small_case("cuda")
         packed = pack_encoder_output(logits.log_softmax(-1), lengths)

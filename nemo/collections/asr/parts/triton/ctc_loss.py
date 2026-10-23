@@ -33,6 +33,21 @@ which is the gradient of the padded kernel
 The posteriors of the blank states are reduced in registers;
 the label states are scattered with atomic adds,
 as the padded CUDA kernel does for its non-blank labels.
+
+The design follows RETURNN's packed full-sum loss
+(``ctc_loss_packed`` and ``FastBaumWelchPackedOp`` in ``returnn/torch/util/native_op.py`` and ``returnn/native_op.py``
+of https://github.com/rwth-i6/returnn):
+the scores are addressed in the token-flat buffer through per-sequence start offsets,
+the posteriors are scattered back into a buffer of the same layout,
+the gradient is ``exp(log_probs) - posterior`` masked per frame,
+the shapes are static (no host synchronization in the kernels, so a CUDA graph can capture them),
+and the state count follows the longest target of the batch rather than the width of the targets buffer,
+so an over-allocated buffer costs nothing (RETURNN's content-sized FSA edge layout).
+It differs in three points:
+the CTC topology is built into the recursion instead of a generic FSA edge list,
+each program walks the frames of its own utterance instead of frame-wise kernels over all edges of the batch,
+and the alphas are stored while the betas are recomputed in the backward,
+instead of the full ``(T_total, D)`` posterior tensor.
 """
 
 import torch
@@ -89,8 +104,10 @@ def packed_ctc_loss(
         raise ValueError(f"target_lengths must have shape ({batch_size},), got {tuple(target_lengths.shape)}.")
     if not 0 <= blank < log_probs.shape[1]:
         raise ValueError(f"blank must be a class index below {log_probs.shape[1]}, got {blank}.")
-    # The same host check as the padded kernel; a graph capture cannot sync, and there the sampler
-    # guarantees the bound.
+    # The same host check as the padded kernel, and the longest target sizes the states,
+    # so that an over-allocated targets buffer costs nothing.
+    # A graph capture cannot sync: there the width stands in, and the sampler guarantees the bound.
+    longest = targets.shape[1]
     if batch_size and not torch.cuda.is_current_stream_capturing():
         longest = int(target_lengths.max())
         if longest > targets.shape[1]:
@@ -103,14 +120,14 @@ def packed_ctc_loss(
         target_lengths.contiguous(),
         blank,
         zero_infinity,
+        2 * longest + 1,
     )
 
 
 class _PackedCTCLoss(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, log_probs, cu_seqlens, lengths, targets, target_lengths, blank, zero_infinity):
+    def forward(ctx, log_probs, cu_seqlens, lengths, targets, target_lengths, blank, zero_infinity, num_states_max):
         batch_size, target_width = targets.shape
-        num_states_max = 2 * target_width + 1
         alpha = torch.empty((log_probs.shape[0], num_states_max), device=log_probs.device, dtype=torch.float32)
         loss = torch.empty((batch_size,), device=log_probs.device, dtype=torch.float32)
         if batch_size:
@@ -132,6 +149,7 @@ class _PackedCTCLoss(torch.autograd.Function):
         ctx.save_for_backward(log_probs, cu_seqlens, lengths, targets, target_lengths, alpha, loss)
         ctx.blank = blank
         ctx.zero_infinity = zero_infinity
+        ctx.num_states_max = num_states_max
         if zero_infinity:
             return torch.where(torch.isposinf(loss), 0.0, loss)
         return loss
@@ -140,7 +158,7 @@ class _PackedCTCLoss(torch.autograd.Function):
     def backward(ctx, grad_output):
         log_probs, cu_seqlens, lengths, targets, target_lengths, alpha, loss = ctx.saved_tensors
         batch_size, target_width = targets.shape
-        num_states_max = 2 * target_width + 1
+        num_states_max = ctx.num_states_max
         # zeros, not empty: a frame outside every utterance (a gapped layout) has no gradient
         grad = torch.zeros(log_probs.shape, device=log_probs.device, dtype=torch.float32)
         if batch_size:
@@ -163,7 +181,7 @@ class _PackedCTCLoss(torch.autograd.Function):
                 BLOCK_D=1024,
                 num_warps=_num_warps(num_states_max),
             )
-        return grad.to(log_probs.dtype), None, None, None, None, None, None
+        return grad.to(log_probs.dtype), None, None, None, None, None, None, None
 
 
 def _state_block(num_states_max: int) -> int:
