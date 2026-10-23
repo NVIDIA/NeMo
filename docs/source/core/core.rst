@@ -445,6 +445,7 @@ Optimizers
     name: rmsprop opt: <class 'torch.optim.rmsprop.RMSprop'>
     name: rprop opt: <class 'torch.optim.rprop.Rprop'>
     name: novograd opt: <class 'nemo.core.optim.novograd.Novograd'>
+    name: muon opt: <class 'nemo.core.optim.muon.Muon'>
 
 Optimizer Params
 ~~~~~~~~~~~~~~~~
