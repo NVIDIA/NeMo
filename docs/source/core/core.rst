@@ -423,9 +423,9 @@ Optimizers can be configured from the CLI as well:
 Parameter groups
 ~~~~~~~~~~~~~~~~
 
-``optim_param_groups`` sets optimizer options per model attribute, and ``optim_param_group_rules`` selects parameters
-by the type of the module that owns them or by name patterns, for example to exclude embeddings, normalization layers
-and biases from weight decay:
+``optim_param_groups`` sets optimizer options per model attribute,
+and ``optim_param_group_rules`` selects parameters by the type of the module that owns them or by name patterns,
+for example to exclude embeddings, normalization layers and biases from weight decay:
 
 .. code-block:: yaml
 

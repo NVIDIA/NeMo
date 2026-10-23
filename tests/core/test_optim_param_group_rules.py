@@ -190,3 +190,44 @@ class TestModelPTParamGroupRules:
         model.setup_optimization()
         assert len(model._optimizer.param_groups) == 1
         assert len(model._optimizer.param_groups[0]['params']) == len(list(model.parameters()))
+
+
+class TestConformerParamGroupRules:
+    """The rules on a Conformer encoder, the module structure the rules are written for."""
+
+    @pytest.mark.unit
+    def test_weight_decay_and_muon_selection_on_a_conformer(self):
+        from nemo.collections.asr.modules import ConformerEncoder
+
+        encoder = ConformerEncoder(
+            feat_in=8, n_layers=1, d_model=16, n_heads=2, ff_expansion_factor=2, conv_kernel_size=3
+        )
+        groups = apply_param_group_rules(
+            encoder,
+            [{'params': list(encoder.parameters()), 'weight_decay': 0.01}],
+            {
+                'no_weight_decay': {'param_names': ['*.bias'], 'weight_decay': 0.0},
+                # the batch-norm shift keeps its decay although it is named bias
+                'batch_norm_decays': {'module_types': ['torch.nn.BatchNorm1d'], 'weight_decay': 0.01},
+                'pointwise_matrices': {
+                    'param_names': ['*.pointwise_conv1.weight', '*.pointwise_conv2.weight'],
+                    'use_muon': True,
+                },
+            },
+        )
+        options = {}
+        for group in groups:
+            for name in _names(encoder, group):
+                options[name] = {key: value for key, value in group.items() if key != 'params'}
+        assert len(options) == len(list(encoder.parameters()))
+        assert options['layers.0.conv.batch_norm.bias'] == {'weight_decay': 0.01}
+        assert options['layers.0.conv.batch_norm.weight'] == {'weight_decay': 0.01}
+        assert options['layers.0.conv.pointwise_conv1.weight'] == {'weight_decay': 0.01, 'use_muon': True}
+        assert options['layers.0.conv.pointwise_conv1.bias'] == {'weight_decay': 0.0}
+        assert options['layers.0.conv.depthwise_conv.weight'] == {'weight_decay': 0.01}
+        assert options['layers.0.self_attn.linear_q.weight'] == {'weight_decay': 0.01}
+        assert options['layers.0.self_attn.linear_q.bias'] == {'weight_decay': 0.0}
+        assert options['layers.0.norm_out.bias'] == {'weight_decay': 0.0}
+        assert options['pre_encode.out.bias'] == {'weight_decay': 0.0}
+        biases = [name for name in options if name.endswith('.bias') and 'batch_norm' not in name]
+        assert biases and all(options[name]['weight_decay'] == 0.0 for name in biases)

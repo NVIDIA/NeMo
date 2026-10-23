@@ -34,15 +34,17 @@ def apply_param_group_rules(
 ) -> List[Dict[str, Any]]:
     """Split optimizer parameter groups by rules that select parameters and set their group options.
 
-    A rule selects parameters by the types of the modules that own them (``module_types``: classes or import paths;
-    a parameter shared between modules matches when any owner matches) or by ``fnmatch`` patterns on their names as
-    :meth:`torch.nn.Module.named_parameters` of ``module`` reports them (``param_names``; every name of a shared
-    parameter counts), and its remaining keys are the options for the selected parameters, such as
-    ``weight_decay: 0.0`` or an optimizer-specific flag.
-    Each group of ``param_groups`` is split into the parameters no rule selects, which keep the group's options, and
-    one sub-group per combination of matching rules, which carries the group's options overridden by the options of
-    those rules in the order of ``rules``.
-    Parameters keep their order, sub-groups appear in the order of their first parameter and empty groups are dropped.
+    A rule selects parameters by the types of the modules that own them
+    (``module_types``: classes or import paths; a parameter shared between modules matches when any owner matches)
+    or by ``fnmatch`` patterns on their names as :meth:`torch.nn.Module.named_parameters` of ``module`` reports them
+    (``param_names``; every name of a shared parameter counts),
+    and its remaining keys are the options for the selected parameters,
+    such as ``weight_decay: 0.0`` or an optimizer-specific flag.
+    Each group of ``param_groups`` is split into the parameters no rule selects, which keep the group's options,
+    and one sub-group per combination of matching rules,
+    which carries the group's options overridden by the options of those rules in the order of ``rules``.
+    Parameters keep their order, sub-groups appear in the order of their first parameter,
+    and empty groups are dropped.
 
     Example::
 
@@ -59,6 +61,9 @@ def apply_param_group_rules(
         module: the module whose parameters the groups hold; it resolves owners and names
         param_groups: parameter groups as the optimizer takes them
         rules: rule name to rule; the name labels the rule in error messages and documentation only
+
+    Returns:
+        the split parameter groups
     """
     owners: Dict[int, List[torch.nn.Module]] = {}
     names: Dict[int, List[str]] = {}

@@ -820,10 +820,11 @@ class ModelPT(LightningModule, Model):
                 lr: 3e-3
                 momentum: 0.9
 
-        Parameters can further be selected by the type of the module that owns them or by name patterns
-        with 'optim_param_group_rules', which splits the groups above and sets options on the selected
-        parameters, such as no weight decay for embeddings, norms and biases; see
-        :func:`nemo.core.optim.param_groups.apply_param_group_rules`:
+        Parameters can further be selected by the type of the module that owns them
+        or by name patterns with 'optim_param_group_rules',
+        which splits the groups above and sets options on the selected parameters,
+        such as no weight decay for embeddings, norms and biases;
+        see :func:`nemo.core.optim.param_groups.apply_param_group_rules`:
 
         model:
             optim_param_group_rules:
