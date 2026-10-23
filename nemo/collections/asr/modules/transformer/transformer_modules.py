@@ -32,9 +32,10 @@ class RMSNorm(nn.Module):
     """
     Root mean square normalization (Zhang and Sennrich, 2019) with a learned scale and no bias.
 
-    Written with elementary ops in the input dtype so that ONNX export works: ``torch.nn.RMSNorm`` lowers to
-    ``aten::rms_norm``, which the exporter does not support, and dtype casts around the computation leave the
-    legacy exporter's graph with dangling references. The state is ``weight``, as in ``torch.nn.RMSNorm``.
+    Written with elementary ops in the input dtype so that ONNX export works:
+    ``torch.nn.RMSNorm`` lowers to ``aten::rms_norm``, which the exporter does not support,
+    and dtype casts around the computation leave the legacy exporter's graph with dangling references.
+    The state is ``weight``, as in ``torch.nn.RMSNorm``.
 
     Args:
         normalized_shape: size of the normalized last axis
@@ -59,12 +60,13 @@ class FixedPositionalEncoding(nn.Module):
     Args:
         hidden_size: size of the embeddings in the model, also known as d_model
         max_sequence_length: maximum allowed length of the input sequence
-        layout: ``interleaved`` (default) alternates sine and cosine along the feature axis with the
-            frequencies ``10000**(-2i/hidden_size)``; ``tensor2tensor`` stores all sines before all
-            cosines with the frequencies ``10000**(-i/(hidden_size/2 - 1))`` of the original
-            tensor2tensor implementation.
-        scale: multiplier of the table; the default ``1/sqrt(hidden_size)`` matches token embeddings
-            of unit scale, ``1.0`` matches token embeddings scaled by ``sqrt(hidden_size)``.
+        layout: ``interleaved`` (default) alternates sine and cosine along the feature axis,
+            with the frequencies ``10000**(-2i/hidden_size)``;
+            ``tensor2tensor`` stores all sines before all cosines,
+            with the frequencies ``10000**(-i/(hidden_size/2 - 1))`` of the original tensor2tensor implementation
+        scale: multiplier of the table;
+            the default ``1/sqrt(hidden_size)`` matches token embeddings of unit scale,
+            ``1.0`` matches token embeddings scaled by ``sqrt(hidden_size)``
     """
 
     def __init__(self, hidden_size, max_sequence_length=512, layout: str = "interleaved", scale: float | None = None):
@@ -116,8 +118,8 @@ class TransformerEmbedding(nn.Module):
         embedding_dropout: probability of dropout applied to embeddings
         learn_positional_encodings: whether to learn positional encodings or
             use fixed (sine-cosine) ones
-        scale_embeddings: multiply the token embeddings by ``sqrt(hidden_size)`` as in the original
-            Transformer; the fixed positional table is then used unscaled
+        scale_embeddings: multiply the token embeddings by ``sqrt(hidden_size)`` as in the original Transformer;
+            the fixed positional table is then used unscaled
         positional_encoding_layout: layout of the fixed positional table, see ``FixedPositionalEncoding``
         use_layer_norm: apply the LayerNorm after adding the positions (default True)
     """
@@ -208,8 +210,9 @@ class MultiHeadAttention(nn.Module):
         attn_layer_dropout: probability of dropout applied to the output of the
             whole layer, but before layer normalization
         use_bias: bias in the query, key, value and output projections (default True)
-        rotary_base: theta base of a rotary position embedding applied to queries and keys (self-attention
-            only); keys longer than the queries are treated as a cache prefix. None (default) for no rotation.
+        rotary_base: theta base of a rotary position embedding applied to queries and keys, self-attention only;
+            keys longer than the queries are treated as a cache prefix;
+            None (default) for no rotation
     """
 
     def __init__(
@@ -301,9 +304,9 @@ class PositionWiseFF(nn.Module):
         inner_size: number of neurons in the intermediate part of feed-forward
             net, usually is (4-8 x hidden_size) in the papers
         ffn_dropout: probability of dropout applied to net output
-        hidden_act: activation function used between two linear layers: ``relu``, ``gelu``, or a gated
-            variant ``swiglu``/``geglu``/``reglu`` whose first projection has twice the inner size and whose
-            activated first half gates the second half (Shazeer, 2020)
+        hidden_act: activation function used between two linear layers: ``relu``, ``gelu``,
+            or a gated variant ``swiglu``, ``geglu`` or ``reglu`` (Shazeer, 2020),
+            whose first projection has twice the inner size and whose activated first half gates the second half
         use_bias: bias in both projections (default True)
     """
 
