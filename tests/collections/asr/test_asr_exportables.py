@@ -26,6 +26,7 @@ from nemo.collections.asr.models import (
     EncDecRNNTModel,
     EncDecSpeakerLabelModel,
 )
+from nemo.collections.asr.modules.transformer.transformer import TransformerDecoderNM
 from nemo.collections.asr.parts.utils import asr_module_utils
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.core.utils import numba_utils
@@ -627,3 +628,39 @@ def conformer_model():
     )
     conformer_model = EncDecCTCModel(cfg=modelConfig)
     return conformer_model
+
+
+class TestTransformerDecoderExportInputs:
+    """Export example inputs of TransformerDecoderNM stay within the vocabulary and the positional table."""
+
+    @pytest.mark.unit
+    def test_input_example_is_bounded(self):
+        decoder = TransformerDecoderNM(
+            vocab_size=8, hidden_size=16, num_layers=1, inner_size=24, num_attention_heads=2, max_sequence_length=32
+        ).eval()
+        input_ids, decoder_mask, encoder_states, encoder_mask, decoder_mems = decoder.input_example(
+            max_batch=2, max_dim=64
+        )
+        assert input_ids.shape == (2, 32) and int(input_ids.max()) < 8
+        assert encoder_states.shape == (2, 32, 16) and decoder_mems.shape == (2, decoder.num_states, 31, 16)
+        # the example runs through the module, as the exporter does before tracing
+        decoder._prepare_for_export()
+        with torch.no_grad():
+            decoder(
+                input_ids=input_ids,
+                decoder_mask=decoder_mask,
+                encoder_embeddings=encoder_states,
+                encoder_mask=encoder_mask,
+                decoder_mems=decoder_mems,
+            )
+
+    @pytest.mark.unit
+    def test_tensor_start_position(self):
+        decoder = TransformerDecoderNM(
+            vocab_size=8, hidden_size=16, num_layers=1, inner_size=24, num_attention_heads=2, max_sequence_length=32
+        ).eval()
+        input_ids = torch.tensor([[3, 4]])
+        with torch.no_grad():
+            from_int = decoder.embedding(input_ids, start_pos=5)
+            from_tensor = decoder.embedding(input_ids, start_pos=torch.tensor(5))
+        torch.testing.assert_close(from_int, from_tensor)
