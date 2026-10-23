@@ -19,6 +19,10 @@ from torch import Tensor, nn
 from nemo.collections.asr.parts.packed_sequence import PackedEncoderActivations, unpack_encoder_output
 from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
+from nemo.core.utils.optional_libs import TRITON_AVAILABLE
+
+if TRITON_AVAILABLE:
+    from nemo.collections.asr.parts.triton.ctc_loss import packed_ctc_loss
 
 __all__ = ['CTCLoss']
 
@@ -68,9 +72,11 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
     def forward_packed(self, log_probs: PackedEncoderActivations, targets: Tensor, target_lengths: Tensor) -> Tensor:
         """Compute the CTC loss from token-flat log probabilities with explicit sequence boundaries.
 
-        This is a compatibility boundary, not a padding-free CTC kernel:
-        it materializes the padded log probabilities for the existing kernel and calls ``forward``,
-        so the encoder and the vocabulary projection can stay packed up to this call.
+        On CUDA the loss runs as a kernel over the token-flat log probabilities
+        (:func:`nemo.collections.asr.parts.triton.ctc_loss.packed_ctc_loss`),
+        so neither the padded ``(B, T, D)`` log probabilities nor their gradient are formed.
+        Elsewhere the padded log probabilities are materialized for the padded kernel of ``forward``.
+        Both give the loss and the gradient of ``forward``;
         ``reduction`` and ``zero_infinity`` apply unchanged.
 
         Args:
@@ -86,6 +92,28 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
                 f"forward_packed expects PackedEncoderActivations as log_probs, got {type(log_probs).__name__}; "
                 "padded log probabilities go to forward."
             )
+        if log_probs.data.is_cuda and TRITON_AVAILABLE:
+            losses = packed_ctc_loss(
+                log_probs.data,
+                log_probs.cu_seqlens,
+                log_probs.lengths,
+                targets.long(),
+                target_lengths.long(),
+                blank=self._blank,
+                zero_infinity=self.zero_infinity,
+            )
+            if self.reduction == 'sum':
+                loss = losses.sum()
+            elif self.reduction == 'mean':
+                # the padded kernel's mean: each loss over its target length, then the batch mean
+                loss = (losses / target_lengths.clamp(min=1)).mean()
+            elif self.reduction == 'none':
+                loss = losses
+            else:
+                raise ValueError(f"unexpected reduction {self.reduction!r}")
+            if self._apply_reduction:
+                loss = self.reduce(loss, target_lengths)
+            return loss
         return self.forward(
             log_probs=unpack_encoder_output(log_probs),
             targets=targets,
