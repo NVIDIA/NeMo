@@ -285,6 +285,21 @@ class TestFilterbankFeaturesOptions:
         assert dense[1, :, dense_lengths[1] :].abs().sum() == 0
 
     @pytest.mark.unit
+    def test_normalize_values(self):
+        torch.manual_seed(5)
+        signal = torch.randn(1, 3000)
+        lengths = torch.tensor([3000])
+        raw, _ = FilterbankFeatures(normalize=None, **PLAIN).eval()(signal, lengths)
+        for off in ("NA", "None", False):
+            module = FilterbankFeatures(normalize=off, **PLAIN).eval()
+            assert module.norm is None
+            torch.testing.assert_close(module(signal, lengths)[0], raw)
+        with pytest.raises(ValueError, match="normalize='per_features'"):
+            FilterbankFeatures(normalize="per_features", **PLAIN)
+        with pytest.raises(ValueError, match="fixed_std"):
+            FilterbankFeatures(normalize={"fixed_mean": [0.0] * 80}, **PLAIN)
+
+    @pytest.mark.unit
     def test_preprocessor_options_and_config(self):
         preprocessor = AudioToMelSpectrogramPreprocessor(
             window_size=0.025,

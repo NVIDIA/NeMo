@@ -476,8 +476,20 @@ class FilterbankFeatures(nn.Module):
             raise ValueError(f"{self} received log_base={log_base!r}; it must be a positive number other than 1.")
         self.log_base = log_base
         self.norm = None
-        if _is_normalization_block(normalize):
+        if callable(normalize) or (isinstance(normalize, Mapping) and "_target_" in normalize):
             self.norm = build_module(normalize, num_features=nfilt * frame_splicing)
+        elif isinstance(normalize, Mapping):
+            if "fixed_mean" not in normalize or "fixed_std" not in normalize:
+                raise ValueError(
+                    f"{self} received normalize={normalize!r}; "
+                    "a mapping needs fixed_mean and fixed_std, or _target_ for a normalization block."
+                )
+        elif normalize not in (None, False, "", "NA", "None", "per_feature", "all_features"):
+            raise ValueError(
+                f"{self} received normalize={normalize!r}; it must be 'per_feature', 'all_features', "
+                "a mapping with fixed_mean and fixed_std, a normalization block, or None, 'NA' or 'None' for no "
+                "normalization."
+            )
 
         self.use_grads = use_grads
         if not use_grads:
@@ -769,11 +781,6 @@ class FilterbankFeatures(nn.Module):
             if pad_amt != 0:
                 x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
         return x, seq_len
-
-
-def _is_normalization_block(normalize: object) -> bool:
-    """Whether ``normalize`` names a module to build rather than one of the built-in normalization modes."""
-    return callable(normalize) or (isinstance(normalize, Mapping) and "_target_" in normalize)
 
 
 def _validate_packed_waveforms(x, seq_len, cu_seqlens):
