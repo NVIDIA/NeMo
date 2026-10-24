@@ -642,6 +642,10 @@ class FilterbankFeatures(nn.Module):
 
         if self.snip_edges:
             x = torch.nn.functional.pad(x, self._signal_padding(), "constant")
+            if x.shape[1] < self.n_fft:
+                # No signal in the batch holds one window, so every length is 0;
+                # torch.stft still needs n_fft samples, and the frame it produces is masked below.
+                x = torch.nn.functional.pad(x, (0, self.n_fft - x.shape[1]), "constant")
 
         # disable autocast to get full range of stft values
         with torch.amp.autocast(x.device.type, enabled=False):

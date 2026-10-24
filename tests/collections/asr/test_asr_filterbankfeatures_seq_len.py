@@ -196,6 +196,19 @@ class TestFilterbankFeaturesOptions:
             FilterbankFeatures(snip_edges=True, exact_pad=True)
 
     @pytest.mark.unit
+    def test_snip_edges_batch_shorter_than_one_window(self):
+        module = FilterbankFeatures(snip_edges=True, normalize=None, **PLAIN).eval()
+        signal = torch.randn(2, 399)
+        lengths = torch.tensor([399, 150])
+        features, out_lengths = module(signal, lengths)
+        # no frame fits into either signal; the one frame the STFT needs is masked
+        assert out_lengths.tolist() == [0, 0]
+        assert features.shape[0] == 2 and features.shape[1] == 80 and features.shape[2] >= 1
+        assert features.abs().sum() == 0
+        packed = module.forward_packed(*_pack(signal, lengths))
+        assert packed.lengths.tolist() == [0, 0] and packed.data.shape == (0, 80)
+
+    @pytest.mark.unit
     def test_snip_edges_packed_matches_dense(self):
         torch.manual_seed(1)
         module = FilterbankFeatures(snip_edges=True, normalize=None, **PLAIN).eval()
