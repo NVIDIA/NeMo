@@ -178,6 +178,9 @@ def _patch_speechlm_training_prompt_contract(chat_utils: Any) -> None:
 
 def install_prompt_contract() -> None:
     """Install the SpeechLM-only vLLM chat rendering adapter."""
-    from vllm.entrypoints import chat_utils
+    try:
+        from vllm.renderers import chat_utils  # vLLM 0.32
+    except ImportError:
+        from vllm.entrypoints import chat_utils
 
     _patch_speechlm_training_prompt_contract(chat_utils)
