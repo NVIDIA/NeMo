@@ -35,6 +35,8 @@
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 import math
 import random
+from collections.abc import Mapping
+from typing import Optional
 
 import librosa
 import numpy as np
@@ -44,6 +46,7 @@ import torch.nn as nn
 from nemo.collections.asr.parts.packed_sequence import PackedEncoderActivations, _new_packed_encoder_activations
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.common.parts.utils import build_module
 from nemo.utils import logging
 
 CONSTANT = 1e-5
@@ -296,6 +299,10 @@ class FilterbankFeatures(nn.Module):
         nb_augmentation_prob=0.0,
         nb_max_freq=4000,
         mel_norm="slaney",
+        mel_scale: str = "slaney",
+        periodic_window: bool = False,
+        snip_edges: bool = False,
+        log_base: Optional[float] = None,
         stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
         stft_conv=False,  # Deprecated arguments; kept for config compatibility
     ):
@@ -306,6 +313,8 @@ class FilterbankFeatures(nn.Module):
                 "for FilterbankFeatures and AudioToMelSpectrogramPreprocessor. Please set exact_pad to True "
                 "as needed."
             )
+        if exact_pad and snip_edges:
+            raise ValueError(f"{self} received both exact_pad and snip_edges; they are different framings.")
         if exact_pad and n_window_stride % 2 == 1:
             raise NotImplementedError(
                 f"{self} received exact_pad == True, but hop_size was odd. If audio_length % hop_size == 0. Then the "
@@ -331,6 +340,7 @@ class FilterbankFeatures(nn.Module):
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
         self.stft_pad_amount = (self.n_fft - self.hop_length) // 2 if exact_pad else None
         self.exact_pad = exact_pad
+        self.snip_edges = snip_edges
         self.sample_rate = sample_rate
 
         if exact_pad:
@@ -343,7 +353,7 @@ class FilterbankFeatures(nn.Module):
             'none': None,
         }
         window_fn = torch_windows.get(window, None)
-        window_tensor = window_fn(self.win_length, periodic=False) if window_fn else None
+        window_tensor = window_fn(self.win_length, periodic=periodic_window) if window_fn else None
         self.register_buffer("window", window_tensor)
 
         self.normalize = normalize
@@ -355,9 +365,17 @@ class FilterbankFeatures(nn.Module):
         self.pad_to = pad_to
         highfreq = highfreq or sample_rate / 2
 
+        if mel_scale not in ("slaney", "htk"):
+            raise ValueError(f"{self} received mel_scale={mel_scale!r}; it must be 'slaney' or 'htk'.")
         filterbanks = torch.tensor(
             librosa.filters.mel(
-                sr=sample_rate, n_fft=self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq, norm=mel_norm
+                sr=sample_rate,
+                n_fft=self.n_fft,
+                n_mels=nfilt,
+                fmin=lowfreq,
+                fmax=highfreq,
+                htk=mel_scale == "htk",
+                norm=mel_norm,
             ),
             dtype=torch.float,
         ).unsqueeze(0)
@@ -377,6 +395,25 @@ class FilterbankFeatures(nn.Module):
                 f"{self} received {log_zero_guard_type} for the "
                 f"log_zero_guard_type parameter. It must be either 'add' or "
                 f"'clamp'."
+            )
+
+        if log_base is not None and (log_base <= 0 or log_base == 1):
+            raise ValueError(f"{self} received log_base={log_base!r}; it must be a positive number other than 1.")
+        self.log_base = log_base
+        self.norm = None
+        if callable(normalize) or (isinstance(normalize, Mapping) and "_target_" in normalize):
+            self.norm = build_module(normalize, num_features=nfilt * frame_splicing)
+        elif isinstance(normalize, Mapping):
+            if "fixed_mean" not in normalize or "fixed_std" not in normalize:
+                raise ValueError(
+                    f"{self} received normalize={normalize!r}; "
+                    "a mapping needs fixed_mean and fixed_std, or _target_ for a normalization block."
+                )
+        elif normalize not in (None, False, "", "NA", "None", "per_feature", "all_features"):
+            raise ValueError(
+                f"{self} received normalize={normalize!r}; it must be 'per_feature', 'all_features', "
+                "a mapping with fixed_mean and fixed_std, a normalization block, or None, 'NA' or 'None' for no "
+                "normalization."
             )
 
         self.use_grads = use_grads
@@ -406,7 +443,7 @@ class FilterbankFeatures(nn.Module):
 
     def stft(self, x, *, center=None):
         if center is None:
-            center = not self.exact_pad
+            center = not (self.exact_pad or self.snip_edges)
         return torch.stft(
             x,
             n_fft=self.n_fft,
@@ -434,10 +471,26 @@ class FilterbankFeatures(nn.Module):
             return self.log_zero_guard_value
 
     def get_seq_len(self, seq_len):
+        if self.snip_edges:
+            # Frames that lie entirely inside the signal, all of them valid;
+            # the padded framings below report one frame fewer than their STFT produces.
+            seq_len = torch.floor_divide(seq_len - self.win_length, self.hop_length) + 1
+            return torch.clamp(seq_len, min=0).to(dtype=torch.long)
         # Assuming that center is True is stft_pad_amount = 0
         pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount is not None else self.n_fft // 2 * 2
         seq_len = torch.floor_divide((seq_len + pad_amount - self.n_fft), self.hop_length)
         return seq_len.to(dtype=torch.long)
+
+    def _signal_padding(self) -> tuple[int, int]:
+        """Zeros before and after the signal that give ``torch.stft(center=False)`` the configured framing."""
+        if self.snip_edges:
+            # torch centers a window shorter than n_fft inside the frame;
+            # this offset puts the first frame's window on the first samples of the signal.
+            left = (self.n_fft - self.win_length) // 2
+            return left, self.n_fft - self.win_length - left
+        if self.stft_pad_amount is not None:
+            return self.stft_pad_amount, self.stft_pad_amount
+        return self.n_fft // 2, self.n_fft // 2
 
     @property
     def filter_banks(self):
@@ -457,7 +510,9 @@ class FilterbankFeatures(nn.Module):
         seq_len, cu_seqlens, host_seq_len = _validate_packed_waveforms(x, seq_len, cu_seqlens)
         feature_lengths = torch.where(seq_len == 0, 0, self.get_seq_len(seq_len))
         host_feature_lengths = torch.where(host_seq_len == 0, 0, self.get_seq_len(host_seq_len))
-        padded_length = _dense_feature_width(host_feature_lengths, self.pad_to, self.max_length)
+        padded_length = _dense_feature_width(
+            host_feature_lengths, self.pad_to, self.max_length, extra_frame=not self.snip_edges
+        )
         max_seqlen = int(host_feature_lengths.max()) if host_feature_lengths.numel() else 0
         total_frames = int(host_feature_lengths.sum())
         if bool((host_feature_lengths < 0).any()):
@@ -476,16 +531,16 @@ class FilterbankFeatures(nn.Module):
                 max_seqlen=max_seqlen,
             )
 
-        guard = self.stft_pad_amount if self.stft_pad_amount is not None else self.n_fft // 2
-        block_lengths = _round_up(seq_len + 2 * guard, self.hop_length)
+        pad_left, pad_right = self._signal_padding()
+        block_lengths = _round_up(seq_len + pad_left + pad_right, self.hop_length)
         block_offsets = torch.cat([seq_len.new_zeros(1), block_lengths.cumsum(0)])
-        guarded_size = int(_round_up(host_seq_len + 2 * guard, self.hop_length).sum())
+        guarded_size = int(_round_up(host_seq_len + pad_left + pad_right, self.hop_length).sum())
         guarded = x.new_zeros(guarded_size)
 
         guarded_positions = torch.arange(x.numel(), device=x.device)
         sample_sequence_ids = torch.bucketize(guarded_positions, cu_seqlens[1:], right=True)
         guarded_positions -= cu_seqlens[sample_sequence_ids]
-        guarded_positions += block_offsets[sample_sequence_ids] + guard
+        guarded_positions += block_offsets[sample_sequence_ids] + pad_left
 
         if self.stft_pad_amount is None:
             samples = _dither_and_preemphasize_packed(
@@ -548,9 +603,13 @@ class FilterbankFeatures(nn.Module):
                 features = torch.log(torch.clamp(features, min=self.log_zero_guard_value_fn(features)))
             else:
                 raise ValueError("log_zero_guard_type was not understood")
+            if self.log_base is not None:
+                features = features * (1.0 / math.log(self.log_base))
         if self.frame_splicing > 1:
             features = features.repeat(1, self.frame_splicing)
-        if self.normalize:
+        if self.norm is not None:
+            features = self.norm.normalize_frames(features)
+        elif self.normalize:
             features = _normalize_packed_features(features, feature_lengths, frame_sequence_ids, self.normalize)
         return _make_packed_features(
             features,
@@ -580,6 +639,13 @@ class FilterbankFeatures(nn.Module):
             timemask = torch.arange(x.shape[1], device=x.device).unsqueeze(0) < seq_len_time.unsqueeze(1)
             x = torch.cat((x[:, 0].unsqueeze(1), x[:, 1:] - self.preemph * x[:, :-1]), dim=1)
             x = x.masked_fill(~timemask, 0.0)
+
+        if self.snip_edges:
+            x = torch.nn.functional.pad(x, self._signal_padding(), "constant")
+            if x.shape[1] < self.n_fft:
+                # No signal in the batch holds one window, so every length is 0;
+                # torch.stft still needs n_fft samples, and the frame it produces is masked below.
+                x = torch.nn.functional.pad(x, (0, self.n_fft - x.shape[1]), "constant")
 
         # disable autocast to get full range of stft values
         with torch.amp.autocast(x.device.type, enabled=False):
@@ -617,13 +683,17 @@ class FilterbankFeatures(nn.Module):
                 x = torch.log(torch.clamp(x, min=self.log_zero_guard_value_fn(x)))
             else:
                 raise ValueError("log_zero_guard_type was not understood")
+            if self.log_base is not None:
+                x = x * (1.0 / math.log(self.log_base))
 
         # frame splicing if required
         if self.frame_splicing > 1:
             x = splice_frames(x, self.frame_splicing)
 
         # normalize if required
-        if self.normalize:
+        if self.norm is not None:
+            x = self.norm(x, seq_len)
+        elif self.normalize:
             x, _, _ = normalize_batch(x, seq_len, normalize_type=self.normalize)
 
         # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
@@ -640,6 +710,81 @@ class FilterbankFeatures(nn.Module):
             if pad_amt != 0:
                 x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
         return x, seq_len
+
+
+class FeatureBatchNorm(nn.Module):
+    """Batch normalization of features over valid frames, without affine parameters.
+
+    A normalization block for ``FilterbankFeatures(normalize=...)``, which supplies ``num_features``.
+    Unlike ``torch.nn.BatchNorm1d``, frames beyond a sequence's length are excluded from the statistics.
+    Training normalizes with the mean and variance of the current batch's valid frames per feature
+    and moves the running statistics towards them by ``momentum``;
+    evaluation normalizes with the running statistics.
+    The variance is the biased estimate in both cases,
+    so the running variance is the quantity the normalization divides by.
+
+    Args:
+        num_features: Size of the feature axis D.
+        eps: Added to the variance before the square root.
+        momentum: Weight of the current batch in the update of the running statistics.
+    """
+
+    def __init__(self, num_features: int, eps: float = 1e-5, momentum: float = 0.1):
+        super().__init__()
+        self.num_features = num_features
+        self.eps = eps
+        self.momentum = momentum
+        self.register_buffer("running_mean", torch.zeros(num_features))
+        self.register_buffer("running_var", torch.ones(num_features))
+
+    def forward(self, x: torch.Tensor, seq_len: torch.Tensor) -> torch.Tensor:
+        """Normalize padded features.
+
+        Args:
+            x: Features with shape [B, D, T].
+            seq_len: Valid frames per sequence with shape [B]; later frames do not enter the statistics.
+
+        Returns:
+            Normalized features with shape [B, D, T] and the dtype of ``x``.
+        """
+        if not self.training:
+            return self._normalize(x, self.running_mean.unsqueeze(1), self.running_var.unsqueeze(1))
+        mask = make_seq_mask_like(seq_len, x)
+        values = x.float()
+        count = mask.sum()
+        mean = torch.where(mask, values, 0.0).sum(dim=(0, 2)) / count
+        centered = torch.where(mask, values - mean.unsqueeze(1), 0.0)
+        var = centered.square().sum(dim=(0, 2)) / count
+        self._update_running_statistics(mean, var, count > 0)
+        return self._normalize(x, mean.unsqueeze(1), var.unsqueeze(1))
+
+    def normalize_frames(self, frames: torch.Tensor) -> torch.Tensor:
+        """Normalize valid frames only, as the packed front end holds them.
+
+        Args:
+            frames: Features with shape [N, D], one row per valid frame of the batch.
+
+        Returns:
+            Normalized frames with shape [N, D] and the dtype of ``frames``.
+        """
+        if not self.training:
+            return self._normalize(frames, self.running_mean, self.running_var)
+        values = frames.float()
+        mean = values.mean(dim=0)
+        var = (values - mean).square().mean(dim=0)
+        valid = torch.full((), frames.shape[0] > 0, dtype=torch.bool, device=frames.device)
+        self._update_running_statistics(mean, var, valid)
+        return self._normalize(frames, mean, var)
+
+    def _normalize(self, x: torch.Tensor, mean: torch.Tensor, var: torch.Tensor) -> torch.Tensor:
+        return ((x.float() - mean) * torch.rsqrt(var + self.eps)).to(x.dtype)
+
+    @torch.no_grad()
+    def _update_running_statistics(self, mean: torch.Tensor, var: torch.Tensor, valid: torch.Tensor) -> None:
+        # A batch without valid frames has undefined statistics; the running values stay as they are then.
+        # No .item() here, so the update also runs under CUDA graph capture.
+        self.running_mean += torch.where(valid, (mean - self.running_mean) * self.momentum, 0.0)
+        self.running_var += torch.where(valid, (var - self.running_var) * self.momentum, 0.0)
 
 
 def _validate_packed_waveforms(x, seq_len, cu_seqlens):
@@ -677,8 +822,9 @@ def _round_up(values, multiple):
     return torch.div(values + multiple - 1, multiple, rounding_mode="floor") * multiple
 
 
-def _dense_feature_width(lengths, pad_to, max_length):
-    width = int(lengths.max().item()) + 1 if lengths.numel() else 0
+def _dense_feature_width(lengths, pad_to, max_length, extra_frame: bool = True):
+    # The padded framings produce one frame beyond the reported length; see FilterbankFeatures.get_seq_len.
+    width = int(lengths.max().item()) + int(extra_frame) if lengths.numel() else 0
     if pad_to == "max":
         return int(max_length)
     if pad_to > 0 and width % pad_to:
